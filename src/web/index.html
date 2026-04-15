@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="gastos.app" />
   <meta name="format-detection" content="telephone=no" />
   <title>gastos.app</title>
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" href="icon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -261,7 +261,7 @@
       [data-theme="dark"] .sidebar{background:rgba(20,23,22,.92)}
       .sidebar-top{display:none}
       .logo,.nav-section,.sidebar-bottom{display:none}
-      .nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:0;gap:6px;align-items:stretch;width:100%}
+      .nav{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:0;gap:6px;align-items:stretch;width:100%}
       .account-nav{margin-top:0;margin-left:0;width:100%}
       .nav-item,.account-nav{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:8px 6px;min-height:58px;text-align:center}
       .nav-item span,.account-nav span{display:block;font-size:10px;line-height:1.1}
@@ -272,7 +272,7 @@
       .charts-grid,.goals-grid,.ess-summary{grid-template-columns:1fr}
       .chart-card.full{grid-column:auto}
       .form-grid{grid-template-columns:1fr!important}
-      .account-panel{display:none}
+      .account-panel{position:fixed;inset:0;z-index:180;height:100dvh;border-left:none;background:var(--bg)}
       .page-header{flex-direction:column;gap:12px}
       .card,.chart-card,.goal-card,.stat{padding:18px}
       .tx-item{grid-template-columns:32px 1fr auto;gap:10px;padding:12px 8px}
@@ -667,11 +667,12 @@ const API = {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
-function app() {
-  return {
+    function app() {
+      return {
     // State
-    loading: true,
-    loggedIn: false,
+        loading: true,
+        isMobile: false,
+        loggedIn: false,
     authLoading: false,
     loginMode: 'login',
     loginError: '',
@@ -726,6 +727,8 @@ function app() {
 
     // ── Init ──────────────────────────────────────────────────────────────────
     async init() {
+      this.syncViewport()
+      window.addEventListener('resize', () => this.syncViewport())
       const today = new Date().toISOString().split('T')[0]
       this.newTx.date  = today
       this.newInc.date = today
@@ -745,6 +748,12 @@ function app() {
         }
       }
       this.loading = false
+    },
+
+    syncViewport() {
+      const wasMobile = this.isMobile
+      this.isMobile = window.innerWidth <= 960
+      if (this.isMobile !== wasMobile) this.showPanel = !this.isMobile
     },
 
     // ── Auth ──────────────────────────────────────────────────────────────────
