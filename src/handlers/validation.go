@@ -53,6 +53,20 @@ func validateGoal(goal models.Goal) error {
 	return nil
 }
 
+func validateAccountName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("Nome da conta é obrigatório")
+	}
+	return nil
+}
+
+func validateShareRole(role string) error {
+	if !models.IsValidShareRole(strings.TrimSpace(role)) {
+		return errors.New("Papel inválido")
+	}
+	return nil
+}
+
 func isValidDate(value string) bool {
 	if strings.TrimSpace(value) == "" {
 		return false

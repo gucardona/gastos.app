@@ -129,6 +129,30 @@
     .btn-logout{width:100%;justify-content:center;color:var(--danger);border:1px solid rgba(220,38,38,.3);background:transparent}
     .btn-logout:hover{background:rgba(220,38,38,.07);border-color:var(--danger)}
     .btn-login{width:100%;justify-content:center;padding:11px;font-size:14px;margin-top:8px;border-radius:9px;display:flex}
+    .role-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;background:var(--accent-dim);color:var(--accent);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+    .role-badge.reader{background:var(--surface2);color:var(--text2)}
+    .role-badge.editor{background:var(--income-dim);color:var(--income)}
+    .account-list,.member-list{display:flex;flex-direction:column;gap:10px}
+    .account-switch{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .15s}
+    .account-switch:hover{border-color:var(--accent);transform:translateY(-1px)}
+    .account-switch.active{background:var(--accent-dim);border-color:rgba(0,87,184,.25)}
+    .account-switch-main{min-width:0}
+    .account-switch-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .account-switch-meta{font-size:11px;color:var(--text2);margin-top:3px;font-weight:300}
+    .panel-field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+    .panel-field label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:500}
+    .panel-field input,.panel-field select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 12px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .15s;width:100%}
+    .panel-field input:focus,.panel-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(77,159,255,.15)}
+    .panel-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .panel-actions .btn{flex:1 1 0}
+    .panel-note{font-size:11px;line-height:1.5;color:var(--text2);font-weight:300}
+    .member-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 13px;border-radius:10px;border:1px solid var(--border);background:var(--surface2)}
+    .member-main{min-width:0}
+    .member-name{font-size:13px;font-weight:600}
+    .member-email{font-size:11px;color:var(--text2);font-weight:300;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+    .member-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    .member-actions select{min-width:110px}
+    .empty-panel{padding:16px 14px;border:1px dashed var(--border);border-radius:10px;color:var(--text2);font-size:12px;font-weight:300;text-align:center;background:var(--surface2)}
 
     /* ── Buttons ── */
     .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:var(--sans);transition:all .15s;white-space:nowrap;min-height:44px;justify-content:center}
@@ -378,7 +402,7 @@
       </div>
       <button class="account-btn account-nav" @click="showPanel=!showPanel">
         <div class="account-avatar" x-text="userInitials"></div>
-        <span>Conta</span>
+        <span x-text="hasActiveAccount ? activeAccountName : 'Contas'"></span>
       </button>
     </nav>
     <div class="sidebar-bottom">
@@ -399,177 +423,206 @@
 
   <!-- Main -->
   <main class="main">
-
-    <!-- DASHBOARD -->
-    <div class="page" :class="{active:page==='dashboard'}">
-      <div class="page-header">
-        <div><div class="page-title">Dashboard</div><div class="page-sub" x-text="monthLabel+' '+currentYear"></div></div>
-        <button class="btn btn-primary" @click="page='expenses'">+ Gasto</button>
-      </div>
-      <div class="stats-grid">
-        <div class="stat"><div class="stat-lbl">Entradas</div><div class="stat-val blue" x-text="fmt(totalIncome)"></div><div class="stat-meta" x-text="incomeMonth.length+' lançamentos'"></div></div>
-        <div class="stat"><div class="stat-lbl">Gastos</div><div class="stat-val red" x-text="fmt(totalExpenses)"></div><div class="stat-meta" x-text="expensesMonth.length+' transações'"></div></div>
-        <div class="stat"><div class="stat-lbl">Saldo</div><div class="stat-val" :class="balance>=0?'green':'red'" x-text="fmt(balance)"></div><div class="stat-meta" x-text="balance>=0?'positivo ✓':'negativo ✗'"></div></div>
-        <div class="stat"><div class="stat-lbl">Média/dia</div><div class="stat-val" x-text="fmt(dailyAvg)"></div><div class="stat-meta" x-text="daysElapsed+' dias no mês'"></div></div>
-      </div>
-      <div class="ess-summary">
-        <div class="ess-card essential"><div class="ess-card-label">Essencial</div><div class="ess-card-val" x-text="fmt(essentialTotal)"></div><div class="ess-card-pct" x-text="totalExpenses>0?((essentialTotal/totalExpenses)*100).toFixed(0)+'% dos gastos':'—'"></div></div>
-        <div class="ess-card nonessential"><div class="ess-card-label">Não essencial</div><div class="ess-card-val" x-text="fmt(nonEssentialTotal)"></div><div class="ess-card-pct" x-text="totalExpenses>0?((nonEssentialTotal/totalExpenses)*100).toFixed(0)+'% dos gastos':'—'"></div></div>
-        <div class="ess-card investment"><div class="ess-card-label">Investimento</div><div class="ess-card-val" x-text="fmt(investmentTotal)"></div><div class="ess-card-pct" x-text="totalExpenses>0?((investmentTotal/totalExpenses)*100).toFixed(0)+'% dos gastos':'—'"></div></div>
-      </div>
+    <template x-if="!hasActiveAccount">
       <div class="card">
-        <div class="card-title">Por categoria</div>
-        <template x-if="categoryTotals.length===0"><div class="empty"><div class="ei">◈</div><p>Sem gastos no período.</p></div></template>
-        <div class="cat-list">
-          <template x-for="cat in categoryTotals" :key="cat.id">
-            <div style="margin-bottom:2px">
-              <div class="cat-row">
-                <span style="font-size:17px" x-text="cat.icon"></span>
-                <div>
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-                    <span style="font-size:12px;font-weight:500" x-text="cat.name"></span>
-                    <span :class="'ess-badge ess-'+cat.essentiality" x-text="essLabel(cat.essentiality)"></span>
-                  </div>
-                  <div class="cat-bar-bg"><div class="cat-bar-fill" :style="{width:cat.pct+'%',background:cat.color}"></div></div>
-                </div>
-                <div class="cat-val" x-text="fmt(cat.total)"></div>
-              </div>
-            </div>
-          </template>
-        </div>
+        <div class="card-title">Sem conta ativa</div>
+        <div class="page-title" style="font-size:22px;margin-bottom:8px">Crie uma nova conta para começar</div>
+        <p class="panel-note" style="max-width:440px;margin-bottom:16px">Você removeu ou ainda não selecionou nenhuma conta. Use o painel lateral para criar uma conta como “Pessoal”, “Casa” ou “Empresa”.</p>
+        <button class="btn btn-primary" @click="showPanel=true">Abrir painel de contas</button>
       </div>
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--text2);font-weight:500;margin-bottom:10px">Recentes</div>
-      <div class="tx-list">
-        <template x-for="tx in recentExpenses" :key="tx.id">
-          <div class="tx-item">
-            <div class="tx-ico" x-text="getCatIcon(tx.category)"></div>
-            <div class="tx-body">
-              <div class="tx-row1"><span class="tx-desc" x-text="tx.description||getCatName(tx.category)"></span><span :class="'ess-badge ess-'+getCatEss(tx.category)" x-text="essLabel(getCatEss(tx.category))"></span></div>
-              <div class="tx-row2"><span class="tx-meta" x-text="formatDate(tx.date)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span></div>
-            </div>
-            <div class="tx-right"><span class="tx-amount" x-text="'− '+fmt(tx.amount)"></span></div>
+    </template>
+
+    <template x-if="hasActiveAccount">
+      <div>
+        <!-- DASHBOARD -->
+        <div class="page" :class="{active:page==='dashboard'}">
+          <div class="page-header">
+            <div><div class="page-title">Dashboard</div><div class="page-sub" x-text="monthLabel+' '+currentYear+' · '+activeAccountName"></div></div>
+            <button class="btn btn-primary" @click="page='expenses'" :disabled="!canEditActiveAccount">+ Gasto</button>
           </div>
-        </template>
-        <template x-if="expensesMonth.length===0"><div class="empty"><div class="ei">◎</div><p>Sem gastos no período.</p></div></template>
-      </div>
-    </div>
-
-    <!-- GRÁFICOS -->
-    <div class="page" :class="{active:page==='charts'}">
-      <div class="page-header"><div><div class="page-title">Gráficos</div><div class="page-sub" x-text="monthLabel+' '+currentYear"></div></div></div>
-      <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Essencial · Não-essencial · Investimento</div><div class="chart-wrap"><canvas id="chartEss"></canvas></div></div>
-        <div class="chart-card"><div class="chart-title">Por método de pagamento</div><div class="chart-wrap"><canvas id="chartPay"></canvas></div></div>
-        <div class="chart-card full"><div class="chart-title">Gastos por categoria</div><div class="chart-wrap tall"><canvas id="chartCat"></canvas></div></div>
-        <div class="chart-card full"><div class="chart-title">Evolução — últimos 6 meses</div><div class="chart-wrap"><canvas id="chartTrend"></canvas></div></div>
-      </div>
-    </div>
-
-    <!-- GASTOS -->
-    <div class="page" :class="{active:page==='expenses'}">
-      <div class="page-header"><div><div class="page-title">Gastos</div><div class="page-sub" x-text="monthLabel+' · '+fmt(totalExpenses)"></div></div></div>
-      <div class="card">
-        <div class="card-title">Adicionar gasto</div>
-        <div class="form-grid" style="grid-template-columns:110px 1fr 170px 160px 130px auto">
-          <div class="field"><label>Valor (R$)</label><input type="number" step="0.01" min="0" placeholder="0,00" x-model.number="newTx.amount" @keyup.enter="addExpense()" /></div>
-          <div class="field"><label>Descrição</label><input type="text" placeholder="almoço, uber, conta..." x-model="newTx.description" @keyup.enter="addExpense()" /></div>
-          <div class="field"><label>Categoria</label><select x-model="newTx.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
-          <div class="field"><label>Pagamento</label><select x-model="newTx.payment"><template x-for="p in paymentMethods" :key="p.id"><option :value="p.id" x-text="p.label"></option></template></select></div>
-          <div class="field"><label>Data</label><input type="date" x-model="newTx.date" /></div>
-          <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="addExpense()" :disabled="savingExpense" x-text="savingExpense?'...':'Adicionar'"></button></div>
-        </div>
-      </div>
-      <div class="filter-row">
-        <button class="chip" :class="{active:activeFilter==='all'}"          @click="activeFilter='all'">Todos</button>
-        <button class="chip" :class="{active:activeFilter==='essential'}"    @click="activeFilter='essential'">Essencial</button>
-        <button class="chip" :class="{active:activeFilter==='nonessential'}" @click="activeFilter='nonessential'">Não essencial</button>
-        <button class="chip" :class="{active:activeFilter==='investment'}"   @click="activeFilter='investment'">Investimento</button>
-        <span style="width:1px;background:var(--border);margin:0 4px;height:18px;align-self:center;display:inline-block"></span>
-        <template x-for="cat in categories" :key="cat.id"><button class="chip" :class="{active:activeFilter===cat.id}" @click="activeFilter=cat.id" x-text="cat.icon+' '+cat.name"></button></template>
-      </div>
-      <div class="tx-list">
-        <template x-if="groupedExpenses.length===0"><div class="empty"><div class="ei">◎</div><p>Nenhum gasto encontrado.</p></div></template>
-        <template x-for="group in groupedExpenses" :key="group.date">
-          <div>
-            <div class="date-group" x-text="group.label"></div>
-            <template x-for="tx in group.items" :key="tx.id">
+          <div class="stats-grid">
+            <div class="stat"><div class="stat-lbl">Entradas</div><div class="stat-val blue" x-text="fmt(totalIncome)"></div><div class="stat-meta" x-text="incomeMonth.length+' lançamentos'"></div></div>
+            <div class="stat"><div class="stat-lbl">Gastos</div><div class="stat-val red" x-text="fmt(totalExpenses)"></div><div class="stat-meta" x-text="expensesMonth.length+' transações'"></div></div>
+            <div class="stat"><div class="stat-lbl">Saldo</div><div class="stat-val" :class="balance>=0?'green':'red'" x-text="fmt(balance)"></div><div class="stat-meta" x-text="balance>=0?'positivo ✓':'negativo ✗'"></div></div>
+            <div class="stat"><div class="stat-lbl">Média/dia</div><div class="stat-val" x-text="fmt(dailyAvg)"></div><div class="stat-meta" x-text="daysElapsed+' dias no mês'"></div></div>
+          </div>
+          <div class="ess-summary">
+            <div class="ess-card essential"><div class="ess-card-label">Essencial</div><div class="ess-card-val" x-text="fmt(essentialTotal)"></div><div class="ess-card-pct" x-text="totalExpenses>0?((essentialTotal/totalExpenses)*100).toFixed(0)+'% dos gastos':'—'"></div></div>
+            <div class="ess-card nonessential"><div class="ess-card-label">Não essencial</div><div class="ess-card-val" x-text="fmt(nonEssentialTotal)"></div><div class="ess-card-pct" x-text="totalExpenses>0?((nonEssentialTotal/totalExpenses)*100).toFixed(0)+'% dos gastos':'—'"></div></div>
+            <div class="ess-card investment"><div class="ess-card-label">Investimento</div><div class="ess-card-val" x-text="fmt(investmentTotal)"></div><div class="ess-card-pct" x-text="totalExpenses>0?((investmentTotal/totalExpenses)*100).toFixed(0)+'% dos gastos':'—'"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Por categoria</div>
+            <template x-if="categoryTotals.length===0"><div class="empty"><div class="ei">◈</div><p>Sem gastos no período.</p></div></template>
+            <div class="cat-list">
+              <template x-for="cat in categoryTotals" :key="cat.id">
+                <div style="margin-bottom:2px">
+                  <div class="cat-row">
+                    <span style="font-size:17px" x-text="cat.icon"></span>
+                    <div>
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+                        <span style="font-size:12px;font-weight:500" x-text="cat.name"></span>
+                        <span :class="'ess-badge ess-'+cat.essentiality" x-text="essLabel(cat.essentiality)"></span>
+                      </div>
+                      <div class="cat-bar-bg"><div class="cat-bar-fill" :style="{width:cat.pct+'%',background:cat.color}"></div></div>
+                    </div>
+                    <div class="cat-val" x-text="fmt(cat.total)"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--text2);font-weight:500;margin-bottom:10px">Recentes</div>
+          <div class="tx-list">
+            <template x-for="tx in recentExpenses" :key="tx.id">
               <div class="tx-item">
                 <div class="tx-ico" x-text="getCatIcon(tx.category)"></div>
                 <div class="tx-body">
                   <div class="tx-row1"><span class="tx-desc" x-text="tx.description||getCatName(tx.category)"></span><span :class="'ess-badge ess-'+getCatEss(tx.category)" x-text="essLabel(getCatEss(tx.category))"></span></div>
-                  <div class="tx-row2"><span class="tx-meta" x-text="getCatName(tx.category)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span></div>
+                  <div class="tx-row2"><span class="tx-meta" x-text="formatDate(tx.date)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span></div>
                 </div>
-                <div class="tx-right"><span class="tx-amount" x-text="'− '+fmt(tx.amount)"></span><button class="tx-del" @click="deleteExpense(tx.id)">✕</button></div>
+                <div class="tx-right"><span class="tx-amount" x-text="'− '+fmt(tx.amount)"></span></div>
+              </div>
+            </template>
+            <template x-if="expensesMonth.length===0"><div class="empty"><div class="ei">◎</div><p>Sem gastos no período.</p></div></template>
+          </div>
+        </div>
+
+        <!-- GRÁFICOS -->
+        <div class="page" :class="{active:page==='charts'}">
+          <div class="page-header"><div><div class="page-title">Gráficos</div><div class="page-sub" x-text="monthLabel+' '+currentYear+' · '+activeAccountName"></div></div></div>
+          <div class="charts-grid">
+            <div class="chart-card"><div class="chart-title">Essencial · Não-essencial · Investimento</div><div class="chart-wrap"><canvas id="chartEss"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title">Por método de pagamento</div><div class="chart-wrap"><canvas id="chartPay"></canvas></div></div>
+            <div class="chart-card full"><div class="chart-title">Gastos por categoria</div><div class="chart-wrap tall"><canvas id="chartCat"></canvas></div></div>
+            <div class="chart-card full"><div class="chart-title">Evolução — últimos 6 meses</div><div class="chart-wrap"><canvas id="chartTrend"></canvas></div></div>
+          </div>
+        </div>
+
+        <!-- GASTOS -->
+        <div class="page" :class="{active:page==='expenses'}">
+          <div class="page-header"><div><div class="page-title">Gastos</div><div class="page-sub" x-text="monthLabel+' · '+fmt(totalExpenses)+' · '+activeAccountName"></div></div></div>
+          <div class="card" x-show="canEditActiveAccount">
+            <div class="card-title">Adicionar gasto</div>
+            <div class="form-grid" style="grid-template-columns:110px 1fr 170px 160px 160px auto">
+              <div class="field"><label>Valor (R$)</label><input type="number" step="0.01" min="0" placeholder="0,00" x-model.number="newTx.amount" @keyup.enter="addExpense()" /></div>
+              <div class="field"><label>Descrição</label><input type="text" placeholder="almoço, uber, conta..." x-model="newTx.description" @keyup.enter="addExpense()" /></div>
+              <div class="field"><label>Categoria</label><select x-model="newTx.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
+              <div class="field"><label>Pagamento</label><select x-model="newTx.payment"><template x-for="p in paymentMethods" :key="p.id"><option :value="p.id" x-text="p.label"></option></template></select></div>
+              <div class="field"><label>Data</label><input type="date" x-model="newTx.date" /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="addExpense()" :disabled="savingExpense" x-text="savingExpense?'...':'Adicionar'"></button></div>
+            </div>
+          </div>
+          <template x-if="isAccountReadOnly">
+            <div class="card">
+              <div class="card-title">Modo leitura</div>
+              <p class="panel-note">Você pode acompanhar os gastos desta conta, mas apenas o owner ou um editor podem criar e remover lançamentos.</p>
+            </div>
+          </template>
+          <div class="filter-row">
+            <button class="chip" :class="{active:activeFilter==='all'}"          @click="activeFilter='all'">Todos</button>
+            <button class="chip" :class="{active:activeFilter==='essential'}"    @click="activeFilter='essential'">Essencial</button>
+            <button class="chip" :class="{active:activeFilter==='nonessential'}" @click="activeFilter='nonessential'">Não essencial</button>
+            <button class="chip" :class="{active:activeFilter==='investment'}"   @click="activeFilter='investment'">Investimento</button>
+            <span style="width:1px;background:var(--border);margin:0 4px;height:18px;align-self:center;display:inline-block"></span>
+            <template x-for="cat in categories" :key="cat.id"><button class="chip" :class="{active:activeFilter===cat.id}" @click="activeFilter=cat.id" x-text="cat.icon+' '+cat.name"></button></template>
+          </div>
+          <div class="tx-list">
+            <template x-if="groupedExpenses.length===0"><div class="empty"><div class="ei">◎</div><p>Nenhum gasto encontrado.</p></div></template>
+            <template x-for="group in groupedExpenses" :key="group.date">
+              <div>
+                <div class="date-group" x-text="group.label"></div>
+                <template x-for="tx in group.items" :key="tx.id">
+                  <div class="tx-item">
+                    <div class="tx-ico" x-text="getCatIcon(tx.category)"></div>
+                    <div class="tx-body">
+                      <div class="tx-row1"><span class="tx-desc" x-text="tx.description||getCatName(tx.category)"></span><span :class="'ess-badge ess-'+getCatEss(tx.category)" x-text="essLabel(getCatEss(tx.category))"></span></div>
+                      <div class="tx-row2"><span class="tx-meta" x-text="getCatName(tx.category)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span></div>
+                    </div>
+                    <div class="tx-right"><span class="tx-amount" x-text="'− '+fmt(tx.amount)"></span><button class="tx-del" x-show="canEditActiveAccount" @click="deleteExpense(tx.id)">✕</button></div>
+                  </div>
+                </template>
               </div>
             </template>
           </div>
-        </template>
-      </div>
-    </div>
-
-    <!-- ENTRADAS -->
-    <div class="page" :class="{active:page==='income'}">
-      <div class="page-header"><div><div class="page-title">Entradas</div><div class="page-sub" x-text="monthLabel+' · '+fmt(totalIncome)"></div></div></div>
-      <div class="card">
-        <div class="card-title">Adicionar entrada</div>
-        <div class="form-grid" style="grid-template-columns:110px 1fr 160px 130px auto">
-          <div class="field"><label>Valor (R$)</label><input type="number" step="0.01" min="0" placeholder="0,00" x-model.number="newInc.amount" @keyup.enter="addIncome()" /></div>
-          <div class="field"><label>Descrição</label><input type="text" placeholder="salário, freelance..." x-model="newInc.description" @keyup.enter="addIncome()" /></div>
-          <div class="field"><label>Tipo</label><select x-model="newInc.type"><option value="salary">💼 Salário</option><option value="freelance">💻 Freelance</option><option value="investment">📈 Rendimentos</option><option value="gift">🎁 Presente</option><option value="other">◈ Outros</option></select></div>
-          <div class="field"><label>Data</label><input type="date" x-model="newInc.date" /></div>
-          <div class="field"><label>&nbsp;</label><button class="btn btn-income" @click="addIncome()" :disabled="savingIncome" x-text="savingIncome?'...':'Adicionar'"></button></div>
         </div>
-      </div>
-      <div class="tx-list">
-        <template x-if="groupedIncome.length===0"><div class="empty"><div class="ei">↑</div><p>Sem entradas no período.</p></div></template>
-        <template x-for="group in groupedIncome" :key="group.date">
-          <div>
-            <div class="date-group" x-text="group.label"></div>
-            <template x-for="tx in group.items" :key="tx.id">
-              <div class="tx-item">
-                <div class="tx-ico" x-text="incTypeIcon(tx.type)"></div>
-                <div class="tx-body">
-                  <div class="tx-row1"><span class="tx-desc" x-text="tx.description||incTypeLabel(tx.type)"></span></div>
-                  <div class="tx-row2"><span class="tx-meta" x-text="incTypeLabel(tx.type)"></span></div>
-                </div>
-                <div class="tx-right"><span class="tx-amount income" x-text="'+ '+fmt(tx.amount)"></span><button class="tx-del" @click="deleteIncome(tx.id)">✕</button></div>
+
+        <!-- ENTRADAS -->
+        <div class="page" :class="{active:page==='income'}">
+          <div class="page-header"><div><div class="page-title">Entradas</div><div class="page-sub" x-text="monthLabel+' · '+fmt(totalIncome)+' · '+activeAccountName"></div></div></div>
+          <div class="card" x-show="canEditActiveAccount">
+            <div class="card-title">Adicionar entrada</div>
+            <div class="form-grid" style="grid-template-columns:110px 1fr 160px 160px auto">
+              <div class="field"><label>Valor (R$)</label><input type="number" step="0.01" min="0" placeholder="0,00" x-model.number="newInc.amount" @keyup.enter="addIncome()" /></div>
+              <div class="field"><label>Descrição</label><input type="text" placeholder="salário, freelance..." x-model="newInc.description" @keyup.enter="addIncome()" /></div>
+              <div class="field"><label>Tipo</label><select x-model="newInc.type"><option value="salary">💼 Salário</option><option value="freelance">💻 Freelance</option><option value="investment">📈 Rendimentos</option><option value="gift">🎁 Presente</option><option value="other">◈ Outros</option></select></div>
+              <div class="field"><label>Data</label><input type="date" x-model="newInc.date" /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-income" @click="addIncome()" :disabled="savingIncome" x-text="savingIncome?'...':'Adicionar'"></button></div>
+            </div>
+          </div>
+          <template x-if="isAccountReadOnly">
+            <div class="card">
+              <div class="card-title">Modo leitura</div>
+              <p class="panel-note">Esta conta foi compartilhada com você como leitora. Entradas ficam visíveis, mas não podem ser alteradas.</p>
+            </div>
+          </template>
+          <div class="tx-list">
+            <template x-if="groupedIncome.length===0"><div class="empty"><div class="ei">↑</div><p>Sem entradas no período.</p></div></template>
+            <template x-for="group in groupedIncome" :key="group.date">
+              <div>
+                <div class="date-group" x-text="group.label"></div>
+                <template x-for="tx in group.items" :key="tx.id">
+                  <div class="tx-item">
+                    <div class="tx-ico" x-text="incTypeIcon(tx.type)"></div>
+                    <div class="tx-body">
+                      <div class="tx-row1"><span class="tx-desc" x-text="tx.description||incTypeLabel(tx.type)"></span></div>
+                      <div class="tx-row2"><span class="tx-meta" x-text="incTypeLabel(tx.type)"></span></div>
+                    </div>
+                    <div class="tx-right"><span class="tx-amount income" x-text="'+ '+fmt(tx.amount)"></span><button class="tx-del" x-show="canEditActiveAccount" @click="deleteIncome(tx.id)">✕</button></div>
+                  </div>
+                </template>
               </div>
             </template>
           </div>
-        </template>
-      </div>
-    </div>
+        </div>
 
-    <!-- METAS -->
-    <div class="page" :class="{active:page==='goals'}">
-      <div class="page-header"><div><div class="page-title">Metas</div><div class="page-sub">Limites mensais por categoria</div></div></div>
-      <div class="card">
-        <div class="card-title">Nova meta</div>
-        <div class="form-grid" style="grid-template-columns:1fr 160px auto">
-          <div class="field"><label>Categoria</label><select x-model="newGoal.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
-          <div class="field"><label>Limite (R$)</label><input type="number" step="10" min="1" placeholder="500,00" x-model.number="newGoal.limit" @keyup.enter="addGoal()" /></div>
-          <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="addGoal()">Definir</button></div>
+        <!-- METAS -->
+        <div class="page" :class="{active:page==='goals'}">
+          <div class="page-header"><div><div class="page-title">Metas</div><div class="page-sub" x-text="activeAccountName+' · Limites mensais por categoria'"></div></div></div>
+          <div class="card" x-show="canEditActiveAccount">
+            <div class="card-title">Nova meta</div>
+            <div class="form-grid" style="grid-template-columns:1fr 160px auto">
+              <div class="field"><label>Categoria</label><select x-model="newGoal.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
+              <div class="field"><label>Limite (R$)</label><input type="number" step="10" min="1" placeholder="500,00" x-model.number="newGoal.limit" @keyup.enter="addGoal()" /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="addGoal()">Definir</button></div>
+            </div>
+          </div>
+          <template x-if="isAccountReadOnly">
+            <div class="card">
+              <div class="card-title">Modo leitura</div>
+              <p class="panel-note">Você pode acompanhar as metas desta conta, mas não pode criar, alterar ou remover limites.</p>
+            </div>
+          </template>
+          <template x-if="goals.length===0"><div class="empty"><div class="ei">◉</div><p>Nenhuma meta definida.</p></div></template>
+          <div class="goals-grid">
+            <template x-for="goal in goalsWithProgress" :key="goal.category">
+              <div class="goal-card">
+                <div class="goal-head"><div class="goal-name"><span x-text="getCatIcon(goal.category)"></span><span x-text="getCatName(goal.category)"></span></div><button class="btn btn-ghost btn-sm" x-show="canEditActiveAccount" @click="deleteGoal(goal.category)">remover</button></div>
+                <div class="goal-amts"><strong x-text="fmt(goal.spent)"></strong><span x-text="' / '+fmt(goal.limit)"></span></div>
+                <div class="goal-bar-bg"><div class="goal-bar-fill" :style="{width:Math.min(goal.pct,100)+'%',background:goal.pct>=100?'var(--danger)':goal.pct>=75?'var(--warn)':'var(--accent)'}"></div></div>
+                <div class="goal-foot"><span class="goal-pct" x-text="goal.pct.toFixed(0)+'% utilizado'"></span><span class="goal-status" :class="goal.pct>=100?'over':goal.pct>=75?'warn':'ok'" x-text="goal.pct>=100?'✕ Excedida':goal.pct>=75?'⚠ Atenção':'✓ OK'"></span></div>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
-      <template x-if="goals.length===0"><div class="empty"><div class="ei">◉</div><p>Nenhuma meta definida.</p></div></template>
-      <div class="goals-grid">
-        <template x-for="goal in goalsWithProgress" :key="goal.category">
-          <div class="goal-card">
-            <div class="goal-head"><div class="goal-name"><span x-text="getCatIcon(goal.category)"></span><span x-text="getCatName(goal.category)"></span></div><button class="btn btn-ghost btn-sm" @click="deleteGoal(goal.category)">remover</button></div>
-            <div class="goal-amts"><strong x-text="fmt(goal.spent)"></strong><span x-text="' / '+fmt(goal.limit)"></span></div>
-            <div class="goal-bar-bg"><div class="goal-bar-fill" :style="{width:Math.min(goal.pct,100)+'%',background:goal.pct>=100?'var(--danger)':goal.pct>=75?'var(--warn)':'var(--accent)'}"></div></div>
-            <div class="goal-foot"><span class="goal-pct" x-text="goal.pct.toFixed(0)+'% utilizado'"></span><span class="goal-status" :class="goal.pct>=100?'over':goal.pct>=75?'warn':'ok'" x-text="goal.pct>=100?'✕ Excedida':goal.pct>=75?'⚠ Atenção':'✓ OK'"></span></div>
-          </div>
-        </template>
-      </div>
-    </div>
-
+    </template>
   </main>
 
   <!-- Account Panel -->
   <aside class="account-panel" x-show="showPanel">
     <div class="ap-header">
-      <div><div class="ap-title">Conta</div></div>
+      <div><div class="ap-title">Contas</div></div>
       <button class="ap-close" @click="showPanel=false">✕</button>
     </div>
     <div class="ap-section">
@@ -580,6 +633,36 @@
           <div class="profile-name" x-text="currentUser.name"></div>
           <div class="profile-email" x-text="currentUser.email"></div>
         </div>
+      </div>
+      <template x-if="hasActiveAccount">
+        <div class="panel-actions" style="margin-top:-4px">
+          <span class="role-badge" :class="activeRole" x-text="roleLabel(activeRole)"></span>
+          <span class="panel-note" style="flex:1" x-text="'Conta ativa: '+activeAccountName"></span>
+        </div>
+      </template>
+    </div>
+    <div class="ap-section" style="margin-top:8px">
+      <div class="ap-section-title">Suas contas</div>
+      <div class="account-list">
+        <template x-if="accounts.length===0">
+          <div class="empty-panel">Nenhuma conta disponível no momento.</div>
+        </template>
+        <template x-for="account in accounts" :key="account.id">
+          <button class="account-switch" :class="{active:String(activeAccountId)===String(account.id)}" @click="switchAccount(account.id)">
+            <div class="account-switch-main">
+              <div class="account-switch-name" x-text="account.name"></div>
+              <div class="account-switch-meta" x-text="roleLabel(account.role)"></div>
+            </div>
+            <span class="role-badge" :class="account.role" x-text="roleLabel(account.role)"></span>
+          </button>
+        </template>
+      </div>
+      <div class="panel-field" style="margin-top:14px">
+        <label>Nova conta</label>
+        <input type="text" placeholder="Pessoal, Casa, Empresa..." x-model="accountForm.name" @keyup.enter="createAccount()" />
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" @click="createAccount()" :disabled="accountLoading" x-text="accountLoading?'...':'Criar conta'"></button>
       </div>
     </div>
     <div class="ap-section" style="margin-top:8px">
@@ -600,10 +683,67 @@
           <div><div class="setting-lbl">Período</div></div>
           <div class="setting-val" x-text="monthLabel+' '+currentYear"></div>
         </div>
-        <div class="setting-row">
+        <div class="setting-row" x-show="hasActiveAccount">
           <div><div class="setting-lbl">Saldo atual</div></div>
           <div class="setting-val" :style="balance>=0?'color:var(--accent)':'color:var(--danger)'" x-text="fmt(balance)"></div>
         </div>
+      </div>
+    </div>
+    <div class="ap-section" style="margin-top:8px" x-show="hasActiveAccount && isAccountOwner">
+      <div class="ap-section-title">Gerenciar conta</div>
+      <div class="panel-field">
+        <label>Renomear conta</label>
+        <input type="text" placeholder="Novo nome" x-model="renameAccountName" @keyup.enter="renameActiveAccount()" />
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" @click="renameActiveAccount()" :disabled="accountLoading" x-text="accountLoading?'...':'Salvar nome'"></button>
+        <button class="btn btn-ghost" @click="deleteActiveAccount()">Excluir conta</button>
+      </div>
+    </div>
+    <div class="ap-section" style="margin-top:8px" x-show="hasActiveAccount && canManageMembers">
+      <div class="ap-section-title">Compartilhar</div>
+      <div class="panel-field">
+        <label>E-mail</label>
+        <input type="email" placeholder="usuario@exemplo.com" x-model="shareForm.email" @keyup.enter="shareAccount()" />
+      </div>
+      <div class="panel-field">
+        <label>Papel</label>
+        <select x-model="shareForm.role">
+          <option value="reader">Leitor</option>
+          <option value="editor">Editor</option>
+        </select>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" @click="shareAccount()" :disabled="membersLoading" x-text="membersLoading?'...':'Compartilhar'"></button>
+      </div>
+      <div class="panel-note" style="margin-top:10px">O compartilhamento v1 funciona com usuários que já possuem conta cadastrada no app.</div>
+    </div>
+    <div class="ap-section" style="margin-top:8px" x-show="hasActiveAccount && canManageMembers">
+      <div class="ap-section-title">Membros</div>
+      <div class="member-list">
+        <template x-if="accountMembers.length===0">
+          <div class="empty-panel">Nenhum membro extra nesta conta.</div>
+        </template>
+        <template x-for="member in accountMembers" :key="member.userId">
+          <div class="member-row">
+            <div class="member-main">
+              <div class="member-name" x-text="member.name"></div>
+              <div class="member-email" x-text="member.email"></div>
+            </div>
+            <div class="member-actions">
+              <span class="role-badge" x-show="member.role==='owner'" :class="member.role" x-text="roleLabel(member.role)"></span>
+              <template x-if="member.role!=='owner'">
+                <div class="member-actions">
+                  <select style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px" :value="member.role" @change="changeMemberRole(member.userId, $event.target.value)">
+                    <option value="reader">Leitor</option>
+                    <option value="editor">Editor</option>
+                  </select>
+                  <button class="btn btn-ghost btn-sm" @click="removeMember(member.userId)">Remover</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
     <div class="ap-section" style="margin-top:8px">
@@ -640,14 +780,16 @@
 </div>
 
 <script>
-// ── API client ────────────────────────────────────────────────────────────────
 const API = {
   _token: '',
-  setToken(t) { this._token = t },
+  _accountID: '',
+  setToken(t) { this._token = t || '' },
+  setAccount(id) { this._accountID = id ? String(id) : '' },
   headers() {
     return {
       'Content-Type': 'application/json',
-      ...(this._token ? { Authorization: 'Bearer ' + this._token } : {})
+      ...(this._token ? { Authorization: 'Bearer ' + this._token } : {}),
+      ...(this._accountID ? { 'X-Account-ID': this._accountID } : {}),
     }
   },
   async req(method, path, body) {
@@ -661,23 +803,24 @@ const API = {
     if (!res.ok) throw new Error(data.error || 'Erro desconhecido')
     return data
   },
-  get:    (path)        => API.req('GET',    path),
-  post:   (path, body)  => API.req('POST',   path, body),
-  delete: (path)        => API.req('DELETE', path),
+  get: (path) => API.req('GET', path),
+  post: (path, body) => API.req('POST', path, body),
+  patch: (path, body) => API.req('PATCH', path, body),
+  delete: (path) => API.req('DELETE', path),
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
-    function app() {
-      return {
-    // State
-        loading: true,
-        isMobile: false,
-        loggedIn: false,
+function app() {
+  return {
+    loading: true,
+    isMobile: false,
+    loggedIn: false,
     authLoading: false,
+    accountLoading: false,
+    membersLoading: false,
     loginMode: 'login',
     loginError: '',
-    loginForm:  { email: '', password: '' },
-    regForm:    { name: '', email: '', password: '' },
+    loginForm: { email: '', password: '' },
+    regForm: { name: '', email: '', password: '' },
     currentUser: { name: '', email: '' },
     token: '',
     showPanel: true,
@@ -685,7 +828,13 @@ const API = {
     theme: 'light',
     toasts: [],
     currentMonth: new Date().getMonth(),
-    currentYear:  new Date().getFullYear(),
+    currentYear: new Date().getFullYear(),
+    accounts: [],
+    activeAccountId: '',
+    accountMembers: [],
+    accountForm: { name: '' },
+    renameAccountName: '',
+    shareForm: { email: '', role: 'reader' },
     expenses: [],
     incomes: [],
     goals: [],
@@ -693,8 +842,8 @@ const API = {
     savingExpense: false,
     savingIncome: false,
     _charts: {},
-    newTx:   { amount: '', description: '', category: 'food', payment: 'pix', date: '' },
-    newInc:  { amount: '', description: '', type: 'salary', date: '' },
+    newTx: { amount: '', description: '', category: 'food', payment: 'pix', date: '' },
+    newInc: { amount: '', description: '', type: 'salary', date: '' },
     newGoal: { category: 'food', limit: '' },
 
     categories: [
@@ -725,15 +874,15 @@ const API = {
       { id:'transfer', label:'↔ Transferência' },
     ],
 
-    // ── Init ──────────────────────────────────────────────────────────────────
     async init() {
       this.syncViewport()
       window.addEventListener('resize', () => this.syncViewport())
       const today = new Date().toISOString().split('T')[0]
-      this.newTx.date  = today
+      this.newTx.date = today
       this.newInc.date = today
       const t = localStorage.getItem('gastos_theme')
       if (t) this.theme = t
+
       const saved = localStorage.getItem('gastos_session')
       if (saved) {
         try {
@@ -741,10 +890,13 @@ const API = {
           this.token = s.token
           this.currentUser = s.user
           API.setToken(this.token)
-          await this.loadAllData()
+          await this.loadAccountsAndData(localStorage.getItem('gastos_active_account_id'))
           this.loggedIn = true
         } catch {
           localStorage.removeItem('gastos_session')
+          localStorage.removeItem('gastos_active_account_id')
+          API.setToken('')
+          API.setAccount('')
         }
       }
       this.loading = false
@@ -756,11 +908,11 @@ const API = {
       if (this.isMobile !== wasMobile) this.showPanel = !this.isMobile
     },
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
     async doLogin() {
       this.loginError = ''
       if (!this.loginForm.email || !this.loginForm.password) {
-        this.loginError = 'Preencha todos os campos.'; return
+        this.loginError = 'Preencha todos os campos.'
+        return
       }
       this.authLoading = true
       try {
@@ -776,10 +928,12 @@ const API = {
     async doRegister() {
       this.loginError = ''
       if (!this.regForm.name || !this.regForm.email || !this.regForm.password) {
-        this.loginError = 'Preencha todos os campos.'; return
+        this.loginError = 'Preencha todos os campos.'
+        return
       }
       if (this.regForm.password.length < 6) {
-        this.loginError = 'Senha deve ter ao menos 6 caracteres.'; return
+        this.loginError = 'Senha deve ter ao menos 6 caracteres.'
+        return
       }
       this.authLoading = true
       try {
@@ -792,77 +946,231 @@ const API = {
       }
     },
 
-    async demoLogin() {
-      // Try real login with demo account, create it if needed
-      this.authLoading = true
-      try {
-        let data
-        try {
-          data = await API.post('/api/auth/login', { email: 'demo@gastos.app', password: 'demo123' })
-        } catch {
-          data = await API.post('/api/auth/register', { name: 'Demo', email: 'demo@gastos.app', password: 'demo123' })
-        }
-        await this._loginSuccess(data)
-        if (this.expenses.length === 0) await this.seedDemo()
-      } catch (e) {
-        this.loginError = e.message
-      } finally {
-        this.authLoading = false
-      }
-    },
-
     async _loginSuccess(data) {
       this.token = data.token
       this.currentUser = data.user
       API.setToken(this.token)
       localStorage.setItem('gastos_session', JSON.stringify({ token: this.token, user: this.currentUser }))
-      await this.loadAllData()
+      await this.loadAccountsAndData()
       this.loggedIn = true
       this.loginForm = { email: '', password: '' }
-      this.regForm   = { name: '', email: '', password: '' }
+      this.regForm = { name: '', email: '', password: '' }
     },
 
     doLogout() {
       localStorage.removeItem('gastos_session')
+      localStorage.removeItem('gastos_active_account_id')
       this.loggedIn = false
       this.token = ''
-      this.expenses = []; this.incomes = []; this.goals = []
+      this.accounts = []
+      this.activeAccountId = ''
+      this.accountMembers = []
+      this.expenses = []
+      this.incomes = []
+      this.goals = []
       this.currentUser = { name: '', email: '' }
-      this.loginMode = 'login'; this.loginError = ''
+      this.loginMode = 'login'
+      this.loginError = ''
+      this.accountForm = { name: '' }
+      this.renameAccountName = ''
+      this.shareForm = { email: '', role: 'reader' }
       API.setToken('')
+      API.setAccount('')
+      this.resetCharts()
       this.toast('Até logo!')
     },
 
-    // ── Data loading ──────────────────────────────────────────────────────────
+    async loadAccountsAndData(preferredID = '') {
+      this.accounts = await API.get('/api/accounts') || []
+      this.setActiveAccount(this.resolveAccountID(preferredID))
+      await Promise.all([this.loadAllData(), this.refreshAccountMembers()])
+    },
+
+    resolveAccountID(preferredID = '') {
+      const desired = String(preferredID || this.activeAccountId || localStorage.getItem('gastos_active_account_id') || '')
+      const account = this.accounts.find(item => String(item.id) === desired)
+      if (account) return account.id
+      return this.accounts[0]?.id || ''
+    },
+
+    setActiveAccount(id) {
+      this.activeAccountId = id ? String(id) : ''
+      API.setAccount(this.activeAccountId)
+      if (this.activeAccountId) {
+        localStorage.setItem('gastos_active_account_id', this.activeAccountId)
+      } else {
+        localStorage.removeItem('gastos_active_account_id')
+      }
+      this.renameAccountName = this.activeAccount?.name || ''
+      this.activeFilter = 'all'
+    },
+
+    async switchAccount(id) {
+      const nextID = String(id)
+      if (!nextID || nextID === this.activeAccountId) return
+      this.setActiveAccount(nextID)
+      await Promise.all([this.loadAllData(), this.refreshAccountMembers()])
+    },
+
     async loadAllData() {
+      if (!this.hasActiveAccount) {
+        this.expenses = []
+        this.incomes = []
+        this.goals = []
+        this.resetCharts()
+        return
+      }
+
       const [expenses, incomes, goals] = await Promise.all([
         API.get('/api/expenses'),
         API.get('/api/incomes'),
         API.get('/api/goals'),
       ])
       this.expenses = expenses || []
-      this.incomes  = incomes  || []
-      this.goals    = goals    || []
+      this.incomes = incomes || []
+      this.goals = goals || []
+
+      if (this.page === 'charts') {
+        setTimeout(() => this.renderCharts(), 0)
+      }
     },
 
-    // ── CRUD: Expenses ────────────────────────────────────────────────────────
+    async refreshAccountMembers() {
+      if (!this.hasActiveAccount || !this.canManageMembers) {
+        this.accountMembers = []
+        return
+      }
+
+      this.accountMembers = await API.get('/api/accounts/' + this.activeAccountId + '/members') || []
+    },
+
+    async createAccount() {
+      const name = this.accountForm.name.trim()
+      if (!name) {
+        this.toast('Informe um nome para a conta.', true)
+        return
+      }
+      this.accountLoading = true
+      try {
+        const account = await API.post('/api/accounts', { name })
+        this.accountForm.name = ''
+        await this.loadAccountsAndData(account.id)
+        this.toast('Conta criada ✓')
+      } catch (err) {
+        this.toast(err.message, true)
+      } finally {
+        this.accountLoading = false
+      }
+    },
+
+    async renameActiveAccount() {
+      if (!this.isAccountOwner || !this.hasActiveAccount) return
+      const name = this.renameAccountName.trim()
+      if (!name) {
+        this.toast('Informe um nome para a conta.', true)
+        return
+      }
+      this.accountLoading = true
+      try {
+        await API.patch('/api/accounts/' + this.activeAccountId, { name })
+        await this.loadAccountsAndData(this.activeAccountId)
+        this.toast('Conta renomeada ✓')
+      } catch (err) {
+        this.toast(err.message, true)
+      } finally {
+        this.accountLoading = false
+      }
+    },
+
+    async deleteActiveAccount() {
+      if (!this.isAccountOwner || !this.hasActiveAccount) return
+      if (!window.confirm('Tem certeza que deseja excluir esta conta e todos os dados dela?')) return
+      this.accountLoading = true
+      try {
+        await API.delete('/api/accounts/' + this.activeAccountId)
+        await this.loadAccountsAndData()
+        this.toast('Conta excluída.')
+      } catch (err) {
+        this.toast(err.message, true)
+      } finally {
+        this.accountLoading = false
+      }
+    },
+
+    async shareAccount() {
+      if (!this.canManageMembers || !this.hasActiveAccount) return
+      const email = this.shareForm.email.trim().toLowerCase()
+      if (!email) {
+        this.toast('Informe um e-mail válido.', true)
+        return
+      }
+      this.membersLoading = true
+      try {
+        await API.post('/api/accounts/' + this.activeAccountId + '/members', {
+          email,
+          role: this.shareForm.role,
+        })
+        this.shareForm = { email: '', role: 'reader' }
+        await this.refreshAccountMembers()
+        this.toast('Conta compartilhada ✓')
+      } catch (err) {
+        this.toast(err.message, true)
+      } finally {
+        this.membersLoading = false
+      }
+    },
+
+    async changeMemberRole(userID, role) {
+      if (!this.canManageMembers || !this.hasActiveAccount) return
+      this.membersLoading = true
+      try {
+        await API.patch('/api/accounts/' + this.activeAccountId + '/members/' + userID, { role })
+        await this.refreshAccountMembers()
+        this.toast('Papel atualizado ✓')
+      } catch (err) {
+        this.toast(err.message, true)
+      } finally {
+        this.membersLoading = false
+      }
+    },
+
+    async removeMember(userID) {
+      if (!this.canManageMembers || !this.hasActiveAccount) return
+      if (!window.confirm('Remover este membro da conta?')) return
+      this.membersLoading = true
+      try {
+        await API.delete('/api/accounts/' + this.activeAccountId + '/members/' + userID)
+        await this.refreshAccountMembers()
+        this.toast('Membro removido.')
+      } catch (err) {
+        this.toast(err.message, true)
+      } finally {
+        this.membersLoading = false
+      }
+    },
+
     async addExpense() {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) {
+        this.toast('Você não pode editar esta conta.', true)
+        return
+      }
       if (!this.newTx.amount || this.newTx.amount <= 0) {
-        this.toast('Informe um valor válido.', true); return
+        this.toast('Informe um valor válido.', true)
+        return
       }
       this.savingExpense = true
       try {
         const e = await API.post('/api/expenses', {
-          amount:      parseFloat(this.newTx.amount),
+          amount: parseFloat(this.newTx.amount),
           description: this.newTx.description.trim(),
-          category:    this.newTx.category,
-          payment:     this.newTx.payment,
-          date:        this.newTx.date || new Date().toISOString().split('T')[0],
+          category: this.newTx.category,
+          payment: this.newTx.payment,
+          date: this.newTx.date || new Date().toISOString().split('T')[0],
         })
         this.expenses.push(e)
         this.toast('Gasto adicionado ✓')
-        this.newTx.amount = ''; this.newTx.description = ''
-        // Check goal
+        this.newTx.amount = ''
+        this.newTx.description = ''
         const goal = this.goals.find(g => g.category === e.category)
         if (goal) {
           const spent = this.expensesMonth.filter(x => x.category === e.category).reduce((s, x) => s + x.amount, 0)
@@ -876,6 +1184,7 @@ const API = {
     },
 
     async deleteExpense(id) {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) return
       try {
         await API.delete('/api/expenses/' + id)
         this.expenses = this.expenses.filter(e => e.id !== id)
@@ -885,22 +1194,27 @@ const API = {
       }
     },
 
-    // ── CRUD: Incomes ─────────────────────────────────────────────────────────
     async addIncome() {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) {
+        this.toast('Você não pode editar esta conta.', true)
+        return
+      }
       if (!this.newInc.amount || this.newInc.amount <= 0) {
-        this.toast('Informe um valor válido.', true); return
+        this.toast('Informe um valor válido.', true)
+        return
       }
       this.savingIncome = true
       try {
         const inc = await API.post('/api/incomes', {
-          amount:      parseFloat(this.newInc.amount),
+          amount: parseFloat(this.newInc.amount),
           description: this.newInc.description.trim(),
-          type:        this.newInc.type,
-          date:        this.newInc.date || new Date().toISOString().split('T')[0],
+          type: this.newInc.type,
+          date: this.newInc.date || new Date().toISOString().split('T')[0],
         })
         this.incomes.push(inc)
         this.toast('Entrada adicionada ✓')
-        this.newInc.amount = ''; this.newInc.description = ''
+        this.newInc.amount = ''
+        this.newInc.description = ''
       } catch (err) {
         this.toast(err.message, true)
       } finally {
@@ -909,6 +1223,7 @@ const API = {
     },
 
     async deleteIncome(id) {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) return
       try {
         await API.delete('/api/incomes/' + id)
         this.incomes = this.incomes.filter(e => e.id !== id)
@@ -918,15 +1233,19 @@ const API = {
       }
     },
 
-    // ── CRUD: Goals ───────────────────────────────────────────────────────────
     async addGoal() {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) {
+        this.toast('Você não pode editar esta conta.', true)
+        return
+      }
       if (!this.newGoal.limit || this.newGoal.limit <= 0) {
-        this.toast('Informe um limite válido.', true); return
+        this.toast('Informe um limite válido.', true)
+        return
       }
       try {
         const g = await API.post('/api/goals', {
           category: this.newGoal.category,
-          limit:    parseFloat(this.newGoal.limit),
+          limit: parseFloat(this.newGoal.limit),
         })
         this.goals = this.goals.filter(x => x.category !== g.category)
         this.goals.push(g)
@@ -938,6 +1257,7 @@ const API = {
     },
 
     async deleteGoal(category) {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) return
       try {
         await API.delete('/api/goals/' + category)
         this.goals = this.goals.filter(g => g.category !== category)
@@ -947,82 +1267,83 @@ const API = {
       }
     },
 
-    // ── Demo seed ─────────────────────────────────────────────────────────────
-    async seedDemo() {
-      const now = new Date()
-      const m   = String(now.getMonth() + 1).padStart(2, '0')
-      const y   = now.getFullYear()
-      const demos = [
-        { amount:42.50,  description:'Almoço',          category:'food',          payment:'va',      date:`${y}-${m}-02` },
-        { amount:18.90,  description:'Uber',             category:'transport',     payment:'pix',     date:`${y}-${m}-03` },
-        { amount:89.00,  description:'Farmácia',         category:'health',        payment:'debit',   date:`${y}-${m}-05` },
-        { amount:35.00,  description:'Netflix+Spotify',  category:'subscriptions', payment:'credit',  date:`${y}-${m}-06` },
-        { amount:180.00, description:'Supermercado',     category:'market',        payment:'vr',      date:`${y}-${m}-08` },
-        { amount:55.00,  description:'Gasolina',         category:'transport',     payment:'credit',  date:`${y}-${m}-10` },
-        { amount:1200.0, description:'Aluguel',          category:'home',          payment:'boleto',  date:`${y}-${m}-10` },
-        { amount:29.90,  description:'iFood',            category:'restaurant',    payment:'credit',  date:`${y}-${m}-12` },
-        { amount:78.00,  description:'Tênis',            category:'clothes',       payment:'pix',     date:`${y}-${m}-14` },
-        { amount:150.00, description:'Curso de Go',      category:'education',     payment:'pix',     date:`${y}-${m}-15` },
-        { amount:200.00, description:'Tesouro Direto',   category:'invest',        payment:'transfer',date:`${y}-${m}-15` },
-        { amount:95.00,  description:'Conta de luz',     category:'utilities',     payment:'boleto',  date:`${y}-${m}-18` },
-      ]
-      const incDemos = [
-        { amount:5500, description:'Salário',       type:'salary',    date:`${y}-${m}-05` },
-        { amount:800,  description:'Freelance API', type:'freelance', date:`${y}-${m}-20` },
-      ]
-      const goalDemos = [
-        { category:'food',          limit:300 },
-        { category:'market',        limit:400 },
-        { category:'transport',     limit:200 },
-        { category:'subscriptions', limit:100 },
-      ]
-      await Promise.all([
-        ...demos.map(d => API.post('/api/expenses', d).then(e => this.expenses.push(e)).catch(() => {})),
-        ...incDemos.map(d => API.post('/api/incomes', d).then(i => this.incomes.push(i)).catch(() => {})),
-        ...goalDemos.map(g => API.post('/api/goals', g).then(r => this.goals.push(r)).catch(() => {})),
-      ])
-    },
-
-    // ── Navigation ────────────────────────────────────────────────────────────
     prevMonth() {
       if (this.currentMonth === 0) { this.currentMonth = 11; this.currentYear-- }
       else this.currentMonth--
       this.activeFilter = 'all'
     },
+
     nextMonth() {
       if (this.currentMonth === 11) { this.currentMonth = 0; this.currentYear++ }
       else this.currentMonth++
       this.activeFilter = 'all'
     },
 
-    // ── Computed ──────────────────────────────────────────────────────────────
     get monthLabel() {
       return new Date(this.currentYear, this.currentMonth).toLocaleString('pt-BR', { month: 'long' })
     },
+
+    get activeAccount() {
+      return this.accounts.find(account => String(account.id) === String(this.activeAccountId)) || null
+    },
+
+    get hasActiveAccount() {
+      return !!this.activeAccount
+    },
+
+    get activeAccountName() {
+      return this.activeAccount?.name || 'Sem conta'
+    },
+
+    get activeRole() {
+      return this.activeAccount?.role || ''
+    },
+
+    get canEditActiveAccount() {
+      return !!this.activeAccount?.permissions?.canEdit
+    },
+
+    get canManageMembers() {
+      return !!this.activeAccount?.permissions?.canManageMembers
+    },
+
+    get isAccountOwner() {
+      return this.activeRole === 'owner'
+    },
+
+    get isAccountReadOnly() {
+      return this.activeRole === 'reader'
+    },
+
     get expensesMonth() {
       return this.expenses.filter(e => {
         const d = new Date(e.date + 'T12:00:00')
         return d.getMonth() === this.currentMonth && d.getFullYear() === this.currentYear
       })
     },
+
     get incomeMonth() {
       return this.incomes.filter(e => {
         const d = new Date(e.date + 'T12:00:00')
         return d.getMonth() === this.currentMonth && d.getFullYear() === this.currentYear
       })
     },
+
     get totalExpenses() { return this.expensesMonth.reduce((s, e) => s + e.amount, 0) },
-    get totalIncome()   { return this.incomeMonth.reduce((s, e) => s + e.amount, 0) },
-    get balance()       { return this.totalIncome - this.totalExpenses },
+    get totalIncome() { return this.incomeMonth.reduce((s, e) => s + e.amount, 0) },
+    get balance() { return this.totalIncome - this.totalExpenses },
+
     get daysElapsed() {
       const now = new Date()
       if (this.currentMonth === now.getMonth() && this.currentYear === now.getFullYear()) return now.getDate()
       return new Date(this.currentYear, this.currentMonth + 1, 0).getDate()
     },
-    get dailyAvg()          { return this.daysElapsed > 0 ? this.totalExpenses / this.daysElapsed : 0 },
-    get essentialTotal()    { return this.expensesMonth.filter(e => this.getCatEss(e.category) === 'essential').reduce((s, e) => s + e.amount, 0) },
+
+    get dailyAvg() { return this.daysElapsed > 0 ? this.totalExpenses / this.daysElapsed : 0 },
+    get essentialTotal() { return this.expensesMonth.filter(e => this.getCatEss(e.category) === 'essential').reduce((s, e) => s + e.amount, 0) },
     get nonEssentialTotal() { return this.expensesMonth.filter(e => this.getCatEss(e.category) === 'nonessential').reduce((s, e) => s + e.amount, 0) },
-    get investmentTotal()   { return this.expensesMonth.filter(e => this.getCatEss(e.category) === 'investment').reduce((s, e) => s + e.amount, 0) },
+    get investmentTotal() { return this.expensesMonth.filter(e => this.getCatEss(e.category) === 'investment').reduce((s, e) => s + e.amount, 0) },
+
     get categoryTotals() {
       const map = {}
       this.expensesMonth.forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount })
@@ -1031,29 +1352,41 @@ const API = {
         .map(c => ({ ...c, total: map[c.id] || 0, pct: ((map[c.id] || 0) / max * 100) }))
         .sort((a, b) => b.total - a.total)
     },
+
     get recentExpenses() {
       return [...this.expensesMonth].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 7)
     },
+
     get filteredExpenses() {
       return this.expensesMonth.filter(e => {
         if (this.activeFilter === 'all') return true
-        if (['essential', 'nonessential', 'investment'].includes(this.activeFilter))
+        if (['essential', 'nonessential', 'investment'].includes(this.activeFilter)) {
           return this.getCatEss(e.category) === this.activeFilter
+        }
         return e.category === this.activeFilter
       })
     },
+
     get groupedExpenses() {
       const sorted = [...this.filteredExpenses].sort((a, b) => new Date(b.date) - new Date(a.date))
       const groups = {}
-      sorted.forEach(tx => { if (!groups[tx.date]) groups[tx.date] = []; groups[tx.date].push(tx) })
+      sorted.forEach(tx => {
+        if (!groups[tx.date]) groups[tx.date] = []
+        groups[tx.date].push(tx)
+      })
       return Object.entries(groups).map(([date, items]) => ({ date, label: this.formatDate(date), items }))
     },
+
     get groupedIncome() {
       const sorted = [...this.incomeMonth].sort((a, b) => new Date(b.date) - new Date(a.date))
       const groups = {}
-      sorted.forEach(tx => { if (!groups[tx.date]) groups[tx.date] = []; groups[tx.date].push(tx) })
+      sorted.forEach(tx => {
+        if (!groups[tx.date]) groups[tx.date] = []
+        groups[tx.date].push(tx)
+      })
       return Object.entries(groups).map(([date, items]) => ({ date, label: this.formatDate(date), items }))
     },
+
     get goalsWithProgress() {
       const map = {}
       this.expensesMonth.forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount })
@@ -1063,22 +1396,32 @@ const API = {
         pct: ((map[g.category] || 0) / g.limit) * 100,
       })).sort((a, b) => b.pct - a.pct)
     },
+
     get userInitials() {
       return this.currentUser.name
         ? this.currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
         : '?'
     },
 
-    // ── Charts ────────────────────────────────────────────────────────────────
+    resetCharts() {
+      Object.values(this._charts).forEach(chart => chart?.destroy && chart.destroy())
+      this._charts = {}
+    },
+
     renderCharts() {
+      if (!this.hasActiveAccount) {
+        this.resetCharts()
+        return
+      }
+
       const isDark = this.theme === 'dark'
       const grid = isDark ? '#262b28' : '#e5e7e4'
       Chart.defaults.color = isDark ? '#8a9490' : '#6b7370'
-      Chart.defaults.font  = { family: 'Outfit', size: 11 }
+      Chart.defaults.font = { family: 'Outfit', size: 11 }
       const destroy = id => { if (this._charts[id]) { this._charts[id].destroy(); delete this._charts[id] } }
 
       destroy('ess')
-      this._charts['ess'] = new Chart(document.getElementById('chartEss'), {
+      this._charts.ess = new Chart(document.getElementById('chartEss'), {
         type: 'doughnut',
         data: {
           labels: ['Essencial', 'Não essencial', 'Investimento'],
@@ -1088,11 +1431,12 @@ const API = {
       })
 
       destroy('pay')
-      const pm = {}, pc = { pix: '#4d9fff', credit: '#f87171', debit: '#60a5fa', cash: '#fbbf24', boleto: '#94a3b8', va: '#fb923c', vr: '#38bdf8', transfer: '#a78bfa' }
+      const pm = {}
+      const pc = { pix: '#4d9fff', credit: '#f87171', debit: '#60a5fa', cash: '#fbbf24', boleto: '#94a3b8', va: '#fb923c', vr: '#38bdf8', transfer: '#a78bfa' }
       const pl = { pix: 'Pix', credit: 'Crédito', debit: 'Débito', cash: 'Dinheiro', boleto: 'Boleto', va: 'Vale Alim.', vr: 'Vale Ref.', transfer: 'Transf.' }
       this.expensesMonth.forEach(e => { pm[e.payment] = (pm[e.payment] || 0) + e.amount })
       const pk = Object.keys(pm)
-      this._charts['pay'] = new Chart(document.getElementById('chartPay'), {
+      this._charts.pay = new Chart(document.getElementById('chartPay'), {
         type: 'doughnut',
         data: { labels: pk.map(k => pl[k] || k), datasets: [{ data: pk.map(k => pm[k]), backgroundColor: pk.map(k => pc[k] || '#94a3b8'), borderWidth: 0, hoverOffset: 8 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 12, boxWidth: 10 } } }, cutout: '68%' },
@@ -1100,7 +1444,7 @@ const API = {
 
       destroy('cat')
       const cd = this.categoryTotals.slice(0, 12)
-      this._charts['cat'] = new Chart(document.getElementById('chartCat'), {
+      this._charts.cat = new Chart(document.getElementById('chartCat'), {
         type: 'bar',
         data: { labels: cd.map(c => c.icon + ' ' + c.name), datasets: [{ data: cd.map(c => c.total), backgroundColor: cd.map(c => c.color + 'bb'), borderRadius: 5, borderSkipped: false }] },
         options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: grid }, ticks: { callback: v => 'R$' + Number(v).toLocaleString('pt-BR') } }, y: { grid: { display: false } } } },
@@ -1109,22 +1453,19 @@ const API = {
       destroy('trend')
       const months = []
       for (let i = 5; i >= 0; i--) {
-        let mo = this.currentMonth - i, yr = this.currentYear
+        let mo = this.currentMonth - i
+        let yr = this.currentYear
         if (mo < 0) { mo += 12; yr-- }
         months.push({ mo, yr, label: new Date(yr, mo).toLocaleString('pt-BR', { month: 'short' }) })
       }
-      const expD = months.map(({ mo, yr }) =>
-        this.expenses.filter(e => { const d = new Date(e.date + 'T12:00:00'); return d.getMonth() === mo && d.getFullYear() === yr })
-          .reduce((s, e) => s + e.amount, 0))
-      const incD = months.map(({ mo, yr }) =>
-        this.incomes.filter(e => { const d = new Date(e.date + 'T12:00:00'); return d.getMonth() === mo && d.getFullYear() === yr })
-          .reduce((s, e) => s + e.amount, 0))
-      this._charts['trend'] = new Chart(document.getElementById('chartTrend'), {
+      const expD = months.map(({ mo, yr }) => this.expenses.filter(e => { const d = new Date(e.date + 'T12:00:00'); return d.getMonth() === mo && d.getFullYear() === yr }).reduce((s, e) => s + e.amount, 0))
+      const incD = months.map(({ mo, yr }) => this.incomes.filter(e => { const d = new Date(e.date + 'T12:00:00'); return d.getMonth() === mo && d.getFullYear() === yr }).reduce((s, e) => s + e.amount, 0))
+      this._charts.trend = new Chart(document.getElementById('chartTrend'), {
         type: 'line',
         data: {
           labels: months.map(m => m.label),
           datasets: [
-            { label: 'Gastos',  data: expD, borderColor: '#f87171', backgroundColor: '#f8717118', tension: .4, fill: true, pointRadius: 4, pointHoverRadius: 6 },
+            { label: 'Gastos', data: expD, borderColor: '#f87171', backgroundColor: '#f8717118', tension: .4, fill: true, pointRadius: 4, pointHoverRadius: 6 },
             { label: 'Entradas', data: incD, borderColor: '#60a5fa', backgroundColor: '#60a5fa12', tension: .4, fill: true, pointRadius: 4, pointHoverRadius: 6 },
           ],
         },
@@ -1132,30 +1473,45 @@ const API = {
       })
     },
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    setTheme(t) { this.theme = t; localStorage.setItem('gastos_theme', t) },
+    setTheme(t) {
+      this.theme = t
+      localStorage.setItem('gastos_theme', t)
+      if (this.page === 'charts' && this.hasActiveAccount) {
+        setTimeout(() => this.renderCharts(), 0)
+      }
+    },
+
     toast(msg, err = false) {
       const id = Date.now()
       this.toasts.push({ id, msg, err })
       setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id) }, 3100)
     },
+
     fmt(val) {
       return 'R$ ' + Number(val).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     },
+
     formatDate(s) {
-      const d = new Date(s + 'T12:00:00'), t = new Date()
-      const y = new Date(t); y.setDate(t.getDate() - 1)
+      const d = new Date(s + 'T12:00:00')
+      const t = new Date()
+      const y = new Date(t)
+      y.setDate(t.getDate() - 1)
       if (d.toDateString() === t.toDateString()) return 'Hoje'
       if (d.toDateString() === y.toDateString()) return 'Ontem'
       return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })
     },
-    getCatIcon(id)   { return this.categories.find(c => c.id === id)?.icon || '◈' },
-    getCatName(id)   { return this.categories.find(c => c.id === id)?.name || id },
-    getCatEss(id)    { return this.categories.find(c => c.id === id)?.essentiality || 'nonessential' },
-    essLabel(e)      { return { essential: 'essencial', nonessential: 'não-essencial', investment: 'investimento' }[e] || e },
-    payLabel(id)     { return (this.paymentMethods.find(p => p.id === id)?.label || id).replace(/^.\s/, '') },
-    incTypeIcon(t)   { return { salary: '💼', freelance: '💻', investment: '📈', gift: '🎁', other: '◈' }[t] || '◈' },
-    incTypeLabel(t)  { return { salary: 'Salário', freelance: 'Freelance', investment: 'Rendimentos', gift: 'Presente', other: 'Outros' }[t] || t },
+
+    roleLabel(role) {
+      return { owner: 'Owner', editor: 'Editor', reader: 'Leitor' }[role] || role
+    },
+
+    getCatIcon(id) { return this.categories.find(c => c.id === id)?.icon || '◈' },
+    getCatName(id) { return this.categories.find(c => c.id === id)?.name || id },
+    getCatEss(id) { return this.categories.find(c => c.id === id)?.essentiality || 'nonessential' },
+    essLabel(e) { return { essential: 'essencial', nonessential: 'não-essencial', investment: 'investimento' }[e] || e },
+    payLabel(id) { return (this.paymentMethods.find(p => p.id === id)?.label || id).replace(/^.\s/, '') },
+    incTypeIcon(t) { return { salary: '💼', freelance: '💻', investment: '📈', gift: '🎁', other: '◈' }[t] || '◈' },
+    incTypeLabel(t) { return { salary: 'Salário', freelance: 'Freelance', investment: 'Rendimentos', gift: 'Presente', other: 'Outros' }[t] || t },
   }
 }
 </script>

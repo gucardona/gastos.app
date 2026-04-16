@@ -49,7 +49,14 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := db.DB.Exec(
+	tx, err := db.DB.Begin()
+	if err != nil {
+		jsonError(w, "Erro ao criar usuário", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(
 		`INSERT INTO users(name,email,password) VALUES(?,?,?)`,
 		body.Name, body.Email, string(hash),
 	)
@@ -65,6 +72,16 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	id, err := res.LastInsertId()
 	if err != nil {
 		jsonError(w, "Erro ao obter usuário criado", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := db.CreateAccountWithOwner(tx, "Pessoal", id); err != nil {
+		jsonError(w, "Erro ao criar conta padrão", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		jsonError(w, "Erro ao finalizar cadastro", http.StatusInternalServerError)
 		return
 	}
 

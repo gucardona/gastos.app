@@ -10,15 +10,16 @@ import (
 
 func Incomes(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserIDFromContext(r.Context())
+	accountID := middleware.AccountIDFromContext(r.Context())
 
 	switch r.Method {
 	case http.MethodGet:
 		rows, err := db.DB.Query(`
-			SELECT id, user_id, amount, description, type, date
+			SELECT id, user_id, account_id, amount, description, type, date
 			FROM incomes
-			WHERE user_id = ?
+			WHERE account_id = ?
 			ORDER BY date DESC, id DESC
-		`, userID)
+		`, accountID)
 		if err != nil {
 			jsonError(w, "Erro ao buscar entradas", http.StatusInternalServerError)
 			return
@@ -31,6 +32,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 			if err := rows.Scan(
 				&income.ID,
 				&income.UserID,
+				&income.AccountID,
 				&income.Amount,
 				&income.Description,
 				&income.Type,
@@ -49,6 +51,10 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, incomes)
 
 	case http.MethodPost:
+		if !requireAccountEdit(w, r) {
+			return
+		}
+
 		var income models.Income
 		if err := decodeJSON(r, &income); err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
@@ -56,6 +62,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		}
 
 		income.UserID = userID
+		income.AccountID = accountID
 		income.Description = strings.TrimSpace(income.Description)
 		income.Type = strings.TrimSpace(income.Type)
 		if err := validateIncome(income); err != nil {
@@ -64,9 +71,9 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		}
 
 		res, err := db.DB.Exec(`
-			INSERT INTO incomes (user_id, amount, description, type, date)
-			VALUES (?, ?, ?, ?, ?)
-		`, income.UserID, income.Amount, income.Description, income.Type, income.Date)
+			INSERT INTO incomes (user_id, account_id, amount, description, type, date)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, income.UserID, income.AccountID, income.Amount, income.Description, income.Type, income.Date)
 		if err != nil {
 			jsonError(w, "Erro ao salvar entrada", http.StatusInternalServerError)
 			return
@@ -82,13 +89,17 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusCreated, income)
 
 	case http.MethodDelete:
+		if !requireAccountEdit(w, r) {
+			return
+		}
+
 		id, err := parseIntPathID(r.URL.Path, "/api/incomes/")
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		res, err := db.DB.Exec("DELETE FROM incomes WHERE id = ? AND user_id = ?", id, userID)
+		res, err := db.DB.Exec("DELETE FROM incomes WHERE id = ? AND account_id = ?", id, accountID)
 		if err != nil {
 			jsonError(w, "Erro ao remover entrada", http.StatusInternalServerError)
 			return
