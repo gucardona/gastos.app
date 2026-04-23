@@ -108,17 +108,20 @@
     .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:24px;flex-wrap:wrap}
     .topbar-profile{display:flex;align-items:center;gap:12px}
     .profile-av{width:42px;height:42px;border-radius:50%;background:var(--accent-dim);border:2px solid rgba(2,56,72,.22);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--accent);flex-shrink:0}
-    .profile-name{font-size:14px;font-weight:600}
+    /* CHANGE 1: profile-name and profile-email now use accent color */
+    .profile-name{font-size:14px;font-weight:600;color:var(--accent)}
     .profile-email{font-size:11px;color:var(--text2);font-weight:300;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .account-quick-switch{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .account-quick-label{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:500}
     .account-quick-select{min-width:280px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;box-shadow:var(--shadow)}
     .account-quick-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(77,159,255,.15)}
     .account-management-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .account-management-card{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}
+    /* CHANGE 2: account-management-card left-aligned */
+    .account-management-card{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);text-align:left}
     .account-management-card.active{background:var(--accent-dim);border-color:rgba(0,87,184,.25)}
     .account-management-main{min-width:0}
-    .account-management-name{font-size:14px;font-weight:600}
+    /* CHANGE 2: account-management-name uses accent color */
+    .account-management-name{font-size:14px;font-weight:600;color:var(--accent)}
     .account-management-meta{font-size:11px;color:var(--text2);font-weight:300;margin-top:4px}
     .setting-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)}
     .setting-row:last-child{border-bottom:none}
@@ -222,7 +225,8 @@
     .settings-hero{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
     .settings-hero-main{display:flex;flex-direction:column;gap:6px}
     .settings-hero-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:500}
-    .settings-hero-owner{font-size:12px;color:var(--text2);font-weight:300}
+    /* CHANGE 1: settings-hero-owner uses accent color */
+    .settings-hero-owner{font-size:12px;color:var(--accent);font-weight:400}
     .info-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);font-size:12px;color:var(--text2)}
     .recurring-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .recurring-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px}
@@ -317,7 +321,16 @@
       .chart-card.full{grid-column:auto}
       .form-grid{grid-template-columns:1fr!important}
       .page-header{flex-direction:column;gap:12px}
-      .topbar{align-items:flex-start}
+
+      /* CHANGE 3: topbar on mobile — profile left, logout right */
+      .topbar{align-items:center;flex-wrap:nowrap}
+      .topbar-profile{flex:1;min-width:0}
+      .account-quick-switch{flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap}
+      .account-quick-label{display:none}
+      .account-quick-select{display:none}
+      /* logout button stays visible and goes to right */
+      .topbar .btn-logout{width:auto;min-height:36px;padding:6px 14px;font-size:12px;flex-shrink:0}
+
       .account-quick-select{min-width:100%}
       .card,.chart-card,.goal-card,.stat{padding:18px}
       .tx-item{grid-template-columns:32px 1fr auto;gap:10px;padding:12px 8px}
@@ -446,6 +459,7 @@
 
   <!-- Main -->
   <main class="main">
+    <!-- CHANGE 3: topbar restructured — profile left, logout right on mobile -->
     <div class="topbar">
       <div class="topbar-profile">
         <div class="profile-av" x-text="userInitials"></div>
@@ -468,7 +482,7 @@
       <div class="card">
         <div class="card-title">Sem conta ativa</div>
         <div class="page-title" style="font-size:22px;margin-bottom:8px">Crie uma nova conta para começar</div>
-        <p class="panel-note" style="max-width:440px;margin-bottom:16px">Você removeu ou ainda não selecionou nenhuma conta. Use a página de ajustes para criar uma conta como “Pessoal”, “Casa” ou “Empresa”.</p>
+        <p class="panel-note" style="max-width:440px;margin-bottom:16px">Você removeu ou ainda não selecionou nenhuma conta. Use a página de ajustes para criar uma conta como "Pessoal", "Casa" ou "Empresa".</p>
         <button class="btn btn-primary" @click="page='settings'">Ir para ajustes</button>
       </div>
     </template>
@@ -727,7 +741,8 @@
               <div class="settings-hero">
                 <div class="settings-hero-main">
                   <div class="settings-hero-kicker">Carteira ativa</div>
-                  <div class="page-title" style="font-size:22px" x-text="activeAccountName"></div>
+                  <!-- CHANGE 1: page-title in settings uses accent color via CSS -->
+                  <div class="page-title" style="font-size:22px;color:var(--accent)" x-text="activeAccountName"></div>
                   <div class="settings-hero-owner" x-text="'Criada por '+activeAccountOwnerName"></div>
                 </div>
                 <div class="panel-actions">
@@ -743,17 +758,19 @@
                 <label>Selecionar carteira</label>
                 <select x-model="activeAccountId" @change="switchAccount($event.target.value)">
                   <template x-for="account in accounts" :key="account.id">
-                    <option :value="String(account.id)" x-text="account.name+' · '+roleLabel(account.role)+' · por '+account.ownerName"></option>
+                    <!-- CHANGE 2: format "Name · Role" (without "por X") -->
+                    <option :value="String(account.id)" x-text="account.name+' · '+roleLabel(account.role)"></option>
                   </template>
                 </select>
               </div>
               <div class="account-management-grid" style="margin-top:14px">
                 <template x-for="account in accounts" :key="'settings-'+account.id">
+                  <!-- CHANGE 2: left-aligned card, no text-align center -->
                   <button class="account-management-card" :class="{active:String(activeAccountId)===String(account.id)}" @click="switchAccount(account.id)">
                     <div class="account-management-main">
-                      <div class="account-management-name" x-text="account.name"></div>
-                      <div class="account-management-meta" x-text="roleLabel(account.role)"></div>
-                      <div class="account-management-meta" x-text="'Criada por '+account.ownerName"></div>
+                      <!-- CHANGE 2: "Name · Role" format -->
+                      <div class="account-management-name" x-text="account.name+' · '+roleLabel(account.role)"></div>
+                      <div class="account-management-meta" x-text="'por '+account.ownerName"></div>
                     </div>
                     <span class="role-badge" :class="account.role" x-text="String(activeAccountId)===String(account.id) ? 'Ativa' : roleLabel(account.role)"></span>
                   </button>
