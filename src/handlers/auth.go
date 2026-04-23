@@ -27,9 +27,10 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Name                 string `json:"name"`
+		Email                string `json:"email"`
+		Password             string `json:"password"`
+		PasswordConfirmation string `json:"passwordConfirmation"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
@@ -40,6 +41,10 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	body.Email = strings.TrimSpace(strings.ToLower(body.Email))
 	if body.Name == "" || body.Email == "" || len(body.Password) < 6 {
 		jsonError(w, "Dados inválidos", http.StatusBadRequest)
+		return
+	}
+	if body.Password != body.PasswordConfirmation {
+		jsonError(w, "As senhas não coincidem", http.StatusBadRequest)
 		return
 	}
 

@@ -90,6 +90,55 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 		expense.ID = id
 		writeJSON(w, http.StatusCreated, expense)
 
+	case http.MethodPatch:
+		if !requireAccountEdit(w, r) {
+			return
+		}
+
+		id, err := parseIntPathID(r.URL.Path, "/api/expenses/")
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var expense models.Expense
+		if err := decodeJSON(r, &expense); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		expense.ID = id
+		expense.UserID = userID
+		expense.AccountID = accountID
+		expense.Description = strings.TrimSpace(expense.Description)
+		expense.Category = strings.TrimSpace(expense.Category)
+		expense.Payment = strings.TrimSpace(expense.Payment)
+		if err := validateExpense(expense); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		res, err := db.DB.Exec(`
+			UPDATE expenses
+			SET user_id = ?, amount = ?, description = ?, category = ?, payment = ?, date = ?
+			WHERE id = ? AND account_id = ?
+		`, expense.UserID, expense.Amount, expense.Description, expense.Category, expense.Payment, expense.Date, expense.ID, accountID)
+		if err != nil {
+			jsonError(w, "Erro ao atualizar gasto", http.StatusInternalServerError)
+			return
+		}
+		rowsAffected, err := res.RowsAffected()
+		if err != nil {
+			jsonError(w, "Erro ao confirmar atualização", http.StatusInternalServerError)
+			return
+		}
+		if rowsAffected == 0 {
+			jsonError(w, "Gasto não encontrado", http.StatusNotFound)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, expense)
+
 	case http.MethodDelete:
 		if !requireAccountEdit(w, r) {
 			return
@@ -119,7 +168,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
-		w.Header().Set("Allow", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Allow", "GET, POST, PATCH, DELETE, OPTIONS")
 		jsonError(w, "Método não permitido", http.StatusMethodNotAllowed)
 	}
 }

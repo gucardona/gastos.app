@@ -48,9 +48,11 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 	switch r.Method {
 	case http.MethodGet:
 		rows, err := db.DB.Query(`
-			SELECT a.id, a.name, am.role
+			SELECT a.id, a.name, am.role, owner.name
 			FROM accounts a
 			INNER JOIN account_members am ON am.account_id = a.id
+			INNER JOIN account_members owner_am ON owner_am.account_id = a.id AND owner_am.role = 'owner'
+			INNER JOIN users owner ON owner.id = owner_am.user_id
 			WHERE am.user_id = ?
 			ORDER BY a.created_at ASC, a.id ASC
 		`, userID)
@@ -66,12 +68,13 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 				accountID int64
 				name      string
 				role      string
+				ownerName string
 			)
-			if err := rows.Scan(&accountID, &name, &role); err != nil {
+			if err := rows.Scan(&accountID, &name, &role, &ownerName); err != nil {
 				jsonError(w, "Erro ao ler contas", http.StatusInternalServerError)
 				return
 			}
-			accounts = append(accounts, accountResponse(accountID, name, role))
+			accounts = append(accounts, accountResponse(accountID, name, role, ownerName))
 		}
 		if err := rows.Err(); err != nil {
 			jsonError(w, "Erro ao iterar contas", http.StatusInternalServerError)
@@ -111,7 +114,7 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, accountResponse(accountID, body.Name, models.AccountRoleOwner))
+		writeJSON(w, http.StatusCreated, accountResponse(accountID, body.Name, models.AccountRoleOwner, currentUserName(userID)))
 
 	default:
 		w.Header().Set("Allow", "GET, POST, OPTIONS")
@@ -151,7 +154,7 @@ func handleAccountItem(w http.ResponseWriter, r *http.Request, userID, accountID
 			return
 		}
 
-		writeJSON(w, http.StatusOK, accountResponse(account.ID, body.Name, account.Role))
+		writeJSON(w, http.StatusOK, accountResponse(account.ID, body.Name, account.Role, account.OwnerName))
 
 	case http.MethodDelete:
 		if account.Role != models.AccountRoleOwner {
@@ -293,7 +296,8 @@ func handleAccountMemberItem(w http.ResponseWriter, r *http.Request, userID, acc
 		writeAccountLookupError(w, err)
 		return
 	}
-	if account.Role != models.AccountRoleOwner {
+	selfManagedLeave := r.Method == http.MethodDelete && userID == memberUserID
+	if account.Role != models.AccountRoleOwner && !selfManagedLeave {
 		jsonError(w, "Apenas o owner pode gerenciar membros", http.StatusForbidden)
 		return
 	}
@@ -345,6 +349,10 @@ func handleAccountMemberItem(w http.ResponseWriter, r *http.Request, userID, acc
 			jsonError(w, "O owner não pode ser removido", http.StatusBadRequest)
 			return
 		}
+		if selfManagedLeave && member.UserID != userID {
+			jsonError(w, "Você só pode sair da sua própria conta compartilhada", http.StatusForbidden)
+			return
+		}
 
 		res, err := db.DB.Exec(`
 			DELETE FROM account_members
@@ -375,16 +383,26 @@ func handleAccountMemberItem(w http.ResponseWriter, r *http.Request, userID, acc
 func lookupAccountForUser(userID, accountID int64) (models.Account, error) {
 	var account models.Account
 	err := db.DB.QueryRow(`
-		SELECT a.id, a.name, am.role
+		SELECT a.id, a.name, am.role, owner.name
 		FROM accounts a
 		INNER JOIN account_members am ON am.account_id = a.id
+		INNER JOIN account_members owner_am ON owner_am.account_id = a.id AND owner_am.role = 'owner'
+		INNER JOIN users owner ON owner.id = owner_am.user_id
 		WHERE a.id = ? AND am.user_id = ?
-	`, accountID, userID).Scan(&account.ID, &account.Name, &account.Role)
+	`, accountID, userID).Scan(&account.ID, &account.Name, &account.Role, &account.OwnerName)
 	if err != nil {
 		return models.Account{}, err
 	}
 	account.Permissions = models.PermissionsForRole(account.Role)
 	return account, nil
+}
+
+func currentUserName(userID int64) string {
+	var name string
+	if err := db.DB.QueryRow(`SELECT name FROM users WHERE id = ?`, userID).Scan(&name); err != nil {
+		return ""
+	}
+	return name
 }
 
 func lookupAccountMember(accountID, memberUserID int64) (models.AccountMember, error) {

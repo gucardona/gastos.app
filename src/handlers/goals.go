@@ -83,6 +83,67 @@ func Goals(w http.ResponseWriter, r *http.Request) {
 
 		writeJSON(w, http.StatusCreated, goal)
 
+	case http.MethodPatch:
+		if !requireAccountEdit(w, r) {
+			return
+		}
+
+		currentCategory := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/goals/"))
+		if currentCategory == "" {
+			jsonError(w, "Categoria inválida", http.StatusBadRequest)
+			return
+		}
+
+		var body struct {
+			Category string  `json:"category"`
+			Limit    float64 `json:"limit"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		goal := models.Goal{
+			UserID:    userID,
+			AccountID: accountID,
+			Category:  strings.TrimSpace(body.Category),
+			Limit:     body.Limit,
+		}
+		if err := validateGoal(goal); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		res, err := db.DB.Exec(`
+			UPDATE goals
+			SET user_id = ?, category = ?, "limit" = ?
+			WHERE account_id = ? AND category = ?
+		`, goal.UserID, goal.Category, goal.Limit, accountID, currentCategory)
+		if err != nil {
+			jsonError(w, "Erro ao atualizar meta", http.StatusInternalServerError)
+			return
+		}
+		rowsAffected, err := res.RowsAffected()
+		if err != nil {
+			jsonError(w, "Erro ao confirmar atualização", http.StatusInternalServerError)
+			return
+		}
+		if rowsAffected == 0 {
+			jsonError(w, "Meta não encontrada", http.StatusNotFound)
+			return
+		}
+
+		if err := db.DB.QueryRow(`
+			SELECT id, user_id, account_id, category, "limit"
+			FROM goals
+			WHERE account_id = ? AND category = ?
+		`, accountID, goal.Category).Scan(&goal.ID, &goal.UserID, &goal.AccountID, &goal.Category, &goal.Limit); err != nil {
+			jsonError(w, "Erro ao buscar meta atualizada", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, goal)
+
 	case http.MethodDelete:
 		if !requireAccountEdit(w, r) {
 			return
@@ -112,7 +173,7 @@ func Goals(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
-		w.Header().Set("Allow", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Allow", "GET, POST, PATCH, DELETE, OPTIONS")
 		jsonError(w, "Método não permitido", http.StatusMethodNotAllowed)
 	}
 }

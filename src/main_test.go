@@ -26,6 +26,7 @@ type accountResponse struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Role        string `json:"role"`
+	OwnerName   string `json:"ownerName"`
 	Permissions struct {
 		CanEdit          bool `json:"canEdit"`
 		CanManageMembers bool `json:"canManageMembers"`
@@ -63,6 +64,19 @@ type goalResponse struct {
 	Limit    float64 `json:"limit"`
 }
 
+type recurringExpenseResponse struct {
+	ID          int64   `json:"id"`
+	Amount      float64 `json:"amount"`
+	Description string  `json:"description"`
+	Category    string  `json:"category"`
+	Payment     string  `json:"payment"`
+	Frequency   string  `json:"frequency"`
+	DayOfMonth  int     `json:"dayOfMonth"`
+	StartDate   string  `json:"startDate"`
+	EndDate     string  `json:"endDate"`
+	Enabled     bool    `json:"enabled"`
+}
+
 type apiClient struct {
 	t         *testing.T
 	serverURL string
@@ -84,6 +98,9 @@ func TestSharedAccountPermissionsAndIsolation(t *testing.T) {
 	}
 	if aliceAccounts[0].Name != "Pessoal" || aliceAccounts[0].Role != "owner" {
 		t.Fatalf("unexpected default account: %+v", aliceAccounts[0])
+	}
+	if aliceAccounts[0].OwnerName != "Alice" {
+		t.Fatalf("default account owner name = %q, want Alice", aliceAccounts[0].OwnerName)
 	}
 	if !aliceAccounts[0].Permissions.CanEdit || !aliceAccounts[0].Permissions.CanManageMembers || !aliceAccounts[0].Permissions.CanDelete {
 		t.Fatalf("owner permissions were not returned correctly: %+v", aliceAccounts[0].Permissions)
@@ -214,6 +231,126 @@ func TestSharedAccountPermissionsAndIsolation(t *testing.T) {
 	bob.request(http.MethodGet, "/api/expenses", nil, http.StatusForbidden, nil)
 }
 
+func TestEditResourcesRecurringExpensesAndLeaveSharedAccount(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	alice := registerUser(t, server.URL, "Alice", "alice@example.com")
+	bob := registerUser(t, server.URL, "Bob", "bob@example.com")
+
+	var shared accountResponse
+	alice.request(http.MethodPost, "/api/accounts", map[string]any{"name": "Casa"}, http.StatusCreated, &shared)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "bob@example.com",
+		"role":  "editor",
+	}, http.StatusCreated, &accountMemberResponse{})
+
+	alice.accountID = personalIDString(shared.ID)
+	bob.accountID = personalIDString(shared.ID)
+
+	var expense expenseResponse
+	alice.request(http.MethodPost, "/api/expenses", map[string]any{
+		"amount":      90,
+		"description": "Mercado",
+		"category":    "market",
+		"payment":     "pix",
+		"date":        "2026-04-10",
+	}, http.StatusCreated, &expense)
+	bob.request(http.MethodPatch, "/api/expenses/"+personalIDString(expense.ID), map[string]any{
+		"amount":      110,
+		"description": "Mercado mensal",
+		"category":    "market",
+		"payment":     "credit",
+		"date":        "2026-04-11",
+	}, http.StatusOK, &expense)
+	if expense.Description != "Mercado mensal" || expense.Payment != "credit" || expense.Amount != 110 {
+		t.Fatalf("expense not updated correctly: %+v", expense)
+	}
+
+	var income incomeResponse
+	alice.request(http.MethodPost, "/api/incomes", map[string]any{
+		"amount":      500,
+		"description": "Extra",
+		"type":        "freelance",
+		"date":        "2026-04-12",
+	}, http.StatusCreated, &income)
+	bob.request(http.MethodPatch, "/api/incomes/"+personalIDString(income.ID), map[string]any{
+		"amount":      700,
+		"description": "Extra revisado",
+		"type":        "salary",
+		"date":        "2026-04-13",
+	}, http.StatusOK, &income)
+	if income.Description != "Extra revisado" || income.Type != "salary" || income.Amount != 700 {
+		t.Fatalf("income not updated correctly: %+v", income)
+	}
+
+	var goal goalResponse
+	alice.request(http.MethodPost, "/api/goals", map[string]any{
+		"category": "food",
+		"limit":    300,
+	}, http.StatusCreated, &goal)
+	bob.request(http.MethodPatch, "/api/goals/food", map[string]any{
+		"category": "market",
+		"limit":    650,
+	}, http.StatusOK, &goal)
+	if goal.Category != "market" || goal.Limit != 650 {
+		t.Fatalf("goal not updated correctly: %+v", goal)
+	}
+
+	var recurring recurringExpenseResponse
+	bob.request(http.MethodPost, "/api/recurring-expenses", map[string]any{
+		"amount":      49.9,
+		"description": "Streaming",
+		"category":    "subscriptions",
+		"payment":     "credit",
+		"frequency":   "monthly",
+		"dayOfMonth":  15,
+		"startDate":   "2026-04-15",
+		"endDate":     "2026-12-15",
+		"enabled":     true,
+	}, http.StatusCreated, &recurring)
+	if recurring.ID == 0 {
+		t.Fatal("recurring expense should be created with an id")
+	}
+
+	bob.request(http.MethodPatch, "/api/recurring-expenses/"+personalIDString(recurring.ID), map[string]any{
+		"amount":      59.9,
+		"description": "Streaming família",
+		"category":    "subscriptions",
+		"payment":     "credit",
+		"frequency":   "monthly",
+		"dayOfMonth":  20,
+		"startDate":   "2026-04-15",
+		"endDate":     "2027-01-20",
+		"enabled":     false,
+	}, http.StatusOK, &recurring)
+	if recurring.Description != "Streaming família" || recurring.DayOfMonth != 20 || recurring.Enabled {
+		t.Fatalf("recurring expense not updated correctly: %+v", recurring)
+	}
+
+	var recurringList []recurringExpenseResponse
+	bob.request(http.MethodGet, "/api/recurring-expenses", nil, http.StatusOK, &recurringList)
+	if len(recurringList) != 1 || recurringList[0].Description != "Streaming família" {
+		t.Fatalf("unexpected recurring expenses list: %+v", recurringList)
+	}
+
+	bob.request(http.MethodDelete, "/api/accounts/"+personalIDString(shared.ID)+"/members/"+personalIDString(bob.userID), nil, http.StatusNoContent, nil)
+	bob.request(http.MethodGet, "/api/expenses", nil, http.StatusForbidden, nil)
+}
+
+func TestRegisterRequiresPasswordConfirmation(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	client := &apiClient{t: t, serverURL: server.URL}
+	client.request(http.MethodPost, "/api/auth/register", map[string]any{
+		"name":                 "Alice",
+		"email":                "alice@example.com",
+		"password":             "secret123",
+		"passwordConfirmation": "secret321",
+	}, http.StatusBadRequest, nil)
+}
+
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
@@ -232,9 +369,10 @@ func registerUser(t *testing.T, serverURL, name, email string) *apiClient {
 	client := &apiClient{t: t, serverURL: serverURL}
 	var auth authResponse
 	client.request(http.MethodPost, "/api/auth/register", map[string]any{
-		"name":     name,
-		"email":    email,
-		"password": "secret123",
+		"name":                 name,
+		"email":                email,
+		"password":             "secret123",
+		"passwordConfirmation": "secret123",
 	}, http.StatusCreated, &auth)
 	client.token = auth.Token
 	client.userID = auth.User.ID

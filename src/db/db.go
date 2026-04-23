@@ -141,6 +141,23 @@ func createTables() error {
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS recurring_expenses (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			account_id INTEGER NOT NULL,
+			amount REAL NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			category TEXT NOT NULL,
+			payment TEXT NOT NULL,
+			frequency TEXT NOT NULL DEFAULT 'monthly' CHECK(frequency IN ('monthly')),
+			day_of_month INTEGER NOT NULL,
+			start_date TEXT NOT NULL,
+			end_date TEXT,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS schema_migrations (
 			name TEXT PRIMARY KEY,
 			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -163,6 +180,7 @@ func createIndexes() error {
 		`CREATE INDEX IF NOT EXISTS idx_expenses_account_date ON expenses(account_id, date DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_incomes_account_date ON incomes(account_id, date DESC);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_account_category ON goals(account_id, category);`,
+		`CREATE INDEX IF NOT EXISTS idx_recurring_expenses_account_enabled ON recurring_expenses(account_id, enabled, day_of_month);`,
 	}
 
 	for _, q := range queries {

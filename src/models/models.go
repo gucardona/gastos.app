@@ -42,6 +42,21 @@ type Goal struct {
 	Limit     float64 `json:"limit"`
 }
 
+type RecurringExpense struct {
+	ID          int64   `json:"id"`
+	UserID      int64   `json:"-"`
+	AccountID   int64   `json:"-"`
+	Amount      float64 `json:"amount"`
+	Description string  `json:"description"`
+	Category    string  `json:"category"`
+	Payment     string  `json:"payment"`
+	Frequency   string  `json:"frequency"`
+	DayOfMonth  int     `json:"dayOfMonth"`
+	StartDate   string  `json:"startDate"`
+	EndDate     string  `json:"endDate"`
+	Enabled     bool    `json:"enabled"`
+}
+
 type AccountPermissions struct {
 	CanEdit          bool `json:"canEdit"`
 	CanManageMembers bool `json:"canManageMembers"`
@@ -52,6 +67,7 @@ type Account struct {
 	ID          int64              `json:"id"`
 	Name        string             `json:"name"`
 	Role        string             `json:"role"`
+	OwnerName   string             `json:"ownerName"`
 	Permissions AccountPermissions `json:"permissions"`
 }
 

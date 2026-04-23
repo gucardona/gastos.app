@@ -88,6 +88,54 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		income.ID = id
 		writeJSON(w, http.StatusCreated, income)
 
+	case http.MethodPatch:
+		if !requireAccountEdit(w, r) {
+			return
+		}
+
+		id, err := parseIntPathID(r.URL.Path, "/api/incomes/")
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var income models.Income
+		if err := decodeJSON(r, &income); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		income.ID = id
+		income.UserID = userID
+		income.AccountID = accountID
+		income.Description = strings.TrimSpace(income.Description)
+		income.Type = strings.TrimSpace(income.Type)
+		if err := validateIncome(income); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		res, err := db.DB.Exec(`
+			UPDATE incomes
+			SET user_id = ?, amount = ?, description = ?, type = ?, date = ?
+			WHERE id = ? AND account_id = ?
+		`, income.UserID, income.Amount, income.Description, income.Type, income.Date, income.ID, accountID)
+		if err != nil {
+			jsonError(w, "Erro ao atualizar entrada", http.StatusInternalServerError)
+			return
+		}
+		rowsAffected, err := res.RowsAffected()
+		if err != nil {
+			jsonError(w, "Erro ao confirmar atualização", http.StatusInternalServerError)
+			return
+		}
+		if rowsAffected == 0 {
+			jsonError(w, "Entrada não encontrada", http.StatusNotFound)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, income)
+
 	case http.MethodDelete:
 		if !requireAccountEdit(w, r) {
 			return
@@ -117,7 +165,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
-		w.Header().Set("Allow", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Allow", "GET, POST, PATCH, DELETE, OPTIONS")
 		jsonError(w, "Método não permitido", http.StatusMethodNotAllowed)
 	}
 }

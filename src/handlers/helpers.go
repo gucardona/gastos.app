@@ -31,11 +31,12 @@ func decodeJSON(r *http.Request, dst any) error {
 	return nil
 }
 
-func accountResponse(id int64, name, role string) models.Account {
+func accountResponse(id int64, name, role, ownerName string) models.Account {
 	return models.Account{
 		ID:          id,
 		Name:        name,
 		Role:        role,
+		OwnerName:   ownerName,
 		Permissions: models.PermissionsForRole(role),
 	}
 }

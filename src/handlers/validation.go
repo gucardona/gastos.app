@@ -53,6 +53,44 @@ func validateGoal(goal models.Goal) error {
 	return nil
 }
 
+func validateRecurringExpense(recurring models.RecurringExpense) error {
+	if recurring.Amount <= 0 {
+		return errors.New("Valor do gasto recorrente deve ser maior que zero")
+	}
+	if strings.TrimSpace(recurring.Description) == "" {
+		return errors.New("Descrição é obrigatória")
+	}
+	if strings.TrimSpace(recurring.Category) == "" {
+		return errors.New("Categoria é obrigatória")
+	}
+	if strings.TrimSpace(recurring.Payment) == "" {
+		return errors.New("Pagamento é obrigatório")
+	}
+	if recurring.Frequency == "" {
+		recurring.Frequency = "monthly"
+	}
+	if recurring.Frequency != "monthly" {
+		return errors.New("Frequência inválida")
+	}
+	if recurring.DayOfMonth < 1 || recurring.DayOfMonth > 31 {
+		return errors.New("Dia do mês deve estar entre 1 e 31")
+	}
+	if !isValidDate(recurring.StartDate) {
+		return errors.New("Data inicial inválida")
+	}
+	if strings.TrimSpace(recurring.EndDate) != "" {
+		if !isValidDate(recurring.EndDate) {
+			return errors.New("Data limite inválida")
+		}
+		startDate, _ := time.Parse("2006-01-02", recurring.StartDate)
+		endDate, _ := time.Parse("2006-01-02", recurring.EndDate)
+		if endDate.Before(startDate) {
+			return errors.New("Data limite deve ser igual ou posterior à data inicial")
+		}
+	}
+	return nil
+}
+
 func validateAccountName(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return errors.New("Nome da conta é obrigatório")
