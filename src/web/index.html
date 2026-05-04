@@ -322,16 +322,12 @@
       .form-grid{grid-template-columns:1fr!important}
       .page-header{flex-direction:column;gap:12px}
 
-      /* CHANGE 3: topbar on mobile — profile left, logout right */
-      .topbar{align-items:center;flex-wrap:nowrap}
-      .topbar-profile{flex:1;min-width:0}
-      .account-quick-switch{flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap}
-      .account-quick-label{display:none}
-      .account-quick-select{display:none}
-      /* logout button stays visible and goes to right */
-      .topbar .btn-logout{width:auto;min-height:36px;padding:6px 14px;font-size:12px;flex-shrink:0}
-
-      .account-quick-select{min-width:100%}
+      .topbar{align-items:center;flex-wrap:wrap;gap:12px}
+      .topbar-profile{flex:1 1 calc(100% - 72px);min-width:0}
+      .account-quick-switch{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%;gap:8px;align-items:end}
+      .account-quick-label{display:block;grid-column:1/-1;font-size:9px;line-height:1}
+      .account-quick-select{display:block;min-width:0;width:100%;padding:11px 36px 11px 12px;font-size:14px;box-shadow:none}
+      .topbar .btn-logout{width:auto;min-height:42px;padding:8px 14px;font-size:12px;flex-shrink:0}
       .card,.chart-card,.goal-card,.stat{padding:18px}
       .tx-item{grid-template-columns:32px 1fr auto;gap:10px;padding:12px 8px}
       .tx-ico{width:32px;height:32px;font-size:15px}
