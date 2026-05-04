@@ -42,6 +42,11 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 				jsonError(w, "Erro ao ler gastos", http.StatusInternalServerError)
 				return
 			}
+			expense.Splits, err = loadExpenseSplits(expense.ID, expense.Amount)
+			if err != nil {
+				jsonError(w, "Erro ao ler racha do gasto", http.StatusInternalServerError)
+				return
+			}
 			expenses = append(expenses, expense)
 		}
 		if err := rows.Err(); err != nil {
@@ -71,8 +76,20 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		splits, err := normalizeSplits(accountID, expense.Amount, expense.Splits)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		res, err := db.DB.Exec(`
+		tx, err := db.DB.Begin()
+		if err != nil {
+			jsonError(w, "Erro ao salvar gasto", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		res, err := tx.Exec(`
 			INSERT INTO expenses (user_id, account_id, amount, description, category, payment, date)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
 		`, expense.UserID, expense.AccountID, expense.Amount, expense.Description, expense.Category, expense.Payment, expense.Date)
@@ -88,6 +105,15 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 		}
 
 		expense.ID = id
+		expense.Splits = splits
+		if err := replaceExpenseSplits(tx, expense.ID, expense.Splits); err != nil {
+			jsonError(w, "Erro ao salvar racha do gasto", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			jsonError(w, "Erro ao salvar gasto", http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusCreated, expense)
 
 	case http.MethodPatch:
@@ -117,8 +143,20 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		splits, err := normalizeSplits(accountID, expense.Amount, expense.Splits)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		res, err := db.DB.Exec(`
+		tx, err := db.DB.Begin()
+		if err != nil {
+			jsonError(w, "Erro ao atualizar gasto", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		res, err := tx.Exec(`
 			UPDATE expenses
 			SET user_id = ?, amount = ?, description = ?, category = ?, payment = ?, date = ?
 			WHERE id = ? AND account_id = ?
@@ -137,6 +175,15 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		expense.Splits = splits
+		if err := replaceExpenseSplits(tx, expense.ID, expense.Splits); err != nil {
+			jsonError(w, "Erro ao atualizar racha do gasto", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			jsonError(w, "Erro ao atualizar gasto", http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusOK, expense)
 
 	case http.MethodDelete:

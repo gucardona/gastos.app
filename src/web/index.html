@@ -143,6 +143,19 @@
     .panel-actions{display:flex;gap:8px;flex-wrap:wrap}
     .panel-actions .btn{flex:1 1 0}
     .panel-note{font-size:11px;line-height:1.5;color:var(--text2);font-weight:300}
+    .split-editor{margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface2)}
+    .split-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .split-title{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:500}
+    .split-total{font-size:11px;color:var(--text2);font-weight:500}
+    .split-total.invalid{color:var(--danger)}
+    .split-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .split-row{display:grid;grid-template-columns:1fr 96px;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px}
+    .split-person{min-width:0}
+    .split-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .split-amount{font-size:11px;color:var(--text2);font-weight:300;margin-top:2px}
+    .split-input{display:flex;align-items:center;gap:4px}
+    .split-input input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px;color:var(--text);font-size:14px;outline:none;text-align:right}
+    .split-input span{font-size:11px;color:var(--text2)}
     .member-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 13px;border-radius:10px;border:1px solid var(--border);background:var(--surface2)}
     .member-main{min-width:0}
     .member-name{font-size:13px;font-weight:600}
@@ -318,6 +331,7 @@
       .main{padding:calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(108px + var(--safe-bottom)) calc(16px + var(--safe-left))}
       .stats-grid{grid-template-columns:repeat(2,1fr)}
       .charts-grid,.goals-grid,.ess-summary,.recurring-grid,.account-management-grid{grid-template-columns:1fr}
+      .split-list{grid-template-columns:1fr}
       .chart-card.full{grid-column:auto}
       .form-grid{grid-template-columns:1fr!important}
       .page-header{flex-direction:column;gap:12px}
@@ -567,6 +581,29 @@
               <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newTx.date" x-init="bindDatePicker($el, newTx, 'date')" readonly /></div>
               <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitExpense()" :disabled="savingExpense" x-text="savingExpense?'...':(editingExpenseId?'Salvar':'Adicionar')"></button></div>
             </div>
+            <div class="split-editor">
+              <div class="split-head">
+                <div>
+                  <div class="split-title">Racha entre participantes</div>
+                  <div class="panel-note">A soma precisa fechar em 100%.</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="split-total" :class="{invalid:Math.abs(splitTotal(newTx.splits)-100)>.01}" x-text="splitTotal(newTx.splits).toFixed(2)+'%'"></span>
+                  <button class="btn btn-ghost btn-sm" @click="resetSplitPercentages(newTx)">Igualar</button>
+                </div>
+              </div>
+              <div class="split-list">
+                <template x-for="split in newTx.splits" :key="'expense-split-'+split.userId">
+                  <div class="split-row">
+                    <div class="split-person">
+                      <div class="split-name" x-text="split.name"></div>
+                      <div class="split-amount" x-text="fmt(splitAmountPreview(newTx.amount, split.percentage))"></div>
+                    </div>
+                    <div class="split-input"><input type="number" min="0" max="100" step="0.01" x-model.number="split.percentage" /><span>%</span></div>
+                  </div>
+                </template>
+              </div>
+            </div>
             <div class="panel-actions" x-show="editingExpenseId" style="margin-top:12px">
               <button class="btn btn-ghost" @click="cancelExpenseEdit()">Cancelar edição</button>
             </div>
@@ -582,6 +619,29 @@
               <div class="field"><label>Início</label><input class="date-picker" type="text" x-model="newRecurring.startDate" x-init="bindDatePicker($el, newRecurring, 'startDate')" readonly /></div>
               <div class="field"><label>Limite</label><input class="date-picker" type="text" x-model="newRecurring.endDate" x-init="bindDatePicker($el, newRecurring, 'endDate', { allowInput: false, allowClear: true })" readonly /></div>
               <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitRecurringExpense()" :disabled="savingRecurring" x-text="savingRecurring?'...':(editingRecurringId?'Salvar':'Configurar')"></button></div>
+            </div>
+            <div class="split-editor">
+              <div class="split-head">
+                <div>
+                  <div class="split-title">Racha recorrente</div>
+                  <div class="panel-note">Será aplicado em cada cobrança gerada por esta recorrência.</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="split-total" :class="{invalid:Math.abs(splitTotal(newRecurring.splits)-100)>.01}" x-text="splitTotal(newRecurring.splits).toFixed(2)+'%'"></span>
+                  <button class="btn btn-ghost btn-sm" @click="resetSplitPercentages(newRecurring)">Igualar</button>
+                </div>
+              </div>
+              <div class="split-list">
+                <template x-for="split in newRecurring.splits" :key="'recurring-split-'+split.userId">
+                  <div class="split-row">
+                    <div class="split-person">
+                      <div class="split-name" x-text="split.name"></div>
+                      <div class="split-amount" x-text="fmt(splitAmountPreview(newRecurring.amount, split.percentage))"></div>
+                    </div>
+                    <div class="split-input"><input type="number" min="0" max="100" step="0.01" x-model.number="split.percentage" /><span>%</span></div>
+                  </div>
+                </template>
+              </div>
             </div>
             <div class="panel-actions" style="margin-top:12px">
               <button class="btn btn-ghost" @click="newRecurring.enabled=!newRecurring.enabled" x-text="newRecurring.enabled ? 'Ativa' : 'Pausada'"></button>
@@ -609,6 +669,7 @@
                     <span class="role-badge" :class="item.enabled ? 'editor' : 'reader'" x-text="item.enabled ? 'Ativo' : 'Pausado'"></span>
                   </div>
                   <div class="recurring-meta-line" x-text="'Todo dia '+item.dayOfMonth+' · '+getCatName(item.category)+' · '+payLabel(item.payment)"></div>
+                  <div class="recurring-meta-line" x-text="splitSummary(item)"></div>
                   <div class="recurring-meta-line" x-text="'Início: '+formatDateLong(item.startDate)+(item.endDate ? ' · até '+formatDateLong(item.endDate) : ' · sem limite')"></div>
                   <div class="panel-actions" x-show="canEditActiveAccount" style="margin-top:12px">
                     <button class="btn btn-ghost btn-sm" @click="startEditRecurringExpense(item)">Editar</button>
@@ -636,7 +697,7 @@
                     <div class="tx-ico" x-text="getCatIcon(tx.category)"></div>
                     <div class="tx-body">
                       <div class="tx-row1"><span class="tx-desc" x-text="tx.description||getCatName(tx.category)"></span><span :class="'ess-badge ess-'+getCatEss(tx.category)" x-text="essLabel(getCatEss(tx.category))"></span></div>
-                      <div class="tx-row2"><span class="tx-meta" x-text="getCatName(tx.category)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span></div>
+                      <div class="tx-row2"><span class="tx-meta" x-text="getCatName(tx.category)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span><span class="pay-badge" x-text="splitSummary(tx)"></span></div>
                     </div>
                     <div class="tx-right">
                       <span class="tx-amount" x-text="'− '+fmt(tx.amount)"></span>
@@ -977,10 +1038,10 @@ function app() {
     editingRecurringId: '',
     _datePickers: [],
     _charts: {},
-    newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '' },
+    newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '', splits: [] },
     newInc: { amount: '0,00', description: '', type: 'salary', date: '' },
     newGoal: { category: 'food', limit: '0,00' },
-    newRecurring: { amount: '0,00', description: '', category: 'subscriptions', payment: 'credit', frequency: 'monthly', dayOfMonth: 1, startDate: '', endDate: '', enabled: true },
+    newRecurring: { amount: '0,00', description: '', category: 'subscriptions', payment: 'credit', frequency: 'monthly', dayOfMonth: 1, startDate: '', endDate: '', enabled: true, splits: [] },
 
     categories: [
       { id:'food',          name:'Alimentação',  icon:'🍽',  color:'#0f6579', essentiality:'essential' },
@@ -1189,12 +1250,14 @@ function app() {
     },
 
     async refreshAccountMembers() {
-      if (!this.hasActiveAccount || !this.canManageMembers) {
+      if (!this.hasActiveAccount) {
         this.accountMembers = []
         return
       }
 
       this.accountMembers = await API.get('/api/accounts/' + this.activeAccountId + '/members') || []
+      if (!this.editingExpenseId) this.resetSplitPercentages(this.newTx)
+      if (!this.editingRecurringId) this.resetSplitPercentages(this.newRecurring)
     },
 
     async createAccount() {
@@ -1324,6 +1387,7 @@ function app() {
         category: 'food',
         payment: 'pix',
         date: new Date().toISOString().split('T')[0],
+        splits: this.buildDefaultSplits(),
       }
       this.$nextTick(() => this.syncDatePickers())
     },
@@ -1353,13 +1417,14 @@ function app() {
         startDate: new Date().toISOString().split('T')[0],
         endDate: '',
         enabled: true,
+        splits: this.buildDefaultSplits(),
       }
       this.$nextTick(() => this.syncDatePickers())
     },
 
     startEditExpense(tx) {
       this.editingExpenseId = String(tx.id)
-      this.newTx = { amount: this.moneyToInput(tx.amount), description: tx.description, category: tx.category, payment: tx.payment, date: tx.date }
+      this.newTx = { amount: this.moneyToInput(tx.amount), description: tx.description, category: tx.category, payment: tx.payment, date: tx.date, splits: this.formSplitsFrom(tx.splits) }
       this.$nextTick(() => this.syncDatePickers())
     },
 
@@ -1386,6 +1451,7 @@ function app() {
           category: this.newTx.category,
           payment: this.newTx.payment,
           date: this.newTx.date || new Date().toISOString().split('T')[0],
+          splits: this.normalizedFormSplits(this.newTx.splits),
         }
         const e = this.editingExpenseId
           ? await API.patch('/api/expenses/' + this.editingExpenseId, payload)
@@ -1546,6 +1612,7 @@ function app() {
         startDate: item.startDate,
         endDate: item.endDate || '',
         enabled: !!item.enabled,
+        splits: this.formSplitsFrom(item.splits),
       }
       this.$nextTick(() => this.syncDatePickers())
     },
@@ -1577,6 +1644,7 @@ function app() {
           startDate: this.newRecurring.startDate,
           endDate: this.newRecurring.endDate || '',
           enabled: !!this.newRecurring.enabled,
+          splits: this.normalizedFormSplits(this.newRecurring.splits),
         }
         const recurring = this.editingRecurringId
           ? await API.patch('/api/recurring-expenses/' + this.editingRecurringId, payload)
@@ -1626,6 +1694,61 @@ function app() {
 
     moneyToInput(value) {
       return this.formatCurrencyInput(Math.round(Number(value || 0) * 100))
+    },
+
+    buildDefaultSplits() {
+      const members = this.accountMembers.length
+        ? this.accountMembers
+        : [{ userId: this.currentUser.id, name: this.currentUser.name, email: this.currentUser.email }]
+      if (!members.length) return []
+      const base = Math.floor((100 / members.length) * 100) / 100
+      let used = 0
+      return members.map((member, index) => {
+        const percentage = index === members.length - 1 ? Number((100 - used).toFixed(2)) : base
+        used += percentage
+        return {
+          userId: member.userId,
+          name: member.name,
+          email: member.email,
+          percentage,
+        }
+      })
+    },
+
+    formSplitsFrom(splits = []) {
+      if (!splits.length) return this.buildDefaultSplits()
+      return splits.map(split => ({
+        userId: split.userId,
+        name: split.name || this.accountMembers.find(member => member.userId === split.userId)?.name || 'Participante',
+        email: split.email || '',
+        percentage: Number(split.percentage || 0),
+      }))
+    },
+
+    resetSplitPercentages(target) {
+      target.splits = this.buildDefaultSplits()
+    },
+
+    normalizedFormSplits(splits = []) {
+      return splits
+        .filter(split => Number(split.percentage || 0) > 0)
+        .map(split => ({ userId: split.userId, percentage: Number(split.percentage || 0) }))
+    },
+
+    splitTotal(splits = []) {
+      return splits.reduce((sum, split) => sum + Number(split.percentage || 0), 0)
+    },
+
+    splitAmountPreview(amountInput, percentage) {
+      const amount = typeof amountInput === 'number' ? amountInput : this.parseCurrencyInput(amountInput)
+      return Math.round(amount * Number(percentage || 0)) / 100
+    },
+
+    splitSummary(item) {
+      const splits = item?.splits || []
+      if (!splits.length) return 'sem racha'
+      if (splits.length === 1) return splits[0].name + ' · 100%'
+      return splits.map(split => split.name + ' ' + Number(split.percentage || 0).toFixed(0) + '%').join(' · ')
     },
 
     bindDatePicker(el, target, field, options = {}) {
