@@ -14,15 +14,16 @@ type User struct {
 }
 
 type Expense struct {
-	ID          int64   `json:"id"`
-	UserID      int64   `json:"-"`
-	AccountID   int64   `json:"-"`
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-	Category    string  `json:"category"`
-	Payment     string  `json:"payment"`
-	Date        string  `json:"date"`
-	Splits      []Split `json:"splits"`
+	ID           int64   `json:"id"`
+	UserID       int64   `json:"-"`
+	PaidByUserID int64   `json:"paidByUserId"`
+	AccountID    int64   `json:"-"`
+	Amount       float64 `json:"amount"`
+	Description  string  `json:"description"`
+	Category     string  `json:"category"`
+	Payment      string  `json:"payment"`
+	Date         string  `json:"date"`
+	Splits       []Split `json:"splits"`
 }
 
 type Income struct {
@@ -65,6 +66,18 @@ type Split struct {
 	Email      string  `json:"email,omitempty"`
 	Percentage float64 `json:"percentage"`
 	Amount     float64 `json:"amount,omitempty"`
+}
+
+type SplitPayment struct {
+	ID             int64   `json:"id"`
+	AccountID      int64   `json:"-"`
+	PayerUserID    int64   `json:"payerUserId"`
+	PayerName      string  `json:"payerName,omitempty"`
+	ReceiverUserID int64   `json:"receiverUserId"`
+	ReceiverName   string  `json:"receiverName,omitempty"`
+	Amount         float64 `json:"amount"`
+	Date           string  `json:"date"`
+	Note           string  `json:"note"`
 }
 
 type AccountPermissions struct {

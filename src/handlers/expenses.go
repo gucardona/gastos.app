@@ -42,6 +42,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 				jsonError(w, "Erro ao ler gastos", http.StatusInternalServerError)
 				return
 			}
+			expense.PaidByUserID = expense.UserID
 			expense.Splits, err = loadExpenseSplits(expense.ID, expense.Amount)
 			if err != nil {
 				jsonError(w, "Erro ao ler racha do gasto", http.StatusInternalServerError)
@@ -105,6 +106,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 		}
 
 		expense.ID = id
+		expense.PaidByUserID = expense.UserID
 		expense.Splits = splits
 		if err := replaceExpenseSplits(tx, expense.ID, expense.Splits); err != nil {
 			jsonError(w, "Erro ao salvar racha do gasto", http.StatusInternalServerError)
@@ -175,6 +177,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		expense.PaidByUserID = expense.UserID
 		expense.Splits = splits
 		if err := replaceExpenseSplits(tx, expense.ID, expense.Splits); err != nil {
 			jsonError(w, "Erro ao atualizar racha do gasto", http.StatusInternalServerError)

@@ -176,6 +176,19 @@ func createTables() error {
 			FOREIGN KEY(recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE CASCADE,
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS split_payments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			account_id INTEGER NOT NULL,
+			payer_user_id INTEGER NOT NULL,
+			receiver_user_id INTEGER NOT NULL,
+			amount REAL NOT NULL,
+			date TEXT NOT NULL,
+			note TEXT NOT NULL DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+			FOREIGN KEY(payer_user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(receiver_user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS schema_migrations (
 			name TEXT PRIMARY KEY,
 			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -201,6 +214,7 @@ func createIndexes() error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_account_category ON goals(account_id, category);`,
 		`CREATE INDEX IF NOT EXISTS idx_recurring_expenses_account_enabled ON recurring_expenses(account_id, enabled, day_of_month);`,
 		`CREATE INDEX IF NOT EXISTS idx_recurring_expense_splits_user ON recurring_expense_splits(user_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_split_payments_account_date ON split_payments(account_id, date DESC);`,
 	}
 
 	for _, q := range queries {

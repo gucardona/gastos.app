@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+var (
+	errAmountPositive             = errors.New("Valor deve ser maior que zero")
+	errInvalidDate                = errors.New("Data inválida")
+	errInvalidSplitPaymentMembers = errors.New("Pagador e recebedor precisam ser participantes diferentes desta carteira")
+)
+
 func validateExpense(expense models.Expense) error {
 	if expense.Amount <= 0 {
 		return errors.New("Valor do gasto deve ser maior que zero")
