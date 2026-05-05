@@ -89,6 +89,53 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 		payment.ReceiverName = accountMemberName(accountID, payment.ReceiverUserID)
 		writeJSON(w, http.StatusCreated, payment)
 
+	case http.MethodPatch:
+		if !requireAccountEdit(w, r) {
+			return
+		}
+
+		id, err := parseIntPathID(r.URL.Path, "/api/split-payments/")
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var payment models.SplitPayment
+		if err := decodeJSON(r, &payment); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		payment.ID = id
+		payment.AccountID = accountID
+		payment.Note = strings.TrimSpace(payment.Note)
+		if err := validateSplitPayment(accountID, payment); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		res, err := db.DB.Exec(`
+			UPDATE split_payments
+			SET payer_user_id = ?, receiver_user_id = ?, amount = ?, date = ?, note = ?
+			WHERE id = ? AND account_id = ?
+		`, payment.PayerUserID, payment.ReceiverUserID, payment.Amount, payment.Date, payment.Note, payment.ID, accountID)
+		if err != nil {
+			jsonError(w, "Erro ao atualizar pagamento", http.StatusInternalServerError)
+			return
+		}
+		rowsAffected, err := res.RowsAffected()
+		if err != nil {
+			jsonError(w, "Erro ao confirmar atualização", http.StatusInternalServerError)
+			return
+		}
+		if rowsAffected == 0 {
+			jsonError(w, "Pagamento não encontrado", http.StatusNotFound)
+			return
+		}
+
+		payment.PayerName = accountMemberName(accountID, payment.PayerUserID)
+		payment.ReceiverName = accountMemberName(accountID, payment.ReceiverUserID)
+		writeJSON(w, http.StatusOK, payment)
+
 	case http.MethodDelete:
 		if !requireAccountEdit(w, r) {
 			return
@@ -118,7 +165,7 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
-		w.Header().Set("Allow", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Allow", "GET, POST, PATCH, DELETE, OPTIONS")
 		jsonError(w, "Método não permitido", http.StatusMethodNotAllowed)
 	}
 }

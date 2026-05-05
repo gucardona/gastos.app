@@ -803,14 +803,17 @@
           </div>
 
           <div class="card" x-show="canEditActiveAccount">
-            <div class="card-title">Registrar pagamento</div>
+            <div class="card-title" x-text="editingSplitPaymentId ? 'Editar pagamento' : 'Registrar pagamento'"></div>
             <div class="form-grid" style="grid-template-columns:1fr 1fr 130px 160px 1fr auto">
               <div class="field"><label>Quem pagou</label><select x-model.number="newSplitPayment.payerUserId"><template x-for="member in accountMembers" :key="'payer-'+member.userId"><option :value="member.userId" x-text="member.name"></option></template></select></div>
               <div class="field"><label>Recebeu</label><select x-model.number="newSplitPayment.receiverUserId"><template x-for="member in accountMembers" :key="'receiver-'+member.userId"><option :value="member.userId" x-text="member.name"></option></template></select></div>
               <div class="field"><label>Valor (R$)</label><input class="money-input" type="text" inputmode="numeric" :value="newSplitPayment.amount" @input="newSplitPayment.amount=formatCurrencyInput($event.target.value)" @keyup.enter="submitSplitPayment()" /></div>
               <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newSplitPayment.date" x-init="bindDatePicker($el, newSplitPayment, 'date')" readonly /></div>
               <div class="field"><label>Nota</label><input type="text" placeholder="pix, transferência..." x-model="newSplitPayment.note" @keyup.enter="submitSplitPayment()" /></div>
-              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitSplitPayment()" :disabled="savingSplitPayment" x-text="savingSplitPayment?'...':'Registrar'"></button></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitSplitPayment()" :disabled="savingSplitPayment" x-text="savingSplitPayment?'...':(editingSplitPaymentId?'Salvar':'Registrar')"></button></div>
+            </div>
+            <div class="panel-actions" x-show="editingSplitPaymentId" style="margin-top:12px">
+              <button class="btn btn-ghost" @click="cancelSplitPaymentEdit()">Cancelar edição</button>
             </div>
           </div>
 
@@ -833,6 +836,7 @@
                 <div class="tx-right">
                   <span class="tx-amount income" x-text="fmt(payment.amount)"></span>
                   <div class="tx-actions" x-show="canEditActiveAccount">
+                    <button class="tx-edit" @click="startEditSplitPayment(payment)">Editar</button>
                     <button class="tx-del" @click="deleteSplitPayment(payment.id)">✕</button>
                   </div>
                 </div>
@@ -1118,6 +1122,7 @@ function app() {
     editingIncomeId: '',
     editingGoalCategory: '',
     editingRecurringId: '',
+    editingSplitPaymentId: '',
     _datePickers: [],
     _charts: {},
     newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '', splits: [] },
@@ -1260,6 +1265,7 @@ function app() {
       this.editingIncomeId = ''
       this.editingGoalCategory = ''
       this.editingRecurringId = ''
+      this.editingSplitPaymentId = ''
       this.resetExpenseForm()
       this.resetIncomeForm()
       this.resetGoalForm()
@@ -1513,6 +1519,7 @@ function app() {
     },
 
     resetSplitPaymentForm() {
+      this.editingSplitPaymentId = ''
       this.newSplitPayment = {
         payerUserId: this.accountMembers[0]?.userId || '',
         receiverUserId: this.accountMembers[1]?.userId || this.accountMembers[0]?.userId || '',
@@ -1532,6 +1539,22 @@ function app() {
       if (!this.accountMembers.some(member => member.userId === this.newSplitPayment.receiverUserId)) {
         this.newSplitPayment.receiverUserId = second
       }
+    },
+
+    startEditSplitPayment(payment) {
+      this.editingSplitPaymentId = String(payment.id)
+      this.newSplitPayment = {
+        payerUserId: payment.payerUserId,
+        receiverUserId: payment.receiverUserId,
+        amount: this.moneyToInput(payment.amount),
+        date: payment.date,
+        note: payment.note || '',
+      }
+      this.$nextTick(() => this.syncDatePickers())
+    },
+
+    cancelSplitPaymentEdit() {
+      this.resetSplitPaymentForm()
     },
 
     startEditExpense(tx) {
@@ -1805,15 +1828,24 @@ function app() {
       }
       this.savingSplitPayment = true
       try {
-        const payment = await API.post('/api/split-payments', {
+        const payload = {
           payerUserId: Number(this.newSplitPayment.payerUserId),
           receiverUserId: Number(this.newSplitPayment.receiverUserId),
           amount,
           date: this.newSplitPayment.date || new Date().toISOString().split('T')[0],
           note: this.newSplitPayment.note.trim(),
-        })
-        this.splitPayments.push(payment)
-        this.toast('Pagamento registrado ✓')
+        }
+        const payment = this.editingSplitPaymentId
+          ? await API.patch('/api/split-payments/' + this.editingSplitPaymentId, payload)
+          : await API.post('/api/split-payments', payload)
+
+        if (this.editingSplitPaymentId) {
+          this.splitPayments = this.splitPayments.map(item => item.id === payment.id ? payment : item)
+          this.toast('Pagamento atualizado ✓')
+        } else {
+          this.splitPayments.push(payment)
+          this.toast('Pagamento registrado ✓')
+        }
         this.resetSplitPaymentForm()
       } catch (err) {
         this.toast(err.message, true)
@@ -1827,6 +1859,7 @@ function app() {
       try {
         await API.delete('/api/split-payments/' + id)
         this.splitPayments = this.splitPayments.filter(payment => payment.id !== id)
+        if (String(id) === this.editingSplitPaymentId) this.cancelSplitPaymentEdit()
         this.toast('Pagamento removido.')
       } catch (err) {
         this.toast(err.message, true)
