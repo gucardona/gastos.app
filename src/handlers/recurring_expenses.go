@@ -46,6 +46,11 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 				jsonError(w, "Erro ao ler recorrências", http.StatusInternalServerError)
 				return
 			}
+			recurring.Splits, err = loadRecurringExpenseSplits(recurring.ID, recurring.Amount)
+			if err != nil {
+				jsonError(w, "Erro ao ler racha da recorrência", http.StatusInternalServerError)
+				return
+			}
 			recurringExpenses = append(recurringExpenses, recurring)
 		}
 		if err := rows.Err(); err != nil {
@@ -80,8 +85,20 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		splits, err := normalizeSplits(accountID, recurring.Amount, recurring.Splits)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		res, err := db.DB.Exec(`
+		tx, err := db.DB.Begin()
+		if err != nil {
+			jsonError(w, "Erro ao salvar recorrência", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		res, err := tx.Exec(`
 			INSERT INTO recurring_expenses (user_id, account_id, amount, description, category, payment, frequency, day_of_month, start_date, end_date, enabled)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?)
 		`, recurring.UserID, recurring.AccountID, recurring.Amount, recurring.Description, recurring.Category, recurring.Payment, recurring.Frequency, recurring.DayOfMonth, recurring.StartDate, recurring.EndDate, recurring.Enabled)
@@ -97,6 +114,15 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 		}
 
 		recurring.ID = id
+		recurring.Splits = splits
+		if err := replaceRecurringExpenseSplits(tx, recurring.ID, recurring.Splits); err != nil {
+			jsonError(w, "Erro ao salvar racha da recorrência", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			jsonError(w, "Erro ao salvar recorrência", http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusCreated, recurring)
 
 	case http.MethodPatch:
@@ -131,8 +157,20 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		splits, err := normalizeSplits(accountID, recurring.Amount, recurring.Splits)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		res, err := db.DB.Exec(`
+		tx, err := db.DB.Begin()
+		if err != nil {
+			jsonError(w, "Erro ao atualizar recorrência", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		res, err := tx.Exec(`
 			UPDATE recurring_expenses
 			SET user_id = ?, amount = ?, description = ?, category = ?, payment = ?, frequency = ?, day_of_month = ?, start_date = ?, end_date = NULLIF(?, ''), enabled = ?
 			WHERE id = ? AND account_id = ?
@@ -151,6 +189,15 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		recurring.Splits = splits
+		if err := replaceRecurringExpenseSplits(tx, recurring.ID, recurring.Splits); err != nil {
+			jsonError(w, "Erro ao atualizar racha da recorrência", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			jsonError(w, "Erro ao atualizar recorrência", http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusOK, recurring)
 
 	case http.MethodDelete:

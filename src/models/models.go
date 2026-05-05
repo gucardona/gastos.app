@@ -22,6 +22,7 @@ type Expense struct {
 	Category    string  `json:"category"`
 	Payment     string  `json:"payment"`
 	Date        string  `json:"date"`
+	Splits      []Split `json:"splits"`
 }
 
 type Income struct {
@@ -55,6 +56,15 @@ type RecurringExpense struct {
 	StartDate   string  `json:"startDate"`
 	EndDate     string  `json:"endDate"`
 	Enabled     bool    `json:"enabled"`
+	Splits      []Split `json:"splits"`
+}
+
+type Split struct {
+	UserID     int64   `json:"userId"`
+	Name       string  `json:"name,omitempty"`
+	Email      string  `json:"email,omitempty"`
+	Percentage float64 `json:"percentage"`
+	Amount     float64 `json:"amount,omitempty"`
 }
 
 type AccountPermissions struct {
