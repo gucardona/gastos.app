@@ -41,6 +41,8 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("/api/goals/", cors(middleware.Auth(middleware.Account(handlers.Goals))))
 	mux.HandleFunc("/api/recurring-expenses", cors(middleware.Auth(middleware.Account(handlers.RecurringExpenses))))
 	mux.HandleFunc("/api/recurring-expenses/", cors(middleware.Auth(middleware.Account(handlers.RecurringExpenses))))
+	mux.HandleFunc("/api/split-payments", cors(middleware.Auth(middleware.Account(handlers.SplitPayments))))
+	mux.HandleFunc("/api/split-payments/", cors(middleware.Auth(middleware.Account(handlers.SplitPayments))))
 
 	// Arquivos estáticos
 	fs := http.FileServer(http.Dir("./src/web"))
