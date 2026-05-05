@@ -118,6 +118,15 @@ func createTables() error {
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS expense_splits (
+			expense_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			percentage REAL NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (expense_id, user_id),
+			FOREIGN KEY(expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS incomes (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			user_id INTEGER NOT NULL,
@@ -158,6 +167,28 @@ func createTables() error {
 			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS recurring_expense_splits (
+			recurring_expense_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			percentage REAL NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (recurring_expense_id, user_id),
+			FOREIGN KEY(recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE TABLE IF NOT EXISTS split_payments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			account_id INTEGER NOT NULL,
+			payer_user_id INTEGER NOT NULL,
+			receiver_user_id INTEGER NOT NULL,
+			amount REAL NOT NULL,
+			date TEXT NOT NULL,
+			note TEXT NOT NULL DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+			FOREIGN KEY(payer_user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(receiver_user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS schema_migrations (
 			name TEXT PRIMARY KEY,
 			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -178,9 +209,12 @@ func createIndexes() error {
 		`CREATE INDEX IF NOT EXISTS idx_account_members_user ON account_members(user_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_account_members_account ON account_members(account_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_account_date ON expenses(account_id, date DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_expense_splits_user ON expense_splits(user_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_incomes_account_date ON incomes(account_id, date DESC);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_account_category ON goals(account_id, category);`,
 		`CREATE INDEX IF NOT EXISTS idx_recurring_expenses_account_enabled ON recurring_expenses(account_id, enabled, day_of_month);`,
+		`CREATE INDEX IF NOT EXISTS idx_recurring_expense_splits_user ON recurring_expense_splits(user_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_split_payments_account_date ON split_payments(account_id, date DESC);`,
 	}
 
 	for _, q := range queries {
@@ -196,7 +230,10 @@ func runMigrations() error {
 	if err := runLegacyColumnMigrations(); err != nil {
 		return err
 	}
-	return runAccountsV1Migration()
+	if err := runAccountsV1Migration(); err != nil {
+		return err
+	}
+	return runExpenseSplitsV1Migration()
 }
 
 func runLegacyColumnMigrations() error {
@@ -253,6 +290,70 @@ func runAccountsV1Migration() error {
 		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO schema_migrations (name) VALUES ('accounts_v1')`); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func runExpenseSplitsV1Migration() error {
+	applied, err := schemaMigrationApplied("expense_splits_v1")
+	if err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`
+		CREATE TABLE IF NOT EXISTS expense_splits (
+			expense_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			percentage REAL NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (expense_id, user_id),
+			FOREIGN KEY(expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+		CREATE TABLE IF NOT EXISTS recurring_expense_splits (
+			recurring_expense_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			percentage REAL NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (recurring_expense_id, user_id),
+			FOREIGN KEY(recurring_expense_id) REFERENCES recurring_expenses(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+		INSERT OR IGNORE INTO expense_splits (expense_id, user_id, percentage)
+		SELECT id, user_id, 100
+		FROM expenses
+		WHERE user_id IS NOT NULL;
+	`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+		INSERT OR IGNORE INTO recurring_expense_splits (recurring_expense_id, user_id, percentage)
+		SELECT id, user_id, 100
+		FROM recurring_expenses
+		WHERE user_id IS NOT NULL;
+	`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations (name) VALUES ('expense_splits_v1')`); err != nil {
 		return err
 	}
 

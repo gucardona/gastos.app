@@ -191,10 +191,6 @@ func handleAccountMembersCollection(w http.ResponseWriter, r *http.Request, user
 		writeAccountLookupError(w, err)
 		return
 	}
-	if account.Role != models.AccountRoleOwner {
-		jsonError(w, "Apenas o owner pode gerenciar membros", http.StatusForbidden)
-		return
-	}
 
 	switch r.Method {
 	case http.MethodGet:
@@ -235,6 +231,11 @@ func handleAccountMembersCollection(w http.ResponseWriter, r *http.Request, user
 		writeJSON(w, http.StatusOK, members)
 
 	case http.MethodPost:
+		if account.Role != models.AccountRoleOwner {
+			jsonError(w, "Apenas o owner pode gerenciar membros", http.StatusForbidden)
+			return
+		}
+
 		var body struct {
 			Email string `json:"email"`
 			Role  string `json:"role"`
