@@ -802,7 +802,7 @@
             </div>
           </div>
 
-          <div class="card" x-show="canEditActiveAccount">
+          <div class="card" x-show="canEditActiveAccount" x-ref="splitPaymentForm">
             <div class="card-title" x-text="editingSplitPaymentId ? 'Editar pagamento' : 'Registrar pagamento'"></div>
             <div class="form-grid" style="grid-template-columns:1fr 1fr 130px 160px 1fr auto">
               <div class="field"><label>Quem pagou</label><select x-model.number="newSplitPayment.payerUserId"><template x-for="member in accountMembers" :key="'payer-'+member.userId"><option :value="member.userId" x-text="member.name"></option></template></select></div>
@@ -836,7 +836,7 @@
                 <div class="tx-right">
                   <span class="tx-amount income" x-text="fmt(payment.amount)"></span>
                   <div class="tx-actions" x-show="canEditActiveAccount">
-                    <button class="tx-edit" @click="startEditSplitPayment(payment)">Editar</button>
+                    <button class="tx-edit" @click.stop="startEditSplitPayment(payment)">Editar</button>
                     <button class="tx-del" @click="deleteSplitPayment(payment.id)">✕</button>
                   </div>
                 </div>
@@ -1550,7 +1550,10 @@ function app() {
         date: payment.date,
         note: payment.note || '',
       }
-      this.$nextTick(() => this.syncDatePickers())
+      this.$nextTick(() => {
+        this.syncDatePickers()
+        this.$refs.splitPaymentForm?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
     },
 
     cancelSplitPaymentEdit() {
