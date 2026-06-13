@@ -1711,6 +1711,7 @@ function app() {
       this.newTx.dayOfMonth = this.todayDayOfMonth()
       this.newTx.startDate = this.todayDate()
       this.newTx.endDate = ''
+      this.newTx.date = this.todayDate()
       this.newTx.splits = this.buildDefaultSplits()
       this.$nextTick(() => this.syncDatePickers())
     },

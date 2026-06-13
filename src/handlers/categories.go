@@ -7,16 +7,15 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 func slugify(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	var b strings.Builder
 	for _, r := range s {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
-		} else if unicode.IsSpace(r) {
+		} else if r == ' ' || r == '_' {
 			b.WriteRune('_')
 		}
 	}
