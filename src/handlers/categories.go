@@ -152,9 +152,11 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		sortOrder := 0
+		var sortOrder int
 		if body.SortOrder != nil {
 			sortOrder = *body.SortOrder
+		} else {
+			_ = db.DB.QueryRow(`SELECT sort_order FROM account_categories WHERE account_id = ? AND key = ?`, accountID, key).Scan(&sortOrder)
 		}
 		res, err := db.DB.Exec(`
 			UPDATE account_categories
@@ -165,16 +167,23 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Erro ao atualizar categoria", http.StatusInternalServerError)
 			return
 		}
-		n, _ := res.RowsAffected()
+		n, err := res.RowsAffected()
+		if err != nil {
+			jsonError(w, "Erro ao confirmar atualização", http.StatusInternalServerError)
+			return
+		}
 		if n == 0 {
 			jsonError(w, "Categoria não encontrada", http.StatusNotFound)
 			return
 		}
 		var c models.Category
-		_ = db.DB.QueryRow(`
+		if err := db.DB.QueryRow(`
 			SELECT id, account_id, key, name, icon, color, essentiality, sort_order
 			FROM account_categories WHERE account_id = ? AND key = ?
-		`, accountID, key).Scan(&c.ID, &c.AccountID, &c.Key, &c.Name, &c.Icon, &c.Color, &c.Essentiality, &c.SortOrder)
+		`, accountID, key).Scan(&c.ID, &c.AccountID, &c.Key, &c.Name, &c.Icon, &c.Color, &c.Essentiality, &c.SortOrder); err != nil {
+			jsonError(w, "Erro ao ler categoria atualizada", http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusOK, c)
 
 	case http.MethodDelete:
@@ -194,24 +203,31 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Substituição deve ser diferente da categoria removida", http.StatusBadRequest)
 			return
 		}
-		var repCount int
-		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM account_categories WHERE account_id = ? AND key = ?`, accountID, replacement).Scan(&repCount); err != nil || repCount == 0 {
-			jsonError(w, "Categoria de substituição não encontrada", http.StatusBadRequest)
-			return
-		}
-		var total int
-		_ = db.DB.QueryRow(`SELECT COUNT(*) FROM account_categories WHERE account_id = ?`, accountID).Scan(&total)
-		if total <= 1 {
-			jsonError(w, "Mantenha ao menos uma categoria", http.StatusBadRequest)
-			return
-		}
-
 		tx, err := db.DB.Begin()
 		if err != nil {
 			jsonError(w, "Erro ao remover categoria", http.StatusInternalServerError)
 			return
 		}
 		defer tx.Rollback()
+
+		var repCount int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM account_categories WHERE account_id = ? AND key = ?`, accountID, replacement).Scan(&repCount); err != nil {
+			jsonError(w, "Erro ao verificar substituição", http.StatusInternalServerError)
+			return
+		}
+		if repCount == 0 {
+			jsonError(w, "Categoria de substituição não encontrada", http.StatusBadRequest)
+			return
+		}
+		var total int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM account_categories WHERE account_id = ?`, accountID).Scan(&total); err != nil {
+			jsonError(w, "Erro ao verificar categorias", http.StatusInternalServerError)
+			return
+		}
+		if total <= 1 {
+			jsonError(w, "Mantenha ao menos uma categoria", http.StatusBadRequest)
+			return
+		}
 
 		if _, err := tx.Exec(`UPDATE expenses SET category = ? WHERE account_id = ? AND category = ?`, replacement, accountID, key); err != nil {
 			jsonError(w, "Erro ao reatribuir gastos", http.StatusInternalServerError)
@@ -226,7 +242,11 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Erro ao remover categoria", http.StatusInternalServerError)
 			return
 		}
-		n, _ := res.RowsAffected()
+		n, err := res.RowsAffected()
+		if err != nil {
+			jsonError(w, "Erro ao confirmar remoção", http.StatusInternalServerError)
+			return
+		}
 		if n == 0 {
 			jsonError(w, "Categoria não encontrada", http.StatusNotFound)
 			return
