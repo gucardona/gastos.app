@@ -1007,6 +1007,63 @@
             </div>
 
             <div class="card" x-show="hasActiveAccount">
+              <div class="card-title">Métodos de pagamento</div>
+              <template x-for="p in paymentMethods" :key="p.key">
+                <div>
+                  <div x-show="editPm.key !== p.key && deletePm.key !== p.key"
+                       style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+                    <span x-text="p.icon" style="font-size:20px;width:28px;text-align:center"></span>
+                    <span style="flex:1;font-size:14px;font-weight:500" x-text="p.name"></span>
+                    <button class="btn-sm" @click="startEditPm(p)">Editar</button>
+                    <button class="btn-sm" style="background:#c0392b;color:#fff" @click="startDeletePm(p.key)">Remover</button>
+                  </div>
+                  <div x-show="editPm.key === p.key"
+                       style="padding:10px 0;border-bottom:1px solid var(--border)">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                      <button type="button" @click="openEmojiPicker($event, 'editPm')"
+                              style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
+                              x-text="editPm.icon"></button>
+                      <input type="text" x-model="editPm.name" placeholder="Nome" style="flex:1;min-width:120px" />
+                    </div>
+                    <div style="display:flex;gap:8px">
+                      <button class="btn-sm" @click="saveEditPm()">Salvar</button>
+                      <button class="btn-sm" @click="cancelEditPm()">Cancelar</button>
+                    </div>
+                  </div>
+                  <div x-show="deletePm.key === p.key"
+                       style="background:var(--surface3);border-radius:8px;padding:10px;margin:4px 0">
+                    <div style="font-size:13px;margin-bottom:8px">Mover gastos de <strong x-text="p.icon+' '+p.name"></strong> para:</div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                      <select x-model="deletePm.replacementKey" style="flex:1;min-width:120px">
+                        <option value="">Selecionar...</option>
+                        <template x-for="other in paymentMethods.filter(o => o.key !== p.key)" :key="other.key">
+                          <option :value="other.key" x-text="other.icon+' '+other.name"></option>
+                        </template>
+                      </select>
+                      <button class="btn-sm" style="background:#c0392b;color:#fff" @click="confirmDeletePm()">Confirmar</button>
+                      <button class="btn-sm" @click="deletePm={key:'',replacementKey:''}">Cancelar</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div style="margin-top:10px">
+                <button class="btn-sm" x-show="!pmFormOpen" @click="pmFormOpen=true">+ Adicionar método</button>
+                <div x-show="pmFormOpen">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;margin-top:8px">
+                    <button type="button" @click="openEmojiPicker($event, 'newPm')"
+                            style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
+                            x-text="newPm.icon"></button>
+                    <input type="text" x-model="newPm.name" placeholder="Nome do método" style="flex:1;min-width:120px" />
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <button class="btn-sm" @click="createPaymentMethod()">Criar</button>
+                    <button class="btn-sm" @click="pmFormOpen=false;newPm={name:'',icon:'💳'}">Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" x-show="hasActiveAccount">
               <div class="card-title">Dados da carteira</div>
               <div class="setting-row">
                 <div><div class="setting-lbl">Transações</div></div>
@@ -1215,6 +1272,10 @@ function app() {
     editCat: { key: '', name: '', icon: '', color: '', essentiality: '' },
     deleteCat: { key: '', replacementKey: '' },
     catFormOpen: false,
+    newPm: { name: '', icon: '💳' },
+    editPm: { key: '', name: '', icon: '' },
+    deletePm: { key: '', replacementKey: '' },
+    pmFormOpen: false,
 
     async init() {
       const today = this.todayDate()
@@ -1496,6 +1557,48 @@ function app() {
         this.deleteCat = { key: '', replacementKey: '' }
         await this.loadAllData()
         this.toast('Categoria removida ✓')
+      } catch (e) { this.toast(e.message, true) }
+    },
+
+    async createPaymentMethod() {
+      try {
+        const p = await API.post('/api/payment-methods', this.newPm)
+        this.paymentMethods.push(p)
+        this.newPm = { name: '', icon: '💳' }
+        this.pmFormOpen = false
+        this.toast('Método criado ✓')
+      } catch (e) { this.toast(e.message, true) }
+    },
+    startEditPm(p) {
+      this.editPm = { key: p.key, name: p.name, icon: p.icon }
+      this.deletePm = { key: '', replacementKey: '' }
+    },
+    async saveEditPm() {
+      try {
+        const updated = await API.patch('/api/payment-methods/' + this.editPm.key, {
+          name: this.editPm.name, icon: this.editPm.icon
+        })
+        const idx = this.paymentMethods.findIndex(p => p.key === updated.key)
+        if (idx !== -1) this.paymentMethods[idx] = updated
+        this.editPm = { key: '', name: '', icon: '' }
+        this.toast('Método atualizado ✓')
+      } catch (e) { this.toast(e.message, true) }
+    },
+    cancelEditPm() {
+      this.editPm = { key: '', name: '', icon: '' }
+    },
+    startDeletePm(key) {
+      this.deletePm = { key, replacementKey: '' }
+      this.editPm = { key: '', name: '', icon: '' }
+    },
+    async confirmDeletePm() {
+      if (!this.deletePm.replacementKey) { this.toast('Selecione um método substituto', true); return }
+      try {
+        await API.delete('/api/payment-methods/' + this.deletePm.key + '?replacement=' + encodeURIComponent(this.deletePm.replacementKey))
+        this.paymentMethods = this.paymentMethods.filter(p => p.key !== this.deletePm.key)
+        this.deletePm = { key: '', replacementKey: '' }
+        await this.loadAllData()
+        this.toast('Método removido ✓')
       } catch (e) { this.toast(e.message, true) }
     },
 
