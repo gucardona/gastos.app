@@ -1127,6 +1127,20 @@ function app() {
     categories: [],
     paymentMethods: [],
 
+    emojiPickerOpen: false,
+    emojiPickerTarget: null,
+    emojiPickerX: 0,
+    emojiPickerY: 0,
+    EMOJIS: [
+      { section: 'Comida', list: ['🍽','🍜','🍕','🍔','🥗','🛒','🥩','🍺','☕','🧃','🍰','🍣','🌮','🥐','🍱'] },
+      { section: 'Transporte', list: ['🚗','🚕','🚌','🚆','✈️','🛵','🚲','⛽','🅿️','🚁','🛻','🚂','🛳'] },
+      { section: 'Saúde', list: ['💊','🏥','🦷','👓','🧬','💉','🩺','🏃','🧘','🩹','💪','🧪','🩻'] },
+      { section: 'Finanças', list: ['💰','💳','📈','📉','🏦','💵','💸','🔐','📊','🪙','🏧','💹','🤑'] },
+      { section: 'Casa', list: ['🏠','🛋','💡','🔧','🧹','📦','🪴','🛁','🔑','🪟','🛏','🪣','🧺'] },
+      { section: 'Lazer', list: ['🎮','🎬','📚','🎵','⚽','🏋️','🎭','🎲','🏖','🎨','🎧','🎸','🏊','🧩'] },
+      { section: 'Outros', list: ['✨','📺','📱','👕','💄','🐾','🎁','📝','◈','🔔','🏷','🎓','🎯','🌟'] },
+    ],
+
     async init() {
       const today = this.todayDate()
       this.newTx.date = today
@@ -1155,6 +1169,26 @@ function app() {
       }
       this.loading = false
       this.$nextTick(() => this.syncDatePickers())
+    },
+
+    openEmojiPicker(event, targetKey) {
+      const rect = event.currentTarget.getBoundingClientRect()
+      this.emojiPickerX = rect.left + window.scrollX
+      this.emojiPickerY = rect.bottom + window.scrollY + 4
+      this.emojiPickerTarget = targetKey
+      this.emojiPickerOpen = true
+    },
+    pickEmoji(emoji) {
+      if (this.emojiPickerTarget === 'newCat') this.newCat.icon = emoji
+      else if (this.emojiPickerTarget === 'editCat') this.editCat.icon = emoji
+      else if (this.emojiPickerTarget === 'newPm') this.newPm.icon = emoji
+      else if (this.emojiPickerTarget === 'editPm') this.editPm.icon = emoji
+      this.emojiPickerOpen = false
+      this.emojiPickerTarget = null
+    },
+    closeEmojiPicker() {
+      this.emojiPickerOpen = false
+      this.emojiPickerTarget = null
     },
 
     async doLogin() {
@@ -2273,5 +2307,23 @@ function app() {
   }
 }
 </script>
+
+<!-- Emoji picker overlay -->
+<div x-show="emojiPickerOpen" @click.outside="closeEmojiPicker()"
+     :style="'position:fixed;z-index:9999;left:'+emojiPickerX+'px;top:'+emojiPickerY+'px'"
+     style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;width:260px;max-height:320px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+  <template x-for="section in EMOJIS" :key="section.section">
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:4px" x-text="section.section"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px">
+        <template x-for="em in section.list" :key="em">
+          <button type="button" @click="pickEmoji(em)"
+                  style="background:none;border:none;cursor:pointer;font-size:20px;padding:3px;border-radius:5px;line-height:1"
+                  :title="em" x-text="em"></button>
+        </template>
+      </div>
+    </div>
+  </template>
+</div>
 </body>
 </html>
