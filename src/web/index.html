@@ -936,6 +936,77 @@
             </div>
 
             <div class="card" x-show="hasActiveAccount">
+              <div class="card-title">Categorias</div>
+              <template x-for="c in categories" :key="c.key">
+                <div>
+                  <div x-show="editCat.key !== c.key && deleteCat.key !== c.key"
+                       style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+                    <span x-text="c.icon" style="font-size:20px;width:28px;text-align:center"></span>
+                    <span style="flex:1;font-size:14px;font-weight:500" x-text="c.name"></span>
+                    <span style="font-size:11px;padding:2px 7px;border-radius:20px;background:var(--surface3);color:var(--text2)" x-text="c.essentiality === 'essential' ? 'essencial' : c.essentiality === 'investment' ? 'investimento' : 'não essencial'"></span>
+                    <span :style="'width:16px;height:16px;border-radius:50%;background:'+c.color+';display:inline-block'"></span>
+                    <button class="btn-sm" @click="startEditCat(c)">Editar</button>
+                    <button class="btn-sm" style="background:#c0392b;color:#fff" @click="startDeleteCat(c.key)">Remover</button>
+                  </div>
+                  <div x-show="editCat.key === c.key"
+                       style="padding:10px 0;border-bottom:1px solid var(--border)">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                      <button type="button" @click="openEmojiPicker($event, 'editCat')"
+                              style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
+                              x-text="editCat.icon"></button>
+                      <input type="text" x-model="editCat.name" placeholder="Nome" style="flex:1;min-width:120px" />
+                      <select x-model="editCat.essentiality">
+                        <option value="essential">Essencial</option>
+                        <option value="nonessential">Não essencial</option>
+                        <option value="investment">Investimento</option>
+                      </select>
+                      <input type="color" x-model="editCat.color" style="width:40px;height:36px;border:none;cursor:pointer;border-radius:7px" />
+                    </div>
+                    <div style="display:flex;gap:8px">
+                      <button class="btn-sm" @click="saveEditCat()">Salvar</button>
+                      <button class="btn-sm" @click="cancelEditCat()">Cancelar</button>
+                    </div>
+                  </div>
+                  <div x-show="deleteCat.key === c.key"
+                       style="background:var(--surface3);border-radius:8px;padding:10px;margin:4px 0">
+                    <div style="font-size:13px;margin-bottom:8px">Mover gastos de <strong x-text="c.name"></strong> para:</div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                      <select x-model="deleteCat.replacementKey" style="flex:1;min-width:120px">
+                        <option value="">Selecionar...</option>
+                        <template x-for="other in categories.filter(o => o.key !== c.key)" :key="other.key">
+                          <option :value="other.key" x-text="other.icon+' '+other.name"></option>
+                        </template>
+                      </select>
+                      <button class="btn-sm" style="background:#c0392b;color:#fff" @click="confirmDeleteCat()">Confirmar</button>
+                      <button class="btn-sm" @click="deleteCat={key:'',replacementKey:''}">Cancelar</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div style="margin-top:10px">
+                <button class="btn-sm" x-show="!catFormOpen" @click="catFormOpen=true">+ Adicionar categoria</button>
+                <div x-show="catFormOpen">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;margin-top:8px">
+                    <button type="button" @click="openEmojiPicker($event, 'newCat')"
+                            style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
+                            x-text="newCat.icon"></button>
+                    <input type="text" x-model="newCat.name" placeholder="Nome da categoria" style="flex:1;min-width:120px" />
+                    <select x-model="newCat.essentiality">
+                      <option value="essential">Essencial</option>
+                      <option value="nonessential">Não essencial</option>
+                      <option value="investment">Investimento</option>
+                    </select>
+                    <input type="color" x-model="newCat.color" style="width:40px;height:36px;border:none;cursor:pointer;border-radius:7px" />
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <button class="btn-sm" @click="createCategory()">Criar</button>
+                    <button class="btn-sm" @click="catFormOpen=false;newCat={name:'',icon:'◈',color:'#4ecc73',essentiality:'nonessential'}">Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" x-show="hasActiveAccount">
               <div class="card-title">Dados da carteira</div>
               <div class="setting-row">
                 <div><div class="setting-lbl">Transações</div></div>
@@ -1140,6 +1211,10 @@ function app() {
       { section: 'Lazer', list: ['🎮','🎬','📚','🎵','⚽','🏋️','🎭','🎲','🏖','🎨','🎧','🎸','🏊','🧩'] },
       { section: 'Outros', list: ['✨','📺','📱','👕','💄','🐾','🎁','📝','◈','🔔','🏷','🎓','🎯','🌟'] },
     ],
+    newCat: { name: '', icon: '◈', color: '#4ecc73', essentiality: 'nonessential' },
+    editCat: { key: '', name: '', icon: '', color: '', essentiality: '' },
+    deleteCat: { key: '', replacementKey: '' },
+    catFormOpen: false,
 
     async init() {
       const today = this.todayDate()
@@ -1379,6 +1454,49 @@ function app() {
       } finally {
         this.accountLoading = false
       }
+    },
+
+    async createCategory() {
+      try {
+        const c = await API.post('/api/categories', this.newCat)
+        this.categories.push(c)
+        this.newCat = { name: '', icon: '◈', color: '#4ecc73', essentiality: 'nonessential' }
+        this.catFormOpen = false
+        this.toast('Categoria criada ✓')
+      } catch (e) { this.toast(e.message, true) }
+    },
+    startEditCat(c) {
+      this.editCat = { key: c.key, name: c.name, icon: c.icon, color: c.color, essentiality: c.essentiality }
+      this.deleteCat = { key: '', replacementKey: '' }
+    },
+    async saveEditCat() {
+      try {
+        const updated = await API.patch('/api/categories/' + this.editCat.key, {
+          name: this.editCat.name, icon: this.editCat.icon,
+          color: this.editCat.color, essentiality: this.editCat.essentiality
+        })
+        const idx = this.categories.findIndex(c => c.key === updated.key)
+        if (idx !== -1) this.categories[idx] = updated
+        this.editCat = { key: '', name: '', icon: '', color: '', essentiality: '' }
+        this.toast('Categoria atualizada ✓')
+      } catch (e) { this.toast(e.message, true) }
+    },
+    cancelEditCat() {
+      this.editCat = { key: '', name: '', icon: '', color: '', essentiality: '' }
+    },
+    startDeleteCat(key) {
+      this.deleteCat = { key, replacementKey: '' }
+      this.editCat = { key: '', name: '', icon: '', color: '', essentiality: '' }
+    },
+    async confirmDeleteCat() {
+      if (!this.deleteCat.replacementKey) { this.toast('Selecione uma categoria substituta', true); return }
+      try {
+        await API.delete('/api/categories/' + this.deleteCat.key + '?replacement=' + encodeURIComponent(this.deleteCat.replacementKey))
+        this.categories = this.categories.filter(c => c.key !== this.deleteCat.key)
+        this.deleteCat = { key: '', replacementKey: '' }
+        await this.loadAllData()
+        this.toast('Categoria removida ✓')
+      } catch (e) { this.toast(e.message, true) }
     },
 
     async renameActiveAccount() {
