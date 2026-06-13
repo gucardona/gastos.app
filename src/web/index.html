@@ -534,7 +534,7 @@
             <div class="card-title">Por categoria</div>
             <template x-if="categoryTotals.length===0"><div class="empty"><div class="ei">◈</div><p>Sem gastos no período.</p></div></template>
             <div class="cat-list">
-              <template x-for="cat in categoryTotals" :key="cat.id">
+              <template x-for="cat in categoryTotals" :key="cat.key">
                 <div style="margin-bottom:2px">
                   <div class="cat-row">
                     <span style="font-size:17px" x-text="cat.icon"></span>
@@ -582,20 +582,35 @@
         <div class="page" :class="{active:page==='expenses'}">
           <div class="page-header"><div><div class="page-title">Gastos</div><div class="page-sub" x-text="monthLabel+' · '+fmt(totalExpenses)+' · '+activeAccountName"></div></div></div>
           <div class="card" x-show="canEditActiveAccount">
-            <div class="card-title" x-text="editingExpenseId ? 'Editar gasto' : 'Adicionar gasto'"></div>
-            <div class="form-grid" style="grid-template-columns:110px 1fr 170px 160px 160px auto">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin-bottom:0" x-text="editingExpenseId?'Editar gasto':(editingRecurringInForm?'Editar recorrência':(newTx.isRecurring?'Novo gasto recorrente':'Adicionar gasto'))"></div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:var(--text2);font-weight:500">Recorrente?</span>
+                <button class="btn btn-ghost btn-sm" :class="{active:newTx.isRecurring}" @click="newTx.isRecurring=!newTx.isRecurring" x-text="newTx.isRecurring?'Sim':'Não'" :disabled="!!editingExpenseId" style="min-width:42px"></button>
+              </div>
+            </div>
+            <div class="form-grid" style="grid-template-columns:110px 1fr 170px 160px">
               <div class="field"><label>Valor (R$)</label><input class="money-input" type="text" inputmode="numeric" placeholder="0,00" :value="newTx.amount" @input="newTx.amount=formatCurrencyInput($event.target.value)" @keyup.enter="submitExpense()" /></div>
-              <div class="field"><label>Descrição</label><input type="text" placeholder="almoço, uber, conta..." x-model="newTx.description" @keyup.enter="submitExpense()" /></div>
-              <div class="field"><label>Categoria</label><select x-model="newTx.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
-              <div class="field"><label>Pagamento</label><select x-model="newTx.payment"><template x-for="p in paymentMethods" :key="p.id"><option :value="p.id" x-text="p.label"></option></template></select></div>
+              <div class="field"><label>Descrição</label><input type="text" :placeholder="newTx.isRecurring?'academia, streaming...':'almoço, uber, conta...'" x-model="newTx.description" @keyup.enter="submitExpense()" /></div>
+              <div class="field"><label>Categoria</label><select x-model="newTx.category"><template x-for="cat in categories" :key="cat.key"><option :value="cat.key" x-text="cat.icon+' '+cat.name"></option></template></select></div>
+              <div class="field"><label>Pagamento</label><select x-model="newTx.payment"><template x-for="p in paymentMethods" :key="p.key"><option :value="p.key" x-text="p.icon+' '+p.name"></option></template></select></div>
+            </div>
+            <div x-show="!newTx.isRecurring" class="form-grid" style="grid-template-columns:160px auto;margin-top:10px">
               <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newTx.date" x-init="bindDatePicker($el, newTx, 'date')" readonly /></div>
               <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitExpense()" :disabled="savingExpense" x-text="savingExpense?'...':(editingExpenseId?'Salvar':'Adicionar')"></button></div>
+            </div>
+            <div x-show="newTx.isRecurring" class="form-grid" style="grid-template-columns:110px 160px 160px auto auto;margin-top:10px">
+              <div class="field"><label>Dia do mês</label><input type="number" min="1" max="31" x-model.number="newTx.dayOfMonth" @keyup.enter="submitExpense()" /></div>
+              <div class="field"><label>Início</label><input class="date-picker" type="text" x-model="newTx.startDate" x-init="bindDatePicker($el, newTx, 'startDate')" readonly /></div>
+              <div class="field"><label>Limite</label><input class="date-picker" type="text" x-model="newTx.endDate" x-init="bindDatePicker($el, newTx, 'endDate', { allowInput: false, allowClear: true })" readonly /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-ghost" @click="newTx.enabled=!newTx.enabled" x-text="newTx.enabled?'Ativa':'Pausada'" style="align-self:flex-end;height:37px"></button></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitExpense()" :disabled="savingExpense" x-text="savingExpense?'...':(editingRecurringInForm?'Salvar':'Configurar')" style="align-self:flex-end"></button></div>
             </div>
             <div class="split-editor">
               <div class="split-head">
                 <div>
-                  <div class="split-title">Racha entre participantes</div>
-                  <div class="panel-note">A soma precisa fechar em 100%.</div>
+                  <div class="split-title" x-text="newTx.isRecurring?'Racha recorrente':'Racha entre participantes'"></div>
+                  <div class="panel-note" x-text="newTx.isRecurring?'Será aplicado em cada cobrança gerada por esta recorrência.':'A soma precisa fechar em 100%.'"></div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <span class="split-total" :class="{invalid:Math.abs(splitTotal(newTx.splits)-100)>.01}" x-text="splitTotal(newTx.splits).toFixed(2)+'%'"></span>
@@ -614,50 +629,9 @@
                 </template>
               </div>
             </div>
-            <div class="panel-actions" x-show="editingExpenseId" style="margin-top:12px">
+            <div class="panel-actions" x-show="editingExpenseId || editingRecurringInForm" style="margin-top:12px">
               <button class="btn btn-ghost" @click="cancelExpenseEdit()">Cancelar edição</button>
             </div>
-          </div>
-          <div class="card" x-show="canEditActiveAccount">
-            <div class="card-title" x-text="editingRecurringId ? 'Editar gasto recorrente' : 'Configurar gasto recorrente'"></div>
-            <div class="form-grid" style="grid-template-columns:110px 1fr 170px 160px 110px 160px 160px auto">
-              <div class="field"><label>Valor (R$)</label><input class="money-input" type="text" inputmode="numeric" placeholder="0,00" :value="newRecurring.amount" @input="newRecurring.amount=formatCurrencyInput($event.target.value)" @keyup.enter="submitRecurringExpense()" /></div>
-              <div class="field"><label>Descrição</label><input type="text" placeholder="academia, streaming..." x-model="newRecurring.description" @keyup.enter="submitRecurringExpense()" /></div>
-              <div class="field"><label>Categoria</label><select x-model="newRecurring.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
-              <div class="field"><label>Pagamento</label><select x-model="newRecurring.payment"><template x-for="p in paymentMethods" :key="p.id"><option :value="p.id" x-text="p.label"></option></template></select></div>
-              <div class="field"><label>Dia</label><input type="number" min="1" max="31" x-model.number="newRecurring.dayOfMonth" @keyup.enter="submitRecurringExpense()" /></div>
-              <div class="field"><label>Início</label><input class="date-picker" type="text" x-model="newRecurring.startDate" x-init="bindDatePicker($el, newRecurring, 'startDate')" readonly /></div>
-              <div class="field"><label>Limite</label><input class="date-picker" type="text" x-model="newRecurring.endDate" x-init="bindDatePicker($el, newRecurring, 'endDate', { allowInput: false, allowClear: true })" readonly /></div>
-              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitRecurringExpense()" :disabled="savingRecurring" x-text="savingRecurring?'...':(editingRecurringId?'Salvar':'Configurar')"></button></div>
-            </div>
-            <div class="split-editor">
-              <div class="split-head">
-                <div>
-                  <div class="split-title">Racha recorrente</div>
-                  <div class="panel-note">Será aplicado em cada cobrança gerada por esta recorrência.</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span class="split-total" :class="{invalid:Math.abs(splitTotal(newRecurring.splits)-100)>.01}" x-text="splitTotal(newRecurring.splits).toFixed(2)+'%'"></span>
-                  <button class="btn btn-ghost btn-sm" @click="resetSplitPercentages(newRecurring)">Igualar</button>
-                </div>
-              </div>
-              <div class="split-list">
-                <template x-for="split in newRecurring.splits" :key="'recurring-split-'+split.userId">
-                  <div class="split-row">
-                    <div class="split-person">
-                      <div class="split-name" x-text="split.name"></div>
-                      <div class="split-amount" x-text="fmt(splitAmountPreview(newRecurring.amount, split.percentage))"></div>
-                    </div>
-                    <div class="split-input"><input type="number" min="0" max="100" step="0.01" x-model.number="split.percentage" /><span>%</span></div>
-                  </div>
-                </template>
-              </div>
-            </div>
-            <div class="panel-actions" style="margin-top:12px">
-              <button class="btn btn-ghost" @click="newRecurring.enabled=!newRecurring.enabled" x-text="newRecurring.enabled ? 'Ativa' : 'Pausada'"></button>
-              <button class="btn btn-ghost" x-show="editingRecurringId" @click="cancelRecurringEdit()">Cancelar edição</button>
-            </div>
-            <div class="panel-note" style="margin-top:10px">Configure cobranças mensais com dia fixo, data inicial e data limite opcional. Isso organiza os compromissos recorrentes da carteira ativa.</div>
           </div>
           <template x-if="isAccountReadOnly">
             <div class="card">
@@ -695,7 +669,7 @@
             <button class="chip" :class="{active:activeFilter==='nonessential'}" @click="activeFilter='nonessential'">Não essencial</button>
             <button class="chip" :class="{active:activeFilter==='investment'}"   @click="activeFilter='investment'">Investimento</button>
             <span style="width:1px;background:var(--border);margin:0 4px;height:18px;align-self:center;display:inline-block"></span>
-            <template x-for="cat in categories" :key="cat.id"><button class="chip" :class="{active:activeFilter===cat.id}" @click="activeFilter=cat.id" x-text="cat.icon+' '+cat.name"></button></template>
+            <template x-for="cat in categories" :key="cat.key"><button class="chip" :class="{active:activeFilter===cat.key}" @click="activeFilter=cat.key" x-text="cat.icon+' '+cat.name"></button></template>
           </div>
           <div class="tx-list">
             <template x-if="groupedExpenses.length===0"><div class="empty"><div class="ei">◎</div><p>Nenhum gasto encontrado.</p></div></template>
@@ -707,7 +681,7 @@
                     <div class="tx-ico" x-text="getCatIcon(tx.category)"></div>
                     <div class="tx-body">
                       <div class="tx-row1"><span class="tx-desc" x-text="tx.description||getCatName(tx.category)"></span><span :class="'ess-badge ess-'+getCatEss(tx.category)" x-text="essLabel(getCatEss(tx.category))"></span></div>
-                      <div class="tx-row2"><span class="tx-meta" x-text="getCatName(tx.category)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span><span class="pay-badge" x-text="splitSummary(tx)"></span></div>
+                      <div class="tx-row2"><span class="tx-meta" x-text="getCatName(tx.category)"></span><span class="pay-badge" x-text="payLabel(tx.payment)"></span><span class="pay-badge" x-text="splitSummary(tx)"></span><span class="pay-badge" x-show="tx.recurringExpenseId" style="background:var(--accent-dim);color:var(--accent)">↻ recorrente</span></div>
                     </div>
                     <div class="tx-right">
                       <span class="tx-amount" x-text="'− '+fmt(tx.amount)"></span>
@@ -847,7 +821,7 @@
           <div class="card" x-show="canEditActiveAccount">
             <div class="card-title" x-text="editingGoalCategory ? 'Editar meta' : 'Nova meta'"></div>
             <div class="form-grid" style="grid-template-columns:1fr 160px auto">
-              <div class="field"><label>Categoria</label><select x-model="newGoal.category"><template x-for="cat in categories" :key="cat.id"><option :value="cat.id" x-text="cat.icon+' '+cat.name"></option></template></select></div>
+              <div class="field"><label>Categoria</label><select x-model="newGoal.category"><template x-for="cat in categories" :key="cat.key"><option :value="cat.key" x-text="cat.icon+' '+cat.name"></option></template></select></div>
               <div class="field"><label>Limite (R$)</label><input class="money-input" type="text" inputmode="numeric" placeholder="0,00" :value="newGoal.limit" @input="newGoal.limit=formatCurrencyInput($event.target.value)" @keyup.enter="submitGoal()" /></div>
               <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitGoal()" x-text="editingGoalCategory ? 'Salvar' : 'Definir'"></button></div>
             </div>
@@ -927,6 +901,29 @@
                   <button class="tog-btn" :class="{active:theme==='light'}" @click="setTheme('light')">☀</button>
                   <button class="tog-btn" :class="{active:theme==='dark'}"  @click="setTheme('dark')">◑</button>
                 </div>
+              </div>
+              <div class="setting-row">
+                <div><div class="setting-lbl">Fuso horário</div><div class="setting-sub">Afeta a data padrão nos formulários</div></div>
+                <select style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:var(--sans);font-size:12px;outline:none" x-model="timezone" @change="setTimezone(timezone)">
+                  <template x-if="!_timezoneList.includes(timezone)"><option :value="timezone" x-text="timezone"></option></template>
+                  <option value="America/Sao_Paulo">Brasília (UTC−3)</option>
+                  <option value="America/Manaus">Manaus (UTC−4)</option>
+                  <option value="America/Belem">Belém (UTC−3)</option>
+                  <option value="America/Fortaleza">Fortaleza (UTC−3)</option>
+                  <option value="America/Recife">Recife (UTC−3)</option>
+                  <option value="America/Bahia">Salvador (UTC−3)</option>
+                  <option value="America/Cuiaba">Cuiabá (UTC−4)</option>
+                  <option value="America/Rio_Branco">Rio Branco (UTC−5)</option>
+                  <option value="America/Porto_Velho">Porto Velho (UTC−4)</option>
+                  <option value="America/Noronha">Noronha (UTC−2)</option>
+                  <option value="UTC">UTC</option>
+                  <option value="America/New_York">New York (UTC−5/−4)</option>
+                  <option value="America/Los_Angeles">Los Angeles (UTC−8/−7)</option>
+                  <option value="Europe/Lisbon">Lisboa (UTC+0/+1)</option>
+                  <option value="Europe/London">Londres (UTC+0/+1)</option>
+                  <option value="Europe/Berlin">Berlim (UTC+1/+2)</option>
+                  <option value="Asia/Tokyo">Tóquio (UTC+9)</option>
+                </select>
               </div>
               <div class="setting-row">
                 <div><div class="setting-lbl">Moeda</div><div class="setting-sub">Padrão atual</div></div>
@@ -1087,7 +1084,6 @@ function app() {
     authLoading: false,
     accountLoading: false,
     membersLoading: false,
-    savingRecurring: false,
     savingSplitPayment: false,
     loginMode: 'login',
     loginError: '',
@@ -1117,51 +1113,27 @@ function app() {
     editingExpenseId: '',
     editingIncomeId: '',
     editingGoalCategory: '',
-    editingRecurringId: '',
+    editingRecurringInForm: '',
     editingSplitPaymentId: '',
     _datePickers: [],
     _charts: {},
-    newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '', splits: [] },
+    newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '', splits: [], isRecurring: false, dayOfMonth: 1, startDate: '', endDate: '', enabled: true },
     newInc: { amount: '0,00', description: '', type: 'salary', date: '' },
     newGoal: { category: 'food', limit: '0,00' },
-    newRecurring: { amount: '0,00', description: '', category: 'subscriptions', payment: 'credit', frequency: 'monthly', dayOfMonth: 1, startDate: '', endDate: '', enabled: true, splits: [] },
     newSplitPayment: { payerUserId: '', receiverUserId: '', amount: '0,00', date: '', note: '' },
+    timezone: localStorage.getItem('gastos_timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    _timezoneList: ['America/Sao_Paulo','America/Manaus','America/Belem','America/Fortaleza','America/Recife','America/Bahia','America/Cuiaba','America/Rio_Branco','America/Porto_Velho','America/Noronha','UTC','America/New_York','America/Los_Angeles','Europe/Lisbon','Europe/London','Europe/Berlin','Asia/Tokyo'],
 
-    categories: [
-      { id:'food',          name:'Alimentação',  icon:'🍽',  color:'#0f6579', essentiality:'essential' },
-      { id:'market',        name:'Mercado',       icon:'🛒',  color:'#1f7d8f', essentiality:'essential' },
-      { id:'transport',     name:'Transporte',    icon:'🚗',  color:'#2b92a1', essentiality:'essential' },
-      { id:'health',        name:'Saúde',         icon:'💊',  color:'#4ecc73', essentiality:'essential' },
-      { id:'home',          name:'Moradia',       icon:'🏠',  color:'#2c9b88', essentiality:'essential' },
-      { id:'utilities',     name:'Contas',        icon:'⚡',  color:'#d6a23a', essentiality:'essential' },
-      { id:'restaurant',    name:'Restaurante',   icon:'🍜',  color:'#55b38c', essentiality:'nonessential' },
-      { id:'leisure',       name:'Lazer',         icon:'🎮',  color:'#66c3a1', essentiality:'nonessential' },
-      { id:'subscriptions', name:'Assinaturas',   icon:'📺',  color:'#4ecc73', essentiality:'nonessential' },
-      { id:'clothes',       name:'Vestuário',     icon:'👕',  color:'#88c0b3', essentiality:'nonessential' },
-      { id:'beauty',        name:'Beleza',        icon:'✨',  color:'#79b7ae', essentiality:'nonessential' },
-      { id:'travel',        name:'Viagem',        icon:'✈️',  color:'#54a7b9', essentiality:'nonessential' },
-      { id:'education',     name:'Educação',      icon:'📚',  color:'#2ba18a', essentiality:'investment' },
-      { id:'invest',        name:'Investimentos', icon:'📈',  color:'#4ecc73', essentiality:'investment' },
-      { id:'other',         name:'Outros',        icon:'◈',   color:'#7f9ea5', essentiality:'nonessential' },
-    ],
-    paymentMethods: [
-      { id:'pix',      label:'⚡ Pix' },
-      { id:'credit',   label:'💳 Crédito' },
-      { id:'debit',    label:'🏦 Débito' },
-      { id:'cash',     label:'💵 Dinheiro' },
-      { id:'boleto',   label:'📄 Boleto' },
-      { id:'va',       label:'🍽 Vale Alim.' },
-      { id:'vr',       label:'🛒 Vale Ref.' },
-      { id:'transfer', label:'↔ Transferência' },
-    ],
+    categories: [],
+    paymentMethods: [],
 
     async init() {
-      const today = new Date().toISOString().split('T')[0]
+      const today = this.todayDate()
       this.newTx.date = today
+      this.newTx.startDate = today
+      this.newTx.dayOfMonth = this.todayDayOfMonth()
       this.newInc.date = today
-      this.newRecurring.startDate = today
       this.newSplitPayment.date = today
-      this.newRecurring.dayOfMonth = new Date().getDate()
       const t = localStorage.getItem('gastos_theme')
       if (t) this.theme = t
 
@@ -1260,12 +1232,12 @@ function app() {
       this.editingExpenseId = ''
       this.editingIncomeId = ''
       this.editingGoalCategory = ''
-      this.editingRecurringId = ''
+      this.editingRecurringInForm = ''
+      this.newTx.isRecurring = false
       this.editingSplitPaymentId = ''
       this.resetExpenseForm()
       this.resetIncomeForm()
       this.resetGoalForm()
-      this.resetRecurringForm()
       this.resetSplitPaymentForm()
       API.setToken('')
       API.setAccount('')
@@ -1300,7 +1272,6 @@ function app() {
       this.cancelExpenseEdit()
       this.cancelIncomeEdit()
       this.cancelGoalEdit()
-      this.cancelRecurringEdit()
       this.syncDatePickers()
     },
 
@@ -1318,22 +1289,28 @@ function app() {
         this.goals = []
         this.recurringExpenses = []
         this.splitPayments = []
+        this.categories = []
+        this.paymentMethods = []
         this.resetCharts()
         return
       }
 
-      const [expenses, incomes, goals, recurringExpenses, splitPayments] = await Promise.all([
+      const [expenses, incomes, goals, recurringExpenses, splitPayments, categories, paymentMethods] = await Promise.all([
         API.get('/api/expenses'),
         API.get('/api/incomes'),
         API.get('/api/goals'),
         API.get('/api/recurring-expenses'),
         API.get('/api/split-payments'),
+        API.get('/api/categories'),
+        API.get('/api/payment-methods'),
       ])
       this.expenses = expenses || []
       this.incomes = incomes || []
       this.goals = goals || []
       this.recurringExpenses = recurringExpenses || []
       this.splitPayments = splitPayments || []
+      this.categories = categories || []
+      this.paymentMethods = paymentMethods || []
 
       if (this.page === 'charts') {
         setTimeout(() => this.renderCharts(), 0)
@@ -1347,8 +1324,7 @@ function app() {
       }
 
       this.accountMembers = await API.get('/api/accounts/' + this.activeAccountId + '/members') || []
-      if (!this.editingExpenseId) this.resetSplitPercentages(this.newTx)
-      if (!this.editingRecurringId) this.resetSplitPercentages(this.newRecurring)
+      if (!this.editingExpenseId && !this.editingRecurringInForm) this.resetSplitPercentages(this.newTx)
       this.resetSplitPaymentMembers()
     },
 
@@ -1473,24 +1449,21 @@ function app() {
     },
 
     resetExpenseForm() {
-      this.newTx = {
-        amount: '0,00',
-        description: '',
-        category: 'food',
-        payment: 'pix',
-        date: new Date().toISOString().split('T')[0],
-        splits: this.buildDefaultSplits(),
-      }
+      this.newTx.amount = '0,00'
+      this.newTx.description = ''
+      this.newTx.category = 'food'
+      this.newTx.payment = 'pix'
+      this.newTx.dayOfMonth = this.todayDayOfMonth()
+      this.newTx.startDate = this.todayDate()
+      this.newTx.endDate = ''
+      this.newTx.splits = this.buildDefaultSplits()
       this.$nextTick(() => this.syncDatePickers())
     },
 
     resetIncomeForm() {
-      this.newInc = {
-        amount: '0,00',
-        description: '',
-        type: 'salary',
-        date: new Date().toISOString().split('T')[0],
-      }
+      this.newInc.amount = '0,00'
+      this.newInc.description = ''
+      this.newInc.type = 'salary'
       this.$nextTick(() => this.syncDatePickers())
     },
 
@@ -1498,31 +1471,13 @@ function app() {
       this.newGoal = { category: 'food', limit: '0,00' }
     },
 
-    resetRecurringForm() {
-      this.newRecurring = {
-        amount: '0,00',
-        description: '',
-        category: 'subscriptions',
-        payment: 'credit',
-        frequency: 'monthly',
-        dayOfMonth: new Date().getDate(),
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: '',
-        enabled: true,
-        splits: this.buildDefaultSplits(),
-      }
-      this.$nextTick(() => this.syncDatePickers())
-    },
-
     resetSplitPaymentForm() {
       this.editingSplitPaymentId = ''
-      this.newSplitPayment = {
-        payerUserId: this.accountMembers[0]?.userId || '',
-        receiverUserId: this.accountMembers[1]?.userId || this.accountMembers[0]?.userId || '',
-        amount: '0,00',
-        date: new Date().toISOString().split('T')[0],
-        note: '',
-      }
+      this.newSplitPayment.payerUserId = this.accountMembers[0]?.userId || ''
+      this.newSplitPayment.receiverUserId = this.accountMembers[1]?.userId || this.accountMembers[0]?.userId || ''
+      this.newSplitPayment.amount = '0,00'
+      this.newSplitPayment.date = this.todayDate()
+      this.newSplitPayment.note = ''
       this.$nextTick(() => this.syncDatePickers())
     },
 
@@ -1539,13 +1494,11 @@ function app() {
 
     startEditSplitPayment(payment) {
       this.editingSplitPaymentId = String(payment.id)
-      this.newSplitPayment = {
-        payerUserId: payment.payerUserId,
-        receiverUserId: payment.receiverUserId,
-        amount: this.moneyToInput(payment.amount),
-        date: payment.date,
-        note: payment.note || '',
-      }
+      this.newSplitPayment.payerUserId = payment.payerUserId
+      this.newSplitPayment.receiverUserId = payment.receiverUserId
+      this.newSplitPayment.amount = this.moneyToInput(payment.amount)
+      this.newSplitPayment.date = payment.date
+      this.newSplitPayment.note = payment.note || ''
       this.$nextTick(() => {
         this.syncDatePickers()
         this.$refs.splitPaymentForm?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -1558,12 +1511,21 @@ function app() {
 
     startEditExpense(tx) {
       this.editingExpenseId = String(tx.id)
-      this.newTx = { amount: this.moneyToInput(tx.amount), description: tx.description, category: tx.category, payment: tx.payment, date: tx.date, splits: this.formSplitsFrom(tx.splits) }
+      this.newTx.amount = this.moneyToInput(tx.amount)
+      this.newTx.description = tx.description
+      this.newTx.category = tx.category
+      this.newTx.payment = tx.payment
+      this.newTx.date = tx.date
+      this.newTx.splits = this.formSplitsFrom(tx.splits)
       this.$nextTick(() => this.syncDatePickers())
     },
 
     cancelExpenseEdit() {
       this.editingExpenseId = ''
+      this.editingRecurringInForm = ''
+      this.newTx.isRecurring = false
+      this.newTx.enabled = true
+      this.newTx.date = this.todayDate()
       this.resetExpenseForm()
     },
 
@@ -1577,6 +1539,43 @@ function app() {
         this.toast('Informe um valor válido.', true)
         return
       }
+
+      if (this.newTx.isRecurring) {
+        this.savingExpense = true
+        try {
+          const payload = {
+            amount,
+            description: this.newTx.description.trim(),
+            category: this.newTx.category,
+            payment: this.newTx.payment,
+            frequency: 'monthly',
+            dayOfMonth: Number(this.newTx.dayOfMonth || 1),
+            startDate: this.newTx.startDate || this.todayDate(),
+            endDate: this.newTx.endDate || '',
+            enabled: !!this.newTx.enabled,
+            splits: this.normalizedFormSplits(this.newTx.splits),
+          }
+          const recurring = this.editingRecurringInForm
+            ? await API.patch('/api/recurring-expenses/' + this.editingRecurringInForm, payload)
+            : await API.post('/api/recurring-expenses', payload)
+
+          if (this.editingRecurringInForm) {
+            this.recurringExpenses = this.recurringExpenses.map(item => item.id === recurring.id ? recurring : item)
+            this.toast('Recorrência atualizada ✓')
+          } else {
+            this.recurringExpenses.push(recurring)
+            this.toast('Recorrência configurada ✓')
+          }
+          this.cancelExpenseEdit()
+          await this.loadAllData()
+        } catch (err) {
+          this.toast(err.message, true)
+        } finally {
+          this.savingExpense = false
+        }
+        return
+      }
+
       this.savingExpense = true
       try {
         const payload = {
@@ -1584,7 +1583,7 @@ function app() {
           description: this.newTx.description.trim(),
           category: this.newTx.category,
           payment: this.newTx.payment,
-          date: this.newTx.date || new Date().toISOString().split('T')[0],
+          date: this.newTx.date || this.todayDate(),
           splits: this.normalizedFormSplits(this.newTx.splits),
         }
         const e = this.editingExpenseId
@@ -1598,7 +1597,8 @@ function app() {
           this.expenses.push(e)
           this.toast('Gasto adicionado ✓')
         }
-        this.cancelExpenseEdit()
+        this.editingExpenseId = ''
+        this.resetExpenseForm()
         const goal = this.goals.find(g => g.category === e.category)
         if (goal) {
           const spent = this.expensesMonth.filter(x => x.category === e.category).reduce((s, x) => s + x.amount, 0)
@@ -1625,12 +1625,16 @@ function app() {
 
     startEditIncome(tx) {
       this.editingIncomeId = String(tx.id)
-      this.newInc = { amount: this.moneyToInput(tx.amount), description: tx.description, type: tx.type, date: tx.date }
+      this.newInc.amount = this.moneyToInput(tx.amount)
+      this.newInc.description = tx.description
+      this.newInc.type = tx.type
+      this.newInc.date = tx.date
       this.$nextTick(() => this.syncDatePickers())
     },
 
     cancelIncomeEdit() {
       this.editingIncomeId = ''
+      this.newInc.date = this.todayDate()
       this.resetIncomeForm()
     },
 
@@ -1650,7 +1654,7 @@ function app() {
           amount,
           description: this.newInc.description.trim(),
           type: this.newInc.type,
-          date: this.newInc.date || new Date().toISOString().split('T')[0],
+          date: this.newInc.date || this.todayDate(),
         }
         const inc = this.editingIncomeId
           ? await API.patch('/api/incomes/' + this.editingIncomeId, payload)
@@ -1662,7 +1666,8 @@ function app() {
           this.incomes.push(inc)
           this.toast('Entrada adicionada ✓')
         }
-        this.cancelIncomeEdit()
+        this.editingIncomeId = ''
+        this.resetIncomeForm()
       } catch (err) {
         this.toast(err.message, true)
       } finally {
@@ -1735,68 +1740,18 @@ function app() {
     },
 
     startEditRecurringExpense(item) {
-      this.editingRecurringId = String(item.id)
-      this.newRecurring = {
-        amount: this.moneyToInput(item.amount),
-        description: item.description,
-        category: item.category,
-        payment: item.payment,
-        frequency: item.frequency || 'monthly',
-        dayOfMonth: item.dayOfMonth,
-        startDate: item.startDate,
-        endDate: item.endDate || '',
-        enabled: !!item.enabled,
-        splits: this.formSplitsFrom(item.splits),
-      }
+      this.editingRecurringInForm = String(item.id)
+      this.newTx.isRecurring = true
+      this.newTx.amount = this.moneyToInput(item.amount)
+      this.newTx.description = item.description
+      this.newTx.category = item.category
+      this.newTx.payment = item.payment
+      this.newTx.dayOfMonth = item.dayOfMonth
+      this.newTx.startDate = item.startDate
+      this.newTx.endDate = item.endDate || ''
+      this.newTx.enabled = !!item.enabled
+      this.newTx.splits = this.formSplitsFrom(item.splits)
       this.$nextTick(() => this.syncDatePickers())
-    },
-
-    cancelRecurringEdit() {
-      this.editingRecurringId = ''
-      this.resetRecurringForm()
-    },
-
-    async submitRecurringExpense() {
-      if (!this.canEditActiveAccount || !this.hasActiveAccount) {
-        this.toast('Você não pode editar esta conta.', true)
-        return
-      }
-      const amount = this.parseCurrencyInput(this.newRecurring.amount)
-      if (amount <= 0) {
-        this.toast('Informe um valor válido.', true)
-        return
-      }
-      this.savingRecurring = true
-      try {
-        const payload = {
-          amount,
-          description: this.newRecurring.description.trim(),
-          category: this.newRecurring.category,
-          payment: this.newRecurring.payment,
-          frequency: this.newRecurring.frequency || 'monthly',
-          dayOfMonth: Number(this.newRecurring.dayOfMonth || 0),
-          startDate: this.newRecurring.startDate,
-          endDate: this.newRecurring.endDate || '',
-          enabled: !!this.newRecurring.enabled,
-          splits: this.normalizedFormSplits(this.newRecurring.splits),
-        }
-        const recurring = this.editingRecurringId
-          ? await API.patch('/api/recurring-expenses/' + this.editingRecurringId, payload)
-          : await API.post('/api/recurring-expenses', payload)
-
-        if (this.editingRecurringId) {
-          this.recurringExpenses = this.recurringExpenses.map(item => item.id === recurring.id ? recurring : item)
-          this.toast('Recorrência atualizada ✓')
-        } else {
-          this.recurringExpenses.push(recurring)
-          this.toast('Recorrência configurada ✓')
-        }
-        this.cancelRecurringEdit()
-      } catch (err) {
-        this.toast(err.message, true)
-      } finally {
-        this.savingRecurring = false
-      }
     },
 
     async deleteRecurringExpense(id) {
@@ -1804,7 +1759,7 @@ function app() {
       try {
         await API.delete('/api/recurring-expenses/' + id)
         this.recurringExpenses = this.recurringExpenses.filter(item => item.id !== id)
-        if (String(id) === this.editingRecurringId) this.cancelRecurringEdit()
+        if (String(id) === this.editingRecurringInForm) this.cancelExpenseEdit()
         this.toast('Recorrência removida.')
       } catch (err) {
         this.toast(err.message, true)
@@ -1831,7 +1786,7 @@ function app() {
           payerUserId: Number(this.newSplitPayment.payerUserId),
           receiverUserId: Number(this.newSplitPayment.receiverUserId),
           amount,
-          date: this.newSplitPayment.date || new Date().toISOString().split('T')[0],
+          date: this.newSplitPayment.date || this.todayDate(),
           note: this.newSplitPayment.note.trim(),
         }
         const payment = this.editingSplitPaymentId
@@ -1937,6 +1892,34 @@ function app() {
       if (!splits.length) return 'sem racha'
       if (splits.length === 1) return splits[0].name + ' · 100%'
       return splits.map(split => split.name + ' ' + Number(split.percentage || 0).toFixed(0) + '%').join(' · ')
+    },
+
+    todayDate() {
+      try {
+        return new Date().toLocaleDateString('en-CA', { timeZone: this.timezone })
+      } catch {
+        return new Date().toISOString().split('T')[0]
+      }
+    },
+
+    todayDayOfMonth() {
+      try {
+        return parseInt(new Date().toLocaleDateString('en-CA', { timeZone: this.timezone }).split('-')[2], 10)
+      } catch {
+        return new Date().getDate()
+      }
+    },
+
+    setTimezone(tz) {
+      this.timezone = tz
+      localStorage.setItem('gastos_timezone', tz)
+      const today = this.todayDate()
+      this.newTx.date = today
+      this.newTx.startDate = today
+      this.newTx.dayOfMonth = this.todayDayOfMonth()
+      this.newInc.date = today
+      this.newSplitPayment.date = today
+      this.$nextTick(() => this.syncDatePickers())
     },
 
     bindDatePicker(el, target, field, options = {}) {
@@ -2118,8 +2101,8 @@ function app() {
       const map = {}
       this.expensesMonth.forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount })
       const max = Math.max(...Object.values(map), 1)
-      return this.categories.filter(c => map[c.id])
-        .map(c => ({ ...c, total: map[c.id] || 0, pct: ((map[c.id] || 0) / max * 100) }))
+      return this.categories.filter(c => map[c.key])
+        .map(c => ({ ...c, total: map[c.key] || 0, pct: ((map[c.key] || 0) / max * 100) }))
         .sort((a, b) => b.total - a.total)
     },
 
@@ -2280,11 +2263,11 @@ function app() {
       return { owner: 'Owner', editor: 'Editor', reader: 'Leitor' }[role] || role
     },
 
-    getCatIcon(id) { return this.categories.find(c => c.id === id)?.icon || '◈' },
-    getCatName(id) { return this.categories.find(c => c.id === id)?.name || id },
-    getCatEss(id) { return this.categories.find(c => c.id === id)?.essentiality || 'nonessential' },
+    getCatIcon(id) { return this.categories.find(c => c.key === id)?.icon || '◈' },
+    getCatName(id) { return this.categories.find(c => c.key === id)?.name || id },
+    getCatEss(id) { return this.categories.find(c => c.key === id)?.essentiality || 'nonessential' },
     essLabel(e) { return { essential: 'essencial', nonessential: 'não-essencial', investment: 'investimento' }[e] || e },
-    payLabel(id) { return (this.paymentMethods.find(p => p.id === id)?.label || id).replace(/^.\s/, '') },
+    payLabel(id) { const p = this.paymentMethods.find(p => p.key === id); return p ? p.icon + ' ' + p.name : id },
     incTypeIcon(t) { return { salary: '💼', freelance: '💻', investment: '📈', gift: '🎁', other: '◈' }[t] || '◈' },
     incTypeLabel(t) { return { salary: 'Salário', freelance: 'Freelance', investment: 'Rendimentos', gift: 'Presente', other: 'Outros' }[t] || t },
   }
