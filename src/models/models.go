@@ -14,16 +14,17 @@ type User struct {
 }
 
 type Expense struct {
-	ID           int64   `json:"id"`
-	UserID       int64   `json:"-"`
-	PaidByUserID int64   `json:"paidByUserId"`
-	AccountID    int64   `json:"-"`
-	Amount       float64 `json:"amount"`
-	Description  string  `json:"description"`
-	Category     string  `json:"category"`
-	Payment      string  `json:"payment"`
-	Date         string  `json:"date"`
-	Splits       []Split `json:"splits"`
+	ID                 int64   `json:"id"`
+	UserID             int64   `json:"-"`
+	PaidByUserID       int64   `json:"paidByUserId"`
+	AccountID          int64   `json:"-"`
+	Amount             float64 `json:"amount"`
+	Description        string  `json:"description"`
+	Category           string  `json:"category"`
+	Payment            string  `json:"payment"`
+	Date               string  `json:"date"`
+	RecurringExpenseID *int64  `json:"recurringExpenseId,omitempty"`
+	Splits             []Split `json:"splits"`
 }
 
 type Income struct {
@@ -42,6 +43,26 @@ type Goal struct {
 	AccountID int64   `json:"-"`
 	Category  string  `json:"category"`
 	Limit     float64 `json:"limit"`
+}
+
+type Category struct {
+	ID           int64  `json:"id"`
+	AccountID    int64  `json:"-"`
+	Key          string `json:"key"`
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	Color        string `json:"color"`
+	Essentiality string `json:"essentiality"`
+	SortOrder    int    `json:"sortOrder"`
+}
+
+type PaymentMethod struct {
+	ID        int64  `json:"id"`
+	AccountID int64  `json:"-"`
+	Key       string `json:"key"`
+	Icon      string `json:"icon"`
+	Name      string `json:"name"`
+	SortOrder int    `json:"sortOrder"`
 }
 
 type RecurringExpense struct {
