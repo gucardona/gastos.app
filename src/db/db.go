@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -74,7 +75,65 @@ func CreateAccountWithOwner(tx *sql.Tx, name string, ownerUserID int64) (int64, 
 		return 0, err
 	}
 
+	if err := seedAccountDefaults(tx, accountID); err != nil {
+		return 0, err
+	}
+
 	return accountID, nil
+}
+
+func seedAccountDefaults(tx *sql.Tx, accountID int64) error {
+	categories := []struct {
+		key, name, icon, color, essentiality string
+		order                                 int
+	}{
+		{"food", "Alimentação", "🍽", "#0f6579", "essential", 0},
+		{"market", "Mercado", "🛒", "#1f7d8f", "essential", 1},
+		{"transport", "Transporte", "🚗", "#2b92a1", "essential", 2},
+		{"health", "Saúde", "💊", "#27ae60", "essential", 3},
+		{"home", "Moradia", "🏠", "#2c9b88", "essential", 4},
+		{"utilities", "Contas", "⚡", "#d6a23a", "essential", 5},
+		{"restaurant", "Restaurante", "🍜", "#55b38c", "nonessential", 6},
+		{"leisure", "Lazer", "🎮", "#66c3a1", "nonessential", 7},
+		{"subscriptions", "Assinaturas", "📺", "#8e44ad", "nonessential", 8},
+		{"clothes", "Vestuário", "👕", "#88c0b3", "nonessential", 9},
+		{"beauty", "Beleza", "✨", "#79b7ae", "nonessential", 10},
+		{"travel", "Viagem", "✈️", "#54a7b9", "nonessential", 11},
+		{"education", "Educação", "📚", "#2ba18a", "investment", 12},
+		{"invest", "Investimentos", "📈", "#f39c12", "investment", 13},
+		{"other", "Outros", "◈", "#7f9ea5", "nonessential", 14},
+	}
+	for _, c := range categories {
+		if _, err := tx.Exec(`
+            INSERT OR IGNORE INTO account_categories (account_id, key, name, icon, color, essentiality, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, accountID, c.key, c.name, c.icon, c.color, c.essentiality, c.order); err != nil {
+			return err
+		}
+	}
+
+	paymentMethods := []struct {
+		key, icon, name string
+		order           int
+	}{
+		{"pix", "⚡", "Pix", 0},
+		{"credit", "💳", "Crédito", 1},
+		{"debit", "🏦", "Débito", 2},
+		{"cash", "💵", "Dinheiro", 3},
+		{"boleto", "📄", "Boleto", 4},
+		{"va", "🍽", "Vale Alim.", 5},
+		{"vr", "🛒", "Vale Ref.", 6},
+		{"transfer", "↔", "Transferência", 7},
+	}
+	for _, p := range paymentMethods {
+		if _, err := tx.Exec(`
+            INSERT OR IGNORE INTO account_payment_methods (account_id, key, icon, name, sort_order)
+            VALUES (?, ?, ?, ?, ?)
+        `, accountID, p.key, p.icon, p.name, p.order); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func enableForeignKeys() error {
@@ -193,6 +252,30 @@ func createTables() error {
 			name TEXT PRIMARY KEY,
 			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS account_categories (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id   INTEGER NOT NULL,
+    key          TEXT    NOT NULL,
+    name         TEXT    NOT NULL,
+    icon         TEXT    NOT NULL,
+    color        TEXT    NOT NULL,
+    essentiality TEXT    NOT NULL CHECK(essentiality IN ('essential','nonessential','investment')),
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(account_id, key),
+    FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);`,
+		`CREATE TABLE IF NOT EXISTS account_payment_methods (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id INTEGER NOT NULL,
+    key        TEXT    NOT NULL,
+    icon       TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(account_id, key),
+    FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);`,
 	}
 
 	for _, q := range queries {
@@ -215,6 +298,9 @@ func createIndexes() error {
 		`CREATE INDEX IF NOT EXISTS idx_recurring_expenses_account_enabled ON recurring_expenses(account_id, enabled, day_of_month);`,
 		`CREATE INDEX IF NOT EXISTS idx_recurring_expense_splits_user ON recurring_expense_splits(user_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_split_payments_account_date ON split_payments(account_id, date DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_expenses_recurring ON expenses(recurring_expense_id, date);`,
+		`CREATE INDEX IF NOT EXISTS idx_account_categories_account ON account_categories(account_id, sort_order);`,
+		`CREATE INDEX IF NOT EXISTS idx_account_payment_methods_account ON account_payment_methods(account_id, sort_order);`,
 	}
 
 	for _, q := range queries {
@@ -233,7 +319,13 @@ func runMigrations() error {
 	if err := runAccountsV1Migration(); err != nil {
 		return err
 	}
-	return runExpenseSplitsV1Migration()
+	if err := runExpenseSplitsV1Migration(); err != nil {
+		return err
+	}
+	if err := runRecurringExpensesV1Migration(); err != nil {
+		return err
+	}
+	return runAccountCustomizationV1Migration()
 }
 
 func runLegacyColumnMigrations() error {
@@ -354,6 +446,196 @@ func runExpenseSplitsV1Migration() error {
 		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO schema_migrations (name) VALUES ('expense_splits_v1')`); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func runRecurringExpensesV1Migration() error {
+	applied, err := schemaMigrationApplied("recurring_expenses_v1")
+	if err != nil || applied {
+		return err
+	}
+	if _, err := DB.Exec(`ALTER TABLE expenses ADD COLUMN recurring_expense_id INTEGER`); err != nil && !isIgnorableMigrationError(err) {
+		return err
+	}
+	_, err = DB.Exec(`INSERT INTO schema_migrations (name) VALUES ('recurring_expenses_v1')`)
+	return err
+}
+
+func runAccountCustomizationV1Migration() error {
+	applied, err := schemaMigrationApplied("account_customization_v1")
+	if err != nil || applied {
+		return err
+	}
+
+	// Seed defaults for every existing account that has no rows yet.
+	rows, err := DB.Query(`SELECT id FROM accounts`)
+	if err != nil {
+		return err
+	}
+	var accountIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		accountIDs = append(accountIDs, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, id := range accountIDs {
+		if err := seedAccountDefaults(tx, id); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations (name) VALUES ('account_customization_v1')`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// MaterializeRecurringExpenses creates expense rows for every recurring expense
+// occurrence that is due (day_of_month ≤ today) and has not yet been recorded.
+// Idempotent: skips months that already have a matching row.
+func MaterializeRecurringExpenses(accountID int64) error {
+	now := time.Now()
+	today := now.Format("2006-01-02")
+
+	type entry struct {
+		id          int64
+		userID      int64
+		amount      float64
+		description string
+		category    string
+		payment     string
+		dayOfMonth  int
+		startDate   string
+		endDate     string
+	}
+
+	rows, err := DB.Query(`
+		SELECT id, user_id, amount, description, category, payment, day_of_month, start_date, COALESCE(end_date, '')
+		FROM recurring_expenses
+		WHERE account_id = ? AND enabled = 1
+	`, accountID)
+	if err != nil {
+		return err
+	}
+
+	var entries []entry
+	for rows.Next() {
+		var e entry
+		if err := rows.Scan(&e.id, &e.userID, &e.amount, &e.description, &e.category, &e.payment, &e.dayOfMonth, &e.startDate, &e.endDate); err != nil {
+			rows.Close()
+			return err
+		}
+		entries = append(entries, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, e := range entries {
+		startDate, err := time.Parse("2006-01-02", e.startDate)
+		if err != nil {
+			continue
+		}
+		cursor := time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+		limit := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+		for !cursor.After(limit) {
+			year := cursor.Year()
+			month := cursor.Month()
+
+			lastDay := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+			day := e.dayOfMonth
+			if day > lastDay {
+				day = lastDay
+			}
+
+			targetDate := fmt.Sprintf("%04d-%02d-%02d", year, int(month), day)
+
+			if targetDate > today || targetDate < e.startDate || (e.endDate != "" && targetDate > e.endDate) {
+				cursor = cursor.AddDate(0, 1, 0)
+				continue
+			}
+
+			yearMonth := fmt.Sprintf("%04d-%02d-%%", year, int(month))
+			var count int
+			if err := DB.QueryRow(`
+				SELECT COUNT(*) FROM expenses WHERE recurring_expense_id = ? AND date LIKE ?
+			`, e.id, yearMonth).Scan(&count); err != nil {
+				cursor = cursor.AddDate(0, 1, 0)
+				continue
+			}
+
+			if count == 0 {
+				if err := createExpenseFromRecurring(e.id, e.userID, accountID, e.amount, e.description, e.category, e.payment, targetDate); err != nil {
+					log.Printf("materialize recurring %d for %s: %v", e.id, targetDate, err)
+				}
+			}
+
+			cursor = cursor.AddDate(0, 1, 0)
+		}
+	}
+
+	return nil
+}
+
+func createExpenseFromRecurring(recurringID, userID, accountID int64, amount float64, description, category, payment, date string) error {
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(`
+		INSERT INTO expenses (user_id, account_id, amount, description, category, payment, date, recurring_expense_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, userID, accountID, amount, description, category, payment, date, recurringID)
+	if err != nil {
+		return err
+	}
+
+	expenseID, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	splitRows, err := tx.Query(`
+		SELECT user_id, percentage FROM recurring_expense_splits WHERE recurring_expense_id = ?
+	`, recurringID)
+	if err != nil {
+		return err
+	}
+	defer splitRows.Close()
+
+	for splitRows.Next() {
+		var splitUserID int64
+		var pct float64
+		if err := splitRows.Scan(&splitUserID, &pct); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO expense_splits (expense_id, user_id, percentage) VALUES (?, ?, ?)
+		`, expenseID, splitUserID, pct); err != nil {
+			return err
+		}
+	}
+	if err := splitRows.Err(); err != nil {
 		return err
 	}
 

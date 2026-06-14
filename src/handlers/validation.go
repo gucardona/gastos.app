@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"gastos/src/models"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -100,6 +101,36 @@ func validateRecurringExpense(recurring models.RecurringExpense) error {
 func validateAccountName(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return errors.New("Nome da conta é obrigatório")
+	}
+	return nil
+}
+
+var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+func validateCategory(name, icon, color, essentiality string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("Nome é obrigatório")
+	}
+	if strings.TrimSpace(icon) == "" {
+		return errors.New("Ícone é obrigatório")
+	}
+	if !colorRe.MatchString(color) {
+		return errors.New("Cor inválida (use #RRGGBB)")
+	}
+	switch essentiality {
+	case "essential", "nonessential", "investment":
+	default:
+		return errors.New("Essencialidade inválida")
+	}
+	return nil
+}
+
+func validatePaymentMethod(name, icon string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("Nome é obrigatório")
+	}
+	if strings.TrimSpace(icon) == "" {
+		return errors.New("Ícone é obrigatório")
 	}
 	return nil
 }
