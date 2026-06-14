@@ -14,8 +14,10 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		_ = db.MaterializeRecurringExpenses(accountID)
+
 		rows, err := db.DB.Query(`
-			SELECT id, user_id, account_id, amount, description, category, payment, date
+			SELECT id, user_id, account_id, amount, description, category, payment, date, recurring_expense_id
 			FROM expenses
 			WHERE account_id = ?
 			ORDER BY date DESC, id DESC
@@ -38,6 +40,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 				&expense.Category,
 				&expense.Payment,
 				&expense.Date,
+				&expense.RecurringExpenseID,
 			); err != nil {
 				jsonError(w, "Erro ao ler gastos", http.StatusInternalServerError)
 				return
