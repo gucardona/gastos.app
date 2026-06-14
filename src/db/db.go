@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -19,7 +21,28 @@ const (
 
 var DB *sql.DB
 
+func backupDB(path string) {
+	src, err := os.Open(path)
+	if err != nil {
+		return // file doesn't exist yet, nothing to back up
+	}
+	defer src.Close()
+
+	dst, err := os.Create(path + ".bak")
+	if err != nil {
+		log.Printf("aviso: não foi possível criar backup do banco: %v", err)
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		log.Printf("aviso: falha ao copiar backup do banco: %v", err)
+	}
+}
+
 func Init(path string) {
+	backupDB(path)
+
 	if DB != nil {
 		_ = DB.Close()
 		DB = nil
