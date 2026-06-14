@@ -30,6 +30,8 @@ func Accounts(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case len(segments) == 1:
 		handleAccountItem(w, r, userID, accountID)
+	case len(segments) == 2 && segments[1] == "split-participants":
+		handleSplitParticipants(w, r, userID, accountID)
 	case len(segments) == 2 && segments[1] == "members":
 		handleAccountMembersCollection(w, r, userID, accountID)
 	case len(segments) == 3 && segments[1] == "members":
@@ -48,12 +50,14 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 	switch r.Method {
 	case http.MethodGet:
 		rows, err := db.DB.Query(`
-			SELECT a.id, a.name, am.role, owner.name
+			SELECT a.id, a.name, am.role, owner.name, a.splitting_enabled,
+			       COALESCE(GROUP_CONCAT(asp.user_id), '') AS split_participant_ids
 			FROM accounts a
-			INNER JOIN account_members am ON am.account_id = a.id
+			INNER JOIN account_members am ON am.account_id = a.id AND am.user_id = ?
 			INNER JOIN account_members owner_am ON owner_am.account_id = a.id AND owner_am.role = 'owner'
 			INNER JOIN users owner ON owner.id = owner_am.user_id
-			WHERE am.user_id = ?
+			LEFT JOIN account_split_participants asp ON asp.account_id = a.id
+			GROUP BY a.id, a.name, am.role, owner.name, a.splitting_enabled
 			ORDER BY a.created_at ASC, a.id ASC
 		`, userID)
 		if err != nil {
@@ -65,16 +69,18 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 		accounts := make([]models.Account, 0)
 		for rows.Next() {
 			var (
-				accountID int64
-				name      string
-				role      string
-				ownerName string
+				accountID           int64
+				name                string
+				role                string
+				ownerName           string
+				splittingEnabled    int
+				splitParticipantStr string
 			)
-			if err := rows.Scan(&accountID, &name, &role, &ownerName); err != nil {
+			if err := rows.Scan(&accountID, &name, &role, &ownerName, &splittingEnabled, &splitParticipantStr); err != nil {
 				jsonError(w, "Erro ao ler contas", http.StatusInternalServerError)
 				return
 			}
-			accounts = append(accounts, accountResponse(accountID, name, role, ownerName))
+			accounts = append(accounts, accountResponse(accountID, name, role, ownerName, splittingEnabled == 1, parseSplitParticipantIds(splitParticipantStr)))
 		}
 		if err := rows.Err(); err != nil {
 			jsonError(w, "Erro ao iterar contas", http.StatusInternalServerError)
@@ -85,7 +91,8 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 
 	case http.MethodPost:
 		var body struct {
-			Name string `json:"name"`
+			Name             string `json:"name"`
+			SplittingEnabled bool   `json:"splittingEnabled"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
@@ -104,7 +111,7 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 		}
 		defer tx.Rollback()
 
-		accountID, err := db.CreateAccountWithOwner(tx, body.Name, userID)
+		accountID, err := db.CreateAccountWithOwner(tx, body.Name, userID, body.SplittingEnabled)
 		if err != nil {
 			jsonError(w, "Erro ao criar conta", http.StatusInternalServerError)
 			return
@@ -114,7 +121,7 @@ func handleAccountsCollection(w http.ResponseWriter, r *http.Request, userID int
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, accountResponse(accountID, body.Name, models.AccountRoleOwner, currentUserName(userID)))
+		writeJSON(w, http.StatusCreated, accountResponse(accountID, body.Name, models.AccountRoleOwner, currentUserName(userID), body.SplittingEnabled, []int64{}))
 
 	default:
 		w.Header().Set("Allow", "GET, POST, OPTIONS")
@@ -137,24 +144,50 @@ func handleAccountItem(w http.ResponseWriter, r *http.Request, userID, accountID
 		}
 
 		var body struct {
-			Name string `json:"name"`
+			Name             *string `json:"name"`
+			SplittingEnabled *bool   `json:"splittingEnabled"`
 		}
 		if err := decodeJSON(r, &body); err != nil {
 			jsonError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		body.Name = strings.TrimSpace(body.Name)
-		if err := validateAccountName(body.Name); err != nil {
-			jsonError(w, err.Error(), http.StatusBadRequest)
+		if body.Name == nil && body.SplittingEnabled == nil {
+			jsonError(w, "Nenhuma alteração informada", http.StatusBadRequest)
 			return
 		}
 
-		if _, err := db.DB.Exec(`UPDATE accounts SET name = ? WHERE id = ?`, body.Name, accountID); err != nil {
-			jsonError(w, "Erro ao renomear conta", http.StatusInternalServerError)
+		setClauses := []string{}
+		args := []any{}
+
+		newName := account.Name
+		if body.Name != nil {
+			newName = strings.TrimSpace(*body.Name)
+			if err := validateAccountName(newName); err != nil {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			setClauses = append(setClauses, "name = ?")
+			args = append(args, newName)
+		}
+
+		newSplitting := account.SplittingEnabled
+		if body.SplittingEnabled != nil {
+			newSplitting = *body.SplittingEnabled
+			splitting := 0
+			if newSplitting {
+				splitting = 1
+			}
+			setClauses = append(setClauses, "splitting_enabled = ?")
+			args = append(args, splitting)
+		}
+
+		args = append(args, accountID)
+		if _, err := db.DB.Exec(`UPDATE accounts SET `+strings.Join(setClauses, ", ")+` WHERE id = ?`, args...); err != nil {
+			jsonError(w, "Erro ao atualizar conta", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, accountResponse(account.ID, body.Name, account.Role, account.OwnerName))
+		writeJSON(w, http.StatusOK, accountResponse(account.ID, newName, account.Role, account.OwnerName, newSplitting, loadSplitParticipantIds(accountID)))
 
 	case http.MethodDelete:
 		if account.Role != models.AccountRoleOwner {
@@ -381,20 +414,78 @@ func handleAccountMemberItem(w http.ResponseWriter, r *http.Request, userID, acc
 	}
 }
 
+func handleSplitParticipants(w http.ResponseWriter, r *http.Request, userID, accountID int64) {
+	account, err := lookupAccountForUser(userID, accountID)
+	if err != nil {
+		writeAccountLookupError(w, err)
+		return
+	}
+	if account.Role != models.AccountRoleOwner {
+		jsonError(w, "Apenas o owner pode gerenciar participantes", http.StatusForbidden)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var body struct {
+			UserIds []int64 `json:"userIds"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		tx, err := db.DB.Begin()
+		if err != nil {
+			jsonError(w, "Erro ao atualizar participantes", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		if _, err := tx.Exec(`DELETE FROM account_split_participants WHERE account_id = ?`, accountID); err != nil {
+			jsonError(w, "Erro ao atualizar participantes", http.StatusInternalServerError)
+			return
+		}
+		for _, uid := range body.UserIds {
+			if uid <= 0 {
+				continue
+			}
+			if _, err := tx.Exec(`INSERT OR IGNORE INTO account_split_participants (account_id, user_id) VALUES (?, ?)`, accountID, uid); err != nil {
+				jsonError(w, "Erro ao atualizar participantes", http.StatusInternalServerError)
+				return
+			}
+		}
+		if err := tx.Commit(); err != nil {
+			jsonError(w, "Erro ao atualizar participantes", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string][]int64{"splitParticipantIds": loadSplitParticipantIds(accountID)})
+
+	default:
+		w.Header().Set("Allow", "PUT, OPTIONS")
+		jsonError(w, "Método não permitido", http.StatusMethodNotAllowed)
+	}
+}
+
 func lookupAccountForUser(userID, accountID int64) (models.Account, error) {
-	var account models.Account
+	var (
+		account          models.Account
+		splittingEnabled int
+	)
 	err := db.DB.QueryRow(`
-		SELECT a.id, a.name, am.role, owner.name
+		SELECT a.id, a.name, am.role, owner.name, a.splitting_enabled
 		FROM accounts a
 		INNER JOIN account_members am ON am.account_id = a.id
 		INNER JOIN account_members owner_am ON owner_am.account_id = a.id AND owner_am.role = 'owner'
 		INNER JOIN users owner ON owner.id = owner_am.user_id
 		WHERE a.id = ? AND am.user_id = ?
-	`, accountID, userID).Scan(&account.ID, &account.Name, &account.Role, &account.OwnerName)
+	`, accountID, userID).Scan(&account.ID, &account.Name, &account.Role, &account.OwnerName, &splittingEnabled)
 	if err != nil {
 		return models.Account{}, err
 	}
 	account.Permissions = models.PermissionsForRole(account.Role)
+	account.SplittingEnabled = splittingEnabled == 1
 	return account, nil
 }
 

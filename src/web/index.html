@@ -37,7 +37,8 @@
       --income:#4ecc73;--income-dim:#143d20;--danger:#f08080;--warn:#f3c45a;
       --invest:#53c2b3;--invest-dim:#123f3a;--shadow:0 1px 4px #00000050,0 4px 16px #00000030;
     }
-    html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden;transition:background .25s,color .25s;-webkit-text-size-adjust:100%}
+    html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);transition:background .25s,color .25s;-webkit-text-size-adjust:100%}
+    body{overflow-x:hidden}
     body{min-height:100dvh}
     input,select,button,textarea{font:inherit}
     button,input,select,textarea{-webkit-tap-highlight-color:transparent}
@@ -98,7 +99,7 @@
     .tog-btn.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px #0002}
 
     /* ── Main ── */
-    .main{padding:32px 36px;overflow-y:auto}
+    .main{padding:32px 36px}
     .page{display:none}.page.active{display:block;animation:fadeUp .2s ease}
     @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px}
@@ -318,6 +319,7 @@
     .chart-wrap.tall{height:280px}
 
     /* ── Toast ── */
+    .emoji-picker-popup{position:fixed;z-index:9999;width:260px;max-height:320px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,0.22)}
     .toast-wrap{position:fixed;bottom:calc(20px + var(--safe-bottom));right:calc(20px + var(--safe-right));z-index:999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
     .toast{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);padding:11px 15px;border-radius:8px;font-size:13px;box-shadow:0 8px 24px #00000030;animation:slideIn .2s ease,fadeOut .3s ease 2.7s forwards;pointer-events:all}
     .toast.err{border-left-color:var(--danger)}
@@ -499,6 +501,7 @@
             <option :value="String(account.id)" x-text="account.name+' · '+roleLabel(account.role)+' · por '+account.ownerName"></option>
           </template>
         </select>
+        <button class="btn btn-ghost" @click="loadAllData().then(()=>toast('Dados atualizados ✓'))" title="Atualizar dados" style="font-size:16px;padding:6px 10px">↻</button>
         <button class="btn btn-ghost btn-logout" @click="doLogout()">Sair</button>
       </div>
     </div>
@@ -606,7 +609,7 @@
               <div class="field"><label>&nbsp;</label><button class="btn btn-ghost" @click="newTx.enabled=!newTx.enabled" x-text="newTx.enabled?'Ativa':'Pausada'" style="align-self:flex-end;height:37px"></button></div>
               <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitExpense()" :disabled="savingExpense" x-text="savingExpense?'...':(editingRecurringInForm?'Salvar':'Configurar')" style="align-self:flex-end"></button></div>
             </div>
-            <div class="split-editor">
+            <div class="split-editor" x-show="activeAccount?.splittingEnabled">
               <div class="split-head">
                 <div>
                   <div class="split-title" x-text="newTx.isRecurring?'Racha recorrente':'Racha entre participantes'"></div>
@@ -951,7 +954,7 @@
                   <div x-show="editCat.key === c.key"
                        style="padding:10px 0;border-bottom:1px solid var(--border)">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-                      <button type="button" @click="openEmojiPicker($event, 'editCat')"
+                      <button type="button" @click.stop="openEmojiPicker($event, 'editCat')"
                               style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
                               x-text="editCat.icon"></button>
                       <input type="text" x-model="editCat.name" placeholder="Nome" style="flex:1;min-width:120px" />
@@ -987,7 +990,7 @@
                 <button class="btn-sm" x-show="!catFormOpen" @click="catFormOpen=true">+ Adicionar categoria</button>
                 <div x-show="catFormOpen">
                   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;margin-top:8px">
-                    <button type="button" @click="openEmojiPicker($event, 'newCat')"
+                    <button type="button" @click.stop="openEmojiPicker($event, 'newCat')"
                             style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
                             x-text="newCat.icon"></button>
                     <input type="text" x-model="newCat.name" placeholder="Nome da categoria" style="flex:1;min-width:120px" />
@@ -1020,7 +1023,7 @@
                   <div x-show="editPm.key === p.key"
                        style="padding:10px 0;border-bottom:1px solid var(--border)">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-                      <button type="button" @click="openEmojiPicker($event, 'editPm')"
+                      <button type="button" @click.stop="openEmojiPicker($event, 'editPm')"
                               style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
                               x-text="editPm.icon"></button>
                       <input type="text" x-model="editPm.name" placeholder="Nome" style="flex:1;min-width:120px" />
@@ -1050,7 +1053,7 @@
                 <button class="btn-sm" x-show="!pmFormOpen" @click="pmFormOpen=true">+ Adicionar método</button>
                 <div x-show="pmFormOpen">
                   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;margin-top:8px">
-                    <button type="button" @click="openEmojiPicker($event, 'newPm')"
+                    <button type="button" @click.stop="openEmojiPicker($event, 'newPm')"
                             style="font-size:22px;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer"
                             x-text="newPm.icon"></button>
                     <input type="text" x-model="newPm.name" placeholder="Nome do método" style="flex:1;min-width:120px" />
@@ -1093,6 +1096,28 @@
                 <button class="btn btn-primary" @click="renameActiveAccount()" :disabled="accountLoading" x-text="accountLoading?'...':'Salvar nome'"></button>
                 <button class="btn btn-ghost" @click="deleteActiveAccount()">Excluir conta</button>
               </div>
+              <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                  <div>
+                    <div style="font-size:13px;font-weight:500">Divisão de gastos</div>
+                    <div class="panel-note" style="margin:2px 0 0">Rachar despesas entre participantes da carteira</div>
+                  </div>
+                  <button type="button" class="btn btn-ghost btn-sm" :class="{active:activeAccount?.splittingEnabled}" @click="toggleAccountSplitting()" x-text="activeAccount?.splittingEnabled?'Ativo':'Inativo'" style="min-width:64px;flex-shrink:0"></button>
+                </div>
+                <div x-show="activeAccount?.splittingEnabled" style="margin-top:12px">
+                  <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);font-weight:500;margin-bottom:8px">Participantes da divisão</div>
+                  <template x-for="member in accountMembers" :key="'sp-'+member.userId">
+                    <label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--surface2);cursor:pointer">
+                      <input type="checkbox" :checked="isSplitParticipant(member.userId)" @change="toggleSplitParticipant(member.userId)" style="width:16px;height:16px;cursor:pointer" />
+                      <div>
+                        <div style="font-size:13px;font-weight:500" x-text="member.name"></div>
+                        <div style="font-size:11px;color:var(--text2)" x-text="member.email"></div>
+                      </div>
+                    </label>
+                  </template>
+                  <div x-show="accountMembers.length===0" class="panel-note" style="margin-top:4px">Adicione membros à carteira para configurar participantes.</div>
+                </div>
+              </div>
             </div>
 
             <div class="card">
@@ -1100,6 +1125,13 @@
               <div class="panel-field">
                 <label>Nome da conta</label>
                 <input type="text" placeholder="Pessoal, Casa, Empresa..." x-model="accountForm.name" @keyup.enter="createAccount()" />
+              </div>
+              <div class="panel-field" style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                  <label style="display:block">Divisão de gastos</label>
+                  <div class="panel-note" style="margin:0">Rachar despesas entre os membros</div>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" :class="{active:accountForm.splittingEnabled}" @click="accountForm.splittingEnabled=!accountForm.splittingEnabled" x-text="accountForm.splittingEnabled?'Ativo':'Inativo'" style="min-width:64px;flex-shrink:0"></button>
               </div>
               <div class="panel-actions">
                 <button class="btn btn-primary" @click="createAccount()" :disabled="accountLoading" x-text="accountLoading?'...':'Criar conta'"></button>
@@ -1201,6 +1233,7 @@ const API = {
   },
   get: (path) => API.req('GET', path),
   post: (path, body) => API.req('POST', path, body),
+  put: (path, body) => API.req('PUT', path, body),
   patch: (path, body) => API.req('PATCH', path, body),
   delete: (path) => API.req('DELETE', path),
 }
@@ -1227,7 +1260,7 @@ function app() {
     accounts: [],
     activeAccountId: '',
     accountMembers: [],
-    accountForm: { name: '' },
+    accountForm: { name: '', splittingEnabled: false },
     renameAccountName: '',
     shareForm: { email: '', role: 'reader' },
     expenses: [],
@@ -1255,10 +1288,7 @@ function app() {
     categories: [],
     paymentMethods: [],
 
-    emojiPickerOpen: false,
     emojiPickerTarget: null,
-    emojiPickerX: 0,
-    emojiPickerY: 0,
     EMOJIS: [
       { section: 'Comida', list: ['🍽','🍜','🍕','🍔','🥗','🛒','🥩','🍺','☕','🧃','🍰','🍣','🌮','🥐','🍱'] },
       { section: 'Transporte', list: ['🚗','🚕','🚌','🚆','✈️','🛵','🚲','⛽','🅿️','🚁','🛻','🚂','🛳'] },
@@ -1305,25 +1335,48 @@ function app() {
       }
       this.loading = false
       this.$nextTick(() => this.syncDatePickers())
+      // Build emoji picker as a plain DOM element so position:fixed is guaranteed
+      const ep = document.createElement('div')
+      ep.id = '__ep'
+      ep.style.cssText = 'display:none;position:fixed;z-index:99999;width:260px;max-height:320px;overflow-y:auto;border-radius:10px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,.22)'
+      ep.innerHTML = this.EMOJIS.map(s =>
+        `<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">${s.section}</div><div style="display:flex;flex-wrap:wrap;gap:2px">${s.list.map(em=>`<button type="button" data-em="${em}" style="background:none;border:none;cursor:pointer;font-size:20px;padding:3px;border-radius:5px;line-height:1">${em}</button>`).join('')}</div></div>`
+      ).join('')
+      document.body.appendChild(ep)
+      ep.addEventListener('click', e => { const b = e.target.closest('[data-em]'); if (b) this.pickEmoji(b.dataset.em); e.stopPropagation() })
+      document.addEventListener('click', () => { ep.style.display = 'none'; this.emojiPickerTarget = null })
+      const closeOnScroll = () => { if (ep.style.display !== 'none') { ep.style.display = 'none'; this.emojiPickerTarget = null } }
+      window.addEventListener('scroll', closeOnScroll, true)
     },
 
     openEmojiPicker(event, targetKey) {
+      event.stopPropagation()
       const rect = event.currentTarget.getBoundingClientRect()
-      this.emojiPickerX = rect.left + window.scrollX
-      this.emojiPickerY = rect.bottom + window.scrollY + 4
+      const pw = 270, ph = 320
+      let x = rect.left, y = rect.bottom + 4
+      if (x + pw > window.innerWidth - 8) x = window.innerWidth - pw - 8
+      if (y + ph > window.innerHeight - 8) y = rect.top - ph - 4
+      x = Math.max(8, x); y = Math.max(8, y)
+      const ep = document.getElementById('__ep')
+      ep.style.setProperty('position', 'fixed', 'important')
+      ep.style.setProperty('z-index', '99999', 'important')
+      ep.style.setProperty('left', x + 'px', 'important')
+      ep.style.setProperty('top', y + 'px', 'important')
+      ep.style.setProperty('background', 'var(--surface2)')
+      ep.style.setProperty('border', '1px solid var(--border)')
+      ep.style.setProperty('display', 'block')
       this.emojiPickerTarget = targetKey
-      this.emojiPickerOpen = true
     },
     pickEmoji(emoji) {
       if (this.emojiPickerTarget === 'newCat') this.newCat.icon = emoji
       else if (this.emojiPickerTarget === 'editCat') this.editCat.icon = emoji
       else if (this.emojiPickerTarget === 'newPm') this.newPm.icon = emoji
       else if (this.emojiPickerTarget === 'editPm') this.editPm.icon = emoji
-      this.emojiPickerOpen = false
+      document.getElementById('__ep').style.display = 'none'
       this.emojiPickerTarget = null
     },
     closeEmojiPicker() {
-      this.emojiPickerOpen = false
+      document.getElementById('__ep').style.display = 'none'
       this.emojiPickerTarget = null
     },
 
@@ -1396,7 +1449,7 @@ function app() {
       this.currentUser = { name: '', email: '' }
       this.loginMode = 'login'
       this.loginError = ''
-      this.accountForm = { name: '' }
+      this.accountForm = { name: '', splittingEnabled: false }
       this.renameAccountName = ''
       this.shareForm = { email: '', role: 'reader' }
       this.editingExpenseId = ''
@@ -1506,8 +1559,8 @@ function app() {
       }
       this.accountLoading = true
       try {
-        const account = await API.post('/api/accounts', { name })
-        this.accountForm.name = ''
+        const account = await API.post('/api/accounts', { name, splittingEnabled: this.accountForm.splittingEnabled })
+        this.accountForm = { name: '', splittingEnabled: false }
         await this.loadAccountsAndData(account.id)
         this.toast('Conta criada ✓')
       } catch (err) {
@@ -1619,6 +1672,42 @@ function app() {
       } finally {
         this.accountLoading = false
       }
+    },
+
+    async toggleAccountSplitting() {
+      if (!this.isAccountOwner || !this.hasActiveAccount) return
+      const newVal = !this.activeAccount.splittingEnabled
+      try {
+        const updated = await API.patch('/api/accounts/' + this.activeAccountId, { splittingEnabled: newVal })
+        this.accounts = this.accounts.map(a => String(a.id) === String(this.activeAccountId) ? { ...a, splittingEnabled: updated.splittingEnabled, splitParticipantIds: updated.splitParticipantIds } : a)
+        this.newTx.splits = this.buildDefaultSplits()
+        this.toast(newVal ? 'Divisão de gastos ativada ✓' : 'Divisão de gastos desativada ✓')
+      } catch (err) {
+        this.toast(err.message, true)
+      }
+    },
+
+    async toggleSplitParticipant(userId) {
+      if (!this.isAccountOwner || !this.hasActiveAccount) return
+      const allIds = this.accountMembers.map(m => m.userId)
+      const currentIds = this.activeAccount?.splitParticipantIds || []
+      const effective = currentIds.length === 0 ? [...allIds] : [...currentIds]
+      let newIds = effective.includes(userId)
+        ? effective.filter(id => id !== userId)
+        : [...effective, userId]
+      if (allIds.every(id => newIds.includes(id))) newIds = []
+      try {
+        const res = await API.put('/api/accounts/' + this.activeAccountId + '/split-participants', { userIds: newIds })
+        this.accounts = this.accounts.map(a => String(a.id) === String(this.activeAccountId) ? { ...a, splitParticipantIds: res.splitParticipantIds } : a)
+        this.newTx.splits = this.buildDefaultSplits()
+      } catch (err) {
+        this.toast(err.message, true)
+      }
+    },
+
+    isSplitParticipant(userId) {
+      const ids = this.activeAccount?.splitParticipantIds || []
+      return ids.length === 0 || ids.includes(userId)
     },
 
     async deleteActiveAccount() {
@@ -1860,6 +1949,7 @@ function app() {
           const spent = this.expensesMonth.filter(x => x.category === e.category).reduce((s, x) => s + x.amount, 0)
           if (spent >= goal.limit) this.toast('⚠ Meta de ' + this.getCatName(e.category) + ' excedida!', true)
         }
+        this.loadAllData()
       } catch (err) {
         this.toast(err.message, true)
       } finally {
@@ -2096,9 +2186,16 @@ function app() {
     },
 
     buildDefaultSplits() {
-      const members = this.accountMembers.length
+      const participantIds = this.activeAccount?.splitParticipantIds || []
+      let members = this.accountMembers.length
         ? this.accountMembers
         : [{ userId: this.currentUser.id, name: this.currentUser.name, email: this.currentUser.email }]
+      if (participantIds.length > 0) {
+        members = members.filter(m => participantIds.includes(m.userId))
+      }
+      if (!members.length) {
+        members = [{ userId: this.currentUser.id, name: this.currentUser.name, email: this.currentUser.email }]
+      }
       if (!members.length) return []
       const base = Math.floor((100 / members.length) * 100) / 100
       let used = 0
@@ -2129,6 +2226,7 @@ function app() {
     },
 
     normalizedFormSplits(splits = []) {
+      if (!this.activeAccount?.splittingEnabled) return []
       return splits
         .filter(split => Number(split.percentage || 0) > 0)
         .map(split => ({ userId: split.userId, percentage: Number(split.percentage || 0) }))
@@ -2530,22 +2628,5 @@ function app() {
 }
 </script>
 
-<!-- Emoji picker overlay -->
-<div x-show="emojiPickerOpen" @click.outside="closeEmojiPicker()"
-     :style="'position:fixed;z-index:9999;left:'+emojiPickerX+'px;top:'+emojiPickerY+'px'"
-     style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;width:260px;max-height:320px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
-  <template x-for="section in EMOJIS" :key="section.section">
-    <div style="margin-bottom:8px">
-      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:4px" x-text="section.section"></div>
-      <div style="display:flex;flex-wrap:wrap;gap:2px">
-        <template x-for="em in section.list" :key="em">
-          <button type="button" @click="pickEmoji(em)"
-                  style="background:none;border:none;cursor:pointer;font-size:20px;padding:3px;border-radius:5px;line-height:1"
-                  :title="em" x-text="em"></button>
-        </template>
-      </div>
-    </div>
-  </template>
-</div>
 </body>
 </html>

@@ -80,7 +80,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := db.CreateAccountWithOwner(tx, "Pessoal", id); err != nil {
+	if _, err := db.CreateAccountWithOwner(tx, "Pessoal", id, false); err != nil {
 		jsonError(w, "Erro ao criar conta padrão", http.StatusInternalServerError)
 		return
 	}

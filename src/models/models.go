@@ -108,11 +108,13 @@ type AccountPermissions struct {
 }
 
 type Account struct {
-	ID          int64              `json:"id"`
-	Name        string             `json:"name"`
-	Role        string             `json:"role"`
-	OwnerName   string             `json:"ownerName"`
-	Permissions AccountPermissions `json:"permissions"`
+	ID                  int64              `json:"id"`
+	Name                string             `json:"name"`
+	Role                string             `json:"role"`
+	OwnerName           string             `json:"ownerName"`
+	Permissions         AccountPermissions `json:"permissions"`
+	SplittingEnabled    bool               `json:"splittingEnabled"`
+	SplitParticipantIds []int64            `json:"splitParticipantIds"`
 }
 
 type AccountMember struct {

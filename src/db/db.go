@@ -72,7 +72,7 @@ func Init(path string) {
 	}
 }
 
-func CreateAccountWithOwner(tx *sql.Tx, name string, ownerUserID int64) (int64, error) {
+func CreateAccountWithOwner(tx *sql.Tx, name string, ownerUserID int64, splittingEnabled bool) (int64, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return 0, errors.New("nome da conta é obrigatório")
@@ -81,7 +81,11 @@ func CreateAccountWithOwner(tx *sql.Tx, name string, ownerUserID int64) (int64, 
 		return 0, errors.New("owner inválido")
 	}
 
-	res, err := tx.Exec(`INSERT INTO accounts (name) VALUES (?)`, name)
+	splitting := 0
+	if splittingEnabled {
+		splitting = 1
+	}
+	res, err := tx.Exec(`INSERT INTO accounts (name, splitting_enabled) VALUES (?, ?)`, name, splitting)
 	if err != nil {
 		return 0, err
 	}
@@ -348,7 +352,10 @@ func runMigrations() error {
 	if err := runRecurringExpensesV1Migration(); err != nil {
 		return err
 	}
-	return runAccountCustomizationV1Migration()
+	if err := runAccountCustomizationV1Migration(); err != nil {
+		return err
+	}
+	return runSplittingV1Migration()
 }
 
 func runLegacyColumnMigrations() error {
@@ -665,6 +672,40 @@ func createExpenseFromRecurring(recurringID, userID, accountID int64, amount flo
 	return tx.Commit()
 }
 
+func runSplittingV1Migration() error {
+	applied, err := schemaMigrationApplied("splitting_v1")
+	if err != nil || applied {
+		return err
+	}
+
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`ALTER TABLE accounts ADD COLUMN splitting_enabled INTEGER NOT NULL DEFAULT 0`); err != nil && !isIgnorableMigrationError(err) {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		CREATE TABLE IF NOT EXISTS account_split_participants (
+			account_id INTEGER NOT NULL,
+			user_id    INTEGER NOT NULL,
+			PRIMARY KEY (account_id, user_id),
+			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id)    REFERENCES users(id)    ON DELETE CASCADE
+		)
+	`); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO schema_migrations (name) VALUES ('splitting_v1')`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func schemaMigrationApplied(name string) (bool, error) {
 	var exists int
 	err := DB.QueryRow(`
@@ -687,7 +728,7 @@ func createDefaultAccounts(tx *sql.Tx) (map[int64]int64, error) {
 			return nil, err
 		}
 
-		accountID, err := CreateAccountWithOwner(tx, "Pessoal", userID)
+		accountID, err := CreateAccountWithOwner(tx, "Pessoal", userID, false)
 		if err != nil {
 			return nil, err
 		}
