@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"gastos/src/db"
+	"gastos/src/events"
 	"gastos/src/middleware"
 	"gastos/src/models"
 	"net/http"
@@ -123,6 +124,7 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Erro ao salvar recorrência", http.StatusInternalServerError)
 			return
 		}
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusCreated, recurring)
 
 	case http.MethodPatch:
@@ -198,6 +200,7 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Erro ao atualizar recorrência", http.StatusInternalServerError)
 			return
 		}
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, recurring)
 
 	case http.MethodDelete:
@@ -229,6 +232,7 @@ func RecurringExpenses(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:

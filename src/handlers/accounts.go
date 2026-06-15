@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"gastos/src/db"
+	"gastos/src/events"
 	"gastos/src/middleware"
 	"gastos/src/models"
 	"net/http"
@@ -187,6 +188,7 @@ func handleAccountItem(w http.ResponseWriter, r *http.Request, userID, accountID
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, accountResponse(account.ID, newName, account.Role, account.OwnerName, newSplitting, loadSplitParticipantIds(accountID)))
 
 	case http.MethodDelete:
@@ -316,6 +318,7 @@ func handleAccountMembersCollection(w http.ResponseWriter, r *http.Request, user
 		}
 
 		member.Role = body.Role
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusCreated, member)
 
 	default:
@@ -371,6 +374,7 @@ func handleAccountMemberItem(w http.ResponseWriter, r *http.Request, userID, acc
 		}
 
 		member.Role = body.Role
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, member)
 
 	case http.MethodDelete:
@@ -406,6 +410,7 @@ func handleAccountMemberItem(w http.ResponseWriter, r *http.Request, userID, acc
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
@@ -460,6 +465,7 @@ func handleSplitParticipants(w http.ResponseWriter, r *http.Request, userID, acc
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, map[string][]int64{"splitParticipantIds": loadSplitParticipantIds(accountID)})
 
 	default:

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"gastos/src/db"
+	"gastos/src/events"
 	"gastos/src/middleware"
 	"gastos/src/models"
 	"net/http"
@@ -86,6 +87,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 		}
 
 		income.ID = id
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusCreated, income)
 
 	case http.MethodPatch:
@@ -134,6 +136,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, income)
 
 	case http.MethodDelete:
@@ -162,6 +165,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"gastos/src/db"
+	"gastos/src/events"
 	"gastos/src/middleware"
 	"gastos/src/models"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 )
 
 func SplitPayments(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
 	accountID := middleware.AccountIDFromContext(r.Context())
 
 	switch r.Method {
@@ -87,6 +89,7 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 		payment.ID = id
 		payment.PayerName = accountMemberName(accountID, payment.PayerUserID)
 		payment.ReceiverName = accountMemberName(accountID, payment.ReceiverUserID)
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusCreated, payment)
 
 	case http.MethodPatch:
@@ -134,6 +137,7 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 
 		payment.PayerName = accountMemberName(accountID, payment.PayerUserID)
 		payment.ReceiverName = accountMemberName(accountID, payment.ReceiverUserID)
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, payment)
 
 	case http.MethodDelete:
@@ -162,6 +166,7 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:

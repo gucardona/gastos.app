@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"gastos/src/db"
+	"gastos/src/events"
 	"gastos/src/middleware"
 	"gastos/src/models"
 	"net/http"
@@ -119,6 +120,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Erro ao salvar gasto", http.StatusInternalServerError)
 			return
 		}
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusCreated, expense)
 
 	case http.MethodPatch:
@@ -139,8 +141,15 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 		}
 
 		expense.ID = id
-		expense.UserID = userID
 		expense.AccountID = accountID
+
+		var originalUserID int64
+		err = db.DB.QueryRow(`SELECT user_id FROM expenses WHERE id = ? AND account_id = ?`, id, accountID).Scan(&originalUserID)
+		if err != nil {
+			jsonError(w, "Gasto não encontrado", http.StatusNotFound)
+			return
+		}
+		expense.UserID = originalUserID
 		expense.Description = strings.TrimSpace(expense.Description)
 		expense.Category = strings.TrimSpace(expense.Category)
 		expense.Payment = strings.TrimSpace(expense.Payment)
@@ -163,9 +172,9 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 
 		res, err := tx.Exec(`
 			UPDATE expenses
-			SET user_id = ?, amount = ?, description = ?, category = ?, payment = ?, date = ?
+			SET amount = ?, description = ?, category = ?, payment = ?, date = ?
 			WHERE id = ? AND account_id = ?
-		`, expense.UserID, expense.Amount, expense.Description, expense.Category, expense.Payment, expense.Date, expense.ID, accountID)
+		`, expense.Amount, expense.Description, expense.Category, expense.Payment, expense.Date, expense.ID, accountID)
 		if err != nil {
 			jsonError(w, "Erro ao atualizar gasto", http.StatusInternalServerError)
 			return
@@ -190,6 +199,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Erro ao atualizar gasto", http.StatusInternalServerError)
 			return
 		}
+		events.Bus.Notify(accountID, userID)
 		writeJSON(w, http.StatusOK, expense)
 
 	case http.MethodDelete:
@@ -218,6 +228,7 @@ func Expenses(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		events.Bus.Notify(accountID, userID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:

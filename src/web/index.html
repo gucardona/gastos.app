@@ -845,7 +845,7 @@
                 <div class="goal-head"><div class="goal-name"><span x-text="getCatIcon(goal.category)"></span><span x-text="getCatName(goal.category)"></span></div><div class="panel-actions" x-show="canEditActiveAccount"><button class="btn btn-ghost btn-sm" @click="startEditGoal(goal)">editar</button><button class="btn btn-ghost btn-sm" @click="deleteGoal(goal.category)">remover</button></div></div>
                 <div class="goal-amts"><strong x-text="fmt(goal.spent)"></strong><span x-text="' / '+fmt(goal.limit)"></span></div>
                 <div class="goal-bar-bg"><div class="goal-bar-fill" :style="{width:Math.min(goal.pct,100)+'%',background:goal.pct>=100?'var(--danger)':goal.pct>=75?'var(--warn)':'var(--accent)'}"></div></div>
-                <div class="goal-foot"><span class="goal-pct" x-text="goal.pct.toFixed(0)+'% utilizado'"></span><span class="goal-status" :class="goal.pct>=100?'over':goal.pct>=75?'warn':'ok'" x-text="goal.pct>=100?'✕ Excedida':goal.pct>=75?'⚠ Atenção':'✓ OK'"></span></div>
+                <div class="goal-foot"><span class="goal-pct" x-text="goal.pct.toFixed(0)+'% utilizado'"></span><span class="goal-pct" x-show="goal.remaining>0" x-text="fmt(goal.remaining)+' restante'"></span><span class="goal-status" :class="goal.pct>=100?'over':goal.pct>=75?'warn':'ok'" x-text="goal.pct>=100?'✕ Excedida':goal.pct>=75?'⚠ Atenção':'✓ OK'"></span></div>
               </div>
             </template>
           </div>
@@ -1278,6 +1278,7 @@ function app() {
     editingSplitPaymentId: '',
     _datePickers: [],
     _charts: {},
+    _sse: null,
     newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '', splits: [], isRecurring: false, dayOfMonth: 1, startDate: '', endDate: '', enabled: true },
     newInc: { amount: '0,00', description: '', type: 'salary', date: '' },
     newGoal: { category: 'food', limit: '0,00' },
@@ -1335,6 +1336,18 @@ function app() {
       }
       this.loading = false
       this.$nextTick(() => this.syncDatePickers())
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && this.loggedIn && this.hasActiveAccount) {
+          Promise.all([this.loadAllData(), this.refreshAccountMembers()])
+        }
+      })
+      setInterval(() => {
+        if (!document.hidden && this.loggedIn && this.hasActiveAccount) {
+          this.refreshAccountMembers()
+        }
+      }, 30000)
+
       // Build emoji picker as a plain DOM element so position:fixed is guaranteed
       const ep = document.createElement('div')
       ep.id = '__ep'
@@ -1434,6 +1447,7 @@ function app() {
     },
 
     doLogout() {
+      this.disconnectSSE()
       localStorage.removeItem('gastos_session')
       localStorage.removeItem('gastos_active_account_id')
       this.loggedIn = false
@@ -1473,6 +1487,7 @@ function app() {
       this.accounts = await API.get('/api/accounts') || []
       this.setActiveAccount(this.resolveAccountID(preferredID))
       await Promise.all([this.loadAllData(), this.refreshAccountMembers()])
+      this.connectSSE()
     },
 
     resolveAccountID(preferredID = '') {
@@ -1503,6 +1518,7 @@ function app() {
       if (!nextID || nextID === this.activeAccountId) return
       this.setActiveAccount(nextID)
       await Promise.all([this.loadAllData(), this.refreshAccountMembers()])
+      this.connectSSE()
     },
 
     async loadAllData() {
@@ -1538,6 +1554,26 @@ function app() {
       if (this.page === 'charts') {
         setTimeout(() => this.renderCharts(), 0)
       }
+    },
+
+    connectSSE() {
+      if (this._sse) { this._sse.close(); this._sse = null }
+      if (!this.token || !this.activeAccountId) return
+      const url = `/api/events?token=${encodeURIComponent(this.token)}&account_id=${this.activeAccountId}`
+      const es = new EventSource(url)
+      es.onmessage = () => {
+        Promise.all([this.loadAllData(), this.refreshAccountMembers()])
+      }
+      es.onerror = () => {
+        es.close()
+        this._sse = null
+        if (this.loggedIn) setTimeout(() => this.connectSSE(), 5000)
+      }
+      this._sse = es
+    },
+
+    disconnectSSE() {
+      if (this._sse) { this._sse.close(); this._sse = null }
     },
 
     async refreshAccountMembers() {
@@ -2501,6 +2537,7 @@ function app() {
         ...g,
         spent: map[g.category] || 0,
         pct: ((map[g.category] || 0) / g.limit) * 100,
+        remaining: g.limit - (map[g.category] || 0),
       })).sort((a, b) => b.pct - a.pct)
     },
 

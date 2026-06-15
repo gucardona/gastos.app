@@ -48,6 +48,9 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("/api/payment-methods", cors(middleware.Auth(middleware.Account(handlers.PaymentMethods))))
 	mux.HandleFunc("/api/payment-methods/", cors(middleware.Auth(middleware.Account(handlers.PaymentMethods))))
 
+	// Eventos em tempo real (SSE)
+	mux.HandleFunc("/api/events", cors(handlers.Events))
+
 	// Arquivos estáticos
 	fs := http.FileServer(http.Dir("./src/web"))
 	mux.Handle("/", fs)
