@@ -704,15 +704,30 @@
         <div class="page" :class="{active:page==='income'}">
           <div class="page-header"><div><div class="page-title">Entradas</div><div class="page-sub" x-text="monthLabel+' · '+fmt(totalIncome)+' · '+activeAccountName"></div></div></div>
           <div class="card" x-show="canEditActiveAccount">
-            <div class="card-title" x-text="editingIncomeId ? 'Editar entrada' : 'Adicionar entrada'"></div>
-            <div class="form-grid" style="grid-template-columns:110px 1fr 160px 160px auto">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin-bottom:0" x-text="editingIncomeId?'Editar entrada':(editingRecurringIncomeInForm?'Editar entrada recorrente':(newInc.isRecurring?'Nova entrada recorrente':'Adicionar entrada'))"></div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:var(--text2);font-weight:500">Recorrente?</span>
+                <button class="btn btn-ghost btn-sm" :class="{active:newInc.isRecurring}" @click="newInc.isRecurring=!newInc.isRecurring" x-text="newInc.isRecurring?'Sim':'Não'" :disabled="!!editingIncomeId" style="min-width:42px"></button>
+              </div>
+            </div>
+            <div class="form-grid" style="grid-template-columns:110px 1fr 160px">
               <div class="field"><label>Valor (R$)</label><input class="money-input" type="text" inputmode="numeric" placeholder="0,00" :value="newInc.amount" @input="newInc.amount=formatCurrencyInput($event.target.value)" @keyup.enter="submitIncome()" /></div>
               <div class="field"><label>Descrição</label><input type="text" placeholder="salário, freelance..." x-model="newInc.description" @keyup.enter="submitIncome()" /></div>
               <div class="field"><label>Tipo</label><select x-model="newInc.type"><option value="salary">💼 Salário</option><option value="freelance">💻 Freelance</option><option value="investment">📈 Rendimentos</option><option value="gift">🎁 Presente</option><option value="other">◈ Outros</option></select></div>
-              <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newInc.date" x-init="bindDatePicker($el, newInc, 'date')" readonly /></div>
-              <div class="field"><label>&nbsp;</label><button class="btn btn-income" @click="submitIncome()" :disabled="savingIncome" x-text="savingIncome?'...':(editingIncomeId?'Salvar':'Adicionar')"></button></div>
             </div>
-            <div class="panel-actions" x-show="editingIncomeId" style="margin-top:12px">
+            <div x-show="!newInc.isRecurring" class="form-grid" style="grid-template-columns:160px auto;margin-top:10px">
+              <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newInc.date" x-init="bindDatePicker($el, newInc, 'date')" readonly /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-income" @click="submitIncome()" :disabled="savingIncome" x-text="savingIncome?'...':(editingIncomeId?'Salvar':'Adicionar')" style="align-self:flex-end"></button></div>
+            </div>
+            <div x-show="newInc.isRecurring" class="form-grid" style="grid-template-columns:110px 160px 160px auto auto;margin-top:10px">
+              <div class="field"><label>Dia do mês</label><input type="number" min="1" max="31" x-model.number="newInc.dayOfMonth" @keyup.enter="submitIncome()" /></div>
+              <div class="field"><label>Início</label><input class="date-picker" type="text" x-model="newInc.startDate" x-init="bindDatePicker($el, newInc, 'startDate')" readonly /></div>
+              <div class="field"><label>Limite</label><input class="date-picker" type="text" x-model="newInc.endDate" x-init="bindDatePicker($el, newInc, 'endDate')" readonly /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-ghost" @click="newInc.enabled=!newInc.enabled" x-text="newInc.enabled?'Ativa':'Pausada'" style="align-self:flex-end;height:37px"></button></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-income" @click="submitIncome()" :disabled="savingIncome" x-text="savingIncome?'...':(editingRecurringIncomeInForm?'Salvar':'Configurar')" style="align-self:flex-end"></button></div>
+            </div>
+            <div class="panel-actions" x-show="editingIncomeId || editingRecurringIncomeInForm" style="margin-top:12px">
               <button class="btn btn-ghost" @click="cancelIncomeEdit()">Cancelar edição</button>
             </div>
           </div>
@@ -732,7 +747,7 @@
                     <div class="tx-ico" x-text="incTypeIcon(tx.type)"></div>
                     <div class="tx-body">
                       <div class="tx-row1"><span class="tx-desc" x-text="tx.description||incTypeLabel(tx.type)"></span></div>
-                      <div class="tx-row2"><span class="tx-meta" x-text="incTypeLabel(tx.type)"></span></div>
+                      <div class="tx-row2"><span class="tx-meta" x-text="incTypeLabel(tx.type)"></span><span class="pay-badge" x-show="tx.recurringIncomeId" style="background:var(--accent-dim);color:var(--accent)">↻ recorrente</span></div>
                     </div>
                     <div class="tx-right">
                       <span class="tx-amount income" x-text="'+ '+fmt(tx.amount)"></span>
@@ -745,6 +760,28 @@
                 </template>
               </div>
             </template>
+          </div>
+          <div class="card" x-show="canEditActiveAccount && recurringIncomes.length > 0">
+            <div class="card-title">Entradas recorrentes</div>
+            <div class="recurring-grid">
+              <template x-for="item in recurringIncomes" :key="'ri-'+item.id">
+                <div class="recurring-card">
+                  <div class="recurring-top">
+                    <div>
+                      <div class="recurring-title" x-text="item.description || incTypeLabel(item.type)"></div>
+                      <div class="recurring-value" style="color:var(--accent)" x-text="'+ '+fmt(item.amount)"></div>
+                    </div>
+                    <div class="panel-actions">
+                      <button class="btn btn-ghost btn-sm" @click="startEditRecurringIncome(item)">editar</button>
+                      <button class="btn btn-ghost btn-sm" @click="deleteRecurringIncome(item.id)">remover</button>
+                    </div>
+                  </div>
+                  <div class="recurring-meta-line" x-text="'Todo dia '+item.dayOfMonth+' · '+incTypeLabel(item.type)"></div>
+                  <div class="recurring-meta-line" x-text="'Início: '+formatDateLong(item.startDate)+(item.endDate ? ' · até '+formatDateLong(item.endDate) : ' · sem limite')"></div>
+                  <div class="recurring-meta-line"><span :class="item.enabled?'goal-status ok':'goal-status warn'" x-text="item.enabled?'✓ Ativa':'⏸ Pausada'"></span></div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
@@ -776,16 +813,31 @@
           </div>
 
           <div class="card" x-show="canEditActiveAccount" x-ref="splitPaymentForm">
-            <div class="card-title" x-text="editingSplitPaymentId ? 'Editar pagamento' : 'Registrar pagamento'"></div>
-            <div class="form-grid" style="grid-template-columns:1fr 1fr 130px 160px 1fr auto">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin-bottom:0" x-text="editingSplitPaymentId?'Editar pagamento':(editingRecurringPaymentInForm?'Editar pagamento recorrente':(newSplitPayment.isRecurring?'Novo pagamento recorrente':'Registrar pagamento'))"></div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:var(--text2);font-weight:500">Recorrente?</span>
+                <button class="btn btn-ghost btn-sm" :class="{active:newSplitPayment.isRecurring}" @click="newSplitPayment.isRecurring=!newSplitPayment.isRecurring" x-text="newSplitPayment.isRecurring?'Sim':'Não'" :disabled="!!editingSplitPaymentId" style="min-width:42px"></button>
+              </div>
+            </div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 130px 1fr">
               <div class="field"><label>Quem pagou</label><select x-model.number="newSplitPayment.payerUserId"><template x-for="member in accountMembers" :key="'payer-'+member.userId"><option :value="member.userId" x-text="member.name"></option></template></select></div>
               <div class="field"><label>Recebeu</label><select x-model.number="newSplitPayment.receiverUserId"><template x-for="member in accountMembers" :key="'receiver-'+member.userId"><option :value="member.userId" x-text="member.name"></option></template></select></div>
               <div class="field"><label>Valor (R$)</label><input class="money-input" type="text" inputmode="numeric" :value="newSplitPayment.amount" @input="newSplitPayment.amount=formatCurrencyInput($event.target.value)" @keyup.enter="submitSplitPayment()" /></div>
-              <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newSplitPayment.date" x-init="bindDatePicker($el, newSplitPayment, 'date')" readonly /></div>
               <div class="field"><label>Nota</label><input type="text" placeholder="pix, transferência..." x-model="newSplitPayment.note" @keyup.enter="submitSplitPayment()" /></div>
-              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitSplitPayment()" :disabled="savingSplitPayment" x-text="savingSplitPayment?'...':(editingSplitPaymentId?'Salvar':'Registrar')"></button></div>
             </div>
-            <div class="panel-actions" x-show="editingSplitPaymentId" style="margin-top:12px">
+            <div x-show="!newSplitPayment.isRecurring" class="form-grid" style="grid-template-columns:160px auto;margin-top:10px">
+              <div class="field"><label>Data</label><input class="date-picker" type="text" x-model="newSplitPayment.date" x-init="bindDatePicker($el, newSplitPayment, 'date')" readonly /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitSplitPayment()" :disabled="savingSplitPayment" x-text="savingSplitPayment?'...':(editingSplitPaymentId?'Salvar':'Registrar')" style="align-self:flex-end"></button></div>
+            </div>
+            <div x-show="newSplitPayment.isRecurring" class="form-grid" style="grid-template-columns:110px 160px 160px auto auto;margin-top:10px">
+              <div class="field"><label>Dia do mês</label><input type="number" min="1" max="31" x-model.number="newSplitPayment.dayOfMonth" @keyup.enter="submitSplitPayment()" /></div>
+              <div class="field"><label>Início</label><input class="date-picker" type="text" x-model="newSplitPayment.startDate" x-init="bindDatePicker($el, newSplitPayment, 'startDate')" readonly /></div>
+              <div class="field"><label>Limite</label><input class="date-picker" type="text" x-model="newSplitPayment.endDate" x-init="bindDatePicker($el, newSplitPayment, 'endDate')" readonly /></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-ghost" @click="newSplitPayment.enabled=!newSplitPayment.enabled" x-text="newSplitPayment.enabled?'Ativo':'Pausado'" style="align-self:flex-end;height:37px"></button></div>
+              <div class="field"><label>&nbsp;</label><button class="btn btn-primary" @click="submitSplitPayment()" :disabled="savingSplitPayment" x-text="savingSplitPayment?'...':(editingRecurringPaymentInForm?'Salvar':'Configurar')" style="align-self:flex-end"></button></div>
+            </div>
+            <div class="panel-actions" x-show="editingSplitPaymentId || editingRecurringPaymentInForm" style="margin-top:12px">
               <button class="btn btn-ghost" @click="cancelSplitPaymentEdit()">Cancelar edição</button>
             </div>
           </div>
@@ -804,7 +856,7 @@
                 <div class="tx-ico">↔</div>
                 <div class="tx-body">
                   <div class="tx-row1"><span class="tx-desc" x-text="payment.payerName+' pagou '+payment.receiverName"></span></div>
-                  <div class="tx-row2"><span class="tx-meta" x-text="formatDate(payment.date)"></span><span class="pay-badge" x-text="payment.note || 'pagamento do racha'"></span></div>
+                  <div class="tx-row2"><span class="tx-meta" x-text="formatDate(payment.date)"></span><span class="pay-badge" x-text="payment.note || 'pagamento do racha'"></span><span class="pay-badge" x-show="payment.recurringPaymentId" style="background:var(--accent-dim);color:var(--accent)">↻ recorrente</span></div>
                 </div>
                 <div class="tx-right">
                   <span class="tx-amount income" x-text="fmt(payment.amount)"></span>
@@ -815,6 +867,28 @@
                 </div>
               </div>
             </template>
+          </div>
+          <div class="card" x-show="canEditActiveAccount && recurringPayments.length > 0">
+            <div class="card-title">Pagamentos recorrentes</div>
+            <div class="recurring-grid">
+              <template x-for="item in recurringPayments" :key="'rp-'+item.id">
+                <div class="recurring-card">
+                  <div class="recurring-top">
+                    <div>
+                      <div class="recurring-title" x-text="item.payerName+' → '+item.receiverName"></div>
+                      <div class="recurring-value" x-text="fmt(item.amount)"></div>
+                    </div>
+                    <div class="panel-actions">
+                      <button class="btn btn-ghost btn-sm" @click="startEditRecurringPayment(item)">editar</button>
+                      <button class="btn btn-ghost btn-sm" @click="deleteRecurringPayment(item.id)">remover</button>
+                    </div>
+                  </div>
+                  <div class="recurring-meta-line" x-text="(item.note || 'pagamento recorrente')+' · Todo dia '+item.dayOfMonth"></div>
+                  <div class="recurring-meta-line" x-text="'Início: '+formatDateLong(item.startDate)+(item.endDate ? ' · até '+formatDateLong(item.endDate) : ' · sem limite')"></div>
+                  <div class="recurring-meta-line"><span :class="item.enabled?'goal-status ok':'goal-status warn'" x-text="item.enabled?'✓ Ativo':'⏸ Pausado'"></span></div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
@@ -1267,6 +1341,8 @@ function app() {
     incomes: [],
     goals: [],
     recurringExpenses: [],
+    recurringIncomes: [],
+    recurringPayments: [],
     splitPayments: [],
     activeFilter: 'all',
     savingExpense: false,
@@ -1275,14 +1351,16 @@ function app() {
     editingIncomeId: '',
     editingGoalCategory: '',
     editingRecurringInForm: '',
+    editingRecurringIncomeInForm: '',
+    editingRecurringPaymentInForm: '',
     editingSplitPaymentId: '',
     _datePickers: [],
     _charts: {},
     _sse: null,
     newTx: { amount: '0,00', description: '', category: 'food', payment: 'pix', date: '', splits: [], isRecurring: false, dayOfMonth: 1, startDate: '', endDate: '', enabled: true },
-    newInc: { amount: '0,00', description: '', type: 'salary', date: '' },
+    newInc: { amount: '0,00', description: '', type: 'salary', date: '', isRecurring: false, dayOfMonth: 1, startDate: '', endDate: '', enabled: true },
     newGoal: { category: 'food', limit: '0,00' },
-    newSplitPayment: { payerUserId: '', receiverUserId: '', amount: '0,00', date: '', note: '' },
+    newSplitPayment: { payerUserId: '', receiverUserId: '', amount: '0,00', date: '', note: '', isRecurring: false, dayOfMonth: 1, startDate: '', endDate: '', enabled: true },
     timezone: localStorage.getItem('gastos_timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone,
     _timezoneList: ['America/Sao_Paulo','America/Manaus','America/Belem','America/Fortaleza','America/Recife','America/Bahia','America/Cuiaba','America/Rio_Branco','America/Porto_Velho','America/Noronha','UTC','America/New_York','America/Los_Angeles','Europe/Lisbon','Europe/London','Europe/Berlin','Asia/Tokyo'],
 
@@ -1459,6 +1537,8 @@ function app() {
       this.incomes = []
       this.goals = []
       this.recurringExpenses = []
+      this.recurringIncomes = []
+      this.recurringPayments = []
       this.splitPayments = []
       this.currentUser = { name: '', email: '' }
       this.loginMode = 'login'
@@ -1470,7 +1550,11 @@ function app() {
       this.editingIncomeId = ''
       this.editingGoalCategory = ''
       this.editingRecurringInForm = ''
+      this.editingRecurringIncomeInForm = ''
+      this.editingRecurringPaymentInForm = ''
       this.newTx.isRecurring = false
+      this.newInc.isRecurring = false
+      this.newSplitPayment.isRecurring = false
       this.editingSplitPaymentId = ''
       this.resetExpenseForm()
       this.resetIncomeForm()
@@ -1527,6 +1611,8 @@ function app() {
         this.incomes = []
         this.goals = []
         this.recurringExpenses = []
+        this.recurringIncomes = []
+        this.recurringPayments = []
         this.splitPayments = []
         this.categories = []
         this.paymentMethods = []
@@ -1534,7 +1620,7 @@ function app() {
         return
       }
 
-      const [expenses, incomes, goals, recurringExpenses, splitPayments, categories, paymentMethods] = await Promise.all([
+      const [expenses, incomes, goals, recurringExpenses, splitPayments, categories, paymentMethods, recurringIncomes, recurringPayments] = await Promise.all([
         API.get('/api/expenses'),
         API.get('/api/incomes'),
         API.get('/api/goals'),
@@ -1542,11 +1628,15 @@ function app() {
         API.get('/api/split-payments'),
         API.get('/api/categories'),
         API.get('/api/payment-methods'),
+        API.get('/api/recurring-incomes'),
+        API.get('/api/recurring-payments'),
       ])
       this.expenses = expenses || []
       this.incomes = incomes || []
       this.goals = goals || []
       this.recurringExpenses = recurringExpenses || []
+      this.recurringIncomes = recurringIncomes || []
+      this.recurringPayments = recurringPayments || []
       this.splitPayments = splitPayments || []
       this.categories = categories || []
       this.paymentMethods = paymentMethods || []
@@ -1845,6 +1935,11 @@ function app() {
       this.newInc.amount = '0,00'
       this.newInc.description = ''
       this.newInc.type = 'salary'
+      this.newInc.isRecurring = false
+      this.newInc.dayOfMonth = 1
+      this.newInc.startDate = this.todayDate()
+      this.newInc.endDate = ''
+      this.newInc.enabled = true
       this.$nextTick(() => this.syncDatePickers())
     },
 
@@ -1854,11 +1949,17 @@ function app() {
 
     resetSplitPaymentForm() {
       this.editingSplitPaymentId = ''
+      this.editingRecurringPaymentInForm = ''
       this.newSplitPayment.payerUserId = this.accountMembers[0]?.userId || ''
       this.newSplitPayment.receiverUserId = this.accountMembers[1]?.userId || this.accountMembers[0]?.userId || ''
       this.newSplitPayment.amount = '0,00'
       this.newSplitPayment.date = this.todayDate()
       this.newSplitPayment.note = ''
+      this.newSplitPayment.isRecurring = false
+      this.newSplitPayment.dayOfMonth = 1
+      this.newSplitPayment.startDate = this.todayDate()
+      this.newSplitPayment.endDate = ''
+      this.newSplitPayment.enabled = true
       this.$nextTick(() => this.syncDatePickers())
     },
 
@@ -1887,6 +1988,7 @@ function app() {
     },
 
     cancelSplitPaymentEdit() {
+      this.newSplitPayment.isRecurring = false
       this.resetSplitPaymentForm()
     },
 
@@ -2016,6 +2118,8 @@ function app() {
 
     cancelIncomeEdit() {
       this.editingIncomeId = ''
+      this.editingRecurringIncomeInForm = ''
+      this.newInc.isRecurring = false
       this.newInc.date = this.todayDate()
       this.resetIncomeForm()
     },
@@ -2032,24 +2136,48 @@ function app() {
       }
       this.savingIncome = true
       try {
-        const payload = {
-          amount,
-          description: this.newInc.description.trim(),
-          type: this.newInc.type,
-          date: this.newInc.date || this.todayDate(),
-        }
-        const inc = this.editingIncomeId
-          ? await API.patch('/api/incomes/' + this.editingIncomeId, payload)
-          : await API.post('/api/incomes', payload)
-        if (this.editingIncomeId) {
-          this.incomes = this.incomes.map(item => item.id === inc.id ? inc : item)
-          this.toast('Entrada atualizada ✓')
+        if (this.newInc.isRecurring) {
+          const payload = {
+            amount,
+            description: this.newInc.description.trim(),
+            type: this.newInc.type,
+            dayOfMonth: this.newInc.dayOfMonth,
+            startDate: this.newInc.startDate || this.todayDate(),
+            endDate: this.newInc.endDate || '',
+            enabled: this.newInc.enabled,
+          }
+          const ri = this.editingRecurringIncomeInForm
+            ? await API.patch('/api/recurring-incomes/' + this.editingRecurringIncomeInForm, payload)
+            : await API.post('/api/recurring-incomes', payload)
+          if (this.editingRecurringIncomeInForm) {
+            this.recurringIncomes = this.recurringIncomes.map(item => item.id === ri.id ? ri : item)
+            this.toast('Entrada recorrente atualizada ✓')
+          } else {
+            this.recurringIncomes.push(ri)
+            this.toast('Entrada recorrente configurada ✓')
+          }
+          this.editingRecurringIncomeInForm = ''
+          this.resetIncomeForm()
         } else {
-          this.incomes.push(inc)
-          this.toast('Entrada adicionada ✓')
+          const payload = {
+            amount,
+            description: this.newInc.description.trim(),
+            type: this.newInc.type,
+            date: this.newInc.date || this.todayDate(),
+          }
+          const inc = this.editingIncomeId
+            ? await API.patch('/api/incomes/' + this.editingIncomeId, payload)
+            : await API.post('/api/incomes', payload)
+          if (this.editingIncomeId) {
+            this.incomes = this.incomes.map(item => item.id === inc.id ? inc : item)
+            this.toast('Entrada atualizada ✓')
+          } else {
+            this.incomes.push(inc)
+            this.toast('Entrada adicionada ✓')
+          }
+          this.editingIncomeId = ''
+          this.resetIncomeForm()
         }
-        this.editingIncomeId = ''
-        this.resetIncomeForm()
       } catch (err) {
         this.toast(err.message, true)
       } finally {
@@ -2064,6 +2192,31 @@ function app() {
         this.incomes = this.incomes.filter(e => e.id !== id)
         if (String(id) === this.editingIncomeId) this.cancelIncomeEdit()
         this.toast('Removido.')
+      } catch (err) {
+        this.toast(err.message, true)
+      }
+    },
+
+    startEditRecurringIncome(item) {
+      this.editingRecurringIncomeInForm = String(item.id)
+      this.newInc.isRecurring = true
+      this.newInc.amount = this.moneyToInput(item.amount)
+      this.newInc.description = item.description
+      this.newInc.type = item.type
+      this.newInc.dayOfMonth = item.dayOfMonth
+      this.newInc.startDate = item.startDate
+      this.newInc.endDate = item.endDate || ''
+      this.newInc.enabled = item.enabled
+      this.$nextTick(() => this.syncDatePickers())
+    },
+
+    async deleteRecurringIncome(id) {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) return
+      try {
+        await API.delete('/api/recurring-incomes/' + id)
+        this.recurringIncomes = this.recurringIncomes.filter(item => item.id !== id)
+        if (String(id) === this.editingRecurringIncomeInForm) this.cancelIncomeEdit()
+        this.toast('Entrada recorrente removida.')
       } catch (err) {
         this.toast(err.message, true)
       }
@@ -2164,25 +2317,48 @@ function app() {
       }
       this.savingSplitPayment = true
       try {
-        const payload = {
-          payerUserId: Number(this.newSplitPayment.payerUserId),
-          receiverUserId: Number(this.newSplitPayment.receiverUserId),
-          amount,
-          date: this.newSplitPayment.date || this.todayDate(),
-          note: this.newSplitPayment.note.trim(),
-        }
-        const payment = this.editingSplitPaymentId
-          ? await API.patch('/api/split-payments/' + this.editingSplitPaymentId, payload)
-          : await API.post('/api/split-payments', payload)
-
-        if (this.editingSplitPaymentId) {
-          this.splitPayments = this.splitPayments.map(item => item.id === payment.id ? payment : item)
-          this.toast('Pagamento atualizado ✓')
+        if (this.newSplitPayment.isRecurring) {
+          const payload = {
+            payerUserId: Number(this.newSplitPayment.payerUserId),
+            receiverUserId: Number(this.newSplitPayment.receiverUserId),
+            amount,
+            note: this.newSplitPayment.note.trim(),
+            dayOfMonth: this.newSplitPayment.dayOfMonth,
+            startDate: this.newSplitPayment.startDate || this.todayDate(),
+            endDate: this.newSplitPayment.endDate || '',
+            enabled: this.newSplitPayment.enabled,
+          }
+          const rp = this.editingRecurringPaymentInForm
+            ? await API.patch('/api/recurring-payments/' + this.editingRecurringPaymentInForm, payload)
+            : await API.post('/api/recurring-payments', payload)
+          if (this.editingRecurringPaymentInForm) {
+            this.recurringPayments = this.recurringPayments.map(item => item.id === rp.id ? rp : item)
+            this.toast('Pagamento recorrente atualizado ✓')
+          } else {
+            this.recurringPayments.push(rp)
+            this.toast('Pagamento recorrente configurado ✓')
+          }
+          this.resetSplitPaymentForm()
         } else {
-          this.splitPayments.push(payment)
-          this.toast('Pagamento registrado ✓')
+          const payload = {
+            payerUserId: Number(this.newSplitPayment.payerUserId),
+            receiverUserId: Number(this.newSplitPayment.receiverUserId),
+            amount,
+            date: this.newSplitPayment.date || this.todayDate(),
+            note: this.newSplitPayment.note.trim(),
+          }
+          const payment = this.editingSplitPaymentId
+            ? await API.patch('/api/split-payments/' + this.editingSplitPaymentId, payload)
+            : await API.post('/api/split-payments', payload)
+          if (this.editingSplitPaymentId) {
+            this.splitPayments = this.splitPayments.map(item => item.id === payment.id ? payment : item)
+            this.toast('Pagamento atualizado ✓')
+          } else {
+            this.splitPayments.push(payment)
+            this.toast('Pagamento registrado ✓')
+          }
+          this.resetSplitPaymentForm()
         }
-        this.resetSplitPaymentForm()
       } catch (err) {
         this.toast(err.message, true)
       } finally {
@@ -2197,6 +2373,35 @@ function app() {
         this.splitPayments = this.splitPayments.filter(payment => payment.id !== id)
         if (String(id) === this.editingSplitPaymentId) this.cancelSplitPaymentEdit()
         this.toast('Pagamento removido.')
+      } catch (err) {
+        this.toast(err.message, true)
+      }
+    },
+
+    startEditRecurringPayment(item) {
+      this.editingRecurringPaymentInForm = String(item.id)
+      this.newSplitPayment.isRecurring = true
+      this.newSplitPayment.payerUserId = item.payerUserId
+      this.newSplitPayment.receiverUserId = item.receiverUserId
+      this.newSplitPayment.amount = this.moneyToInput(item.amount)
+      this.newSplitPayment.note = item.note || ''
+      this.newSplitPayment.dayOfMonth = item.dayOfMonth
+      this.newSplitPayment.startDate = item.startDate
+      this.newSplitPayment.endDate = item.endDate || ''
+      this.newSplitPayment.enabled = item.enabled
+      this.$nextTick(() => {
+        this.syncDatePickers()
+        this.$refs.splitPaymentForm?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    },
+
+    async deleteRecurringPayment(id) {
+      if (!this.canEditActiveAccount || !this.hasActiveAccount) return
+      try {
+        await API.delete('/api/recurring-payments/' + id)
+        this.recurringPayments = this.recurringPayments.filter(item => item.id !== id)
+        if (String(id) === this.editingRecurringPaymentInForm) this.cancelSplitPaymentEdit()
+        this.toast('Pagamento recorrente removido.')
       } catch (err) {
         this.toast(err.message, true)
       }

@@ -28,13 +28,14 @@ type Expense struct {
 }
 
 type Income struct {
-	ID          int64   `json:"id"`
-	UserID      int64   `json:"-"`
-	AccountID   int64   `json:"-"`
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-	Type        string  `json:"type"`
-	Date        string  `json:"date"`
+	ID                int64  `json:"id"`
+	UserID            int64  `json:"-"`
+	AccountID         int64  `json:"-"`
+	Amount            float64 `json:"amount"`
+	Description       string  `json:"description"`
+	Type              string  `json:"type"`
+	Date              string  `json:"date"`
+	RecurringIncomeID *int64  `json:"recurringIncomeId,omitempty"`
 }
 
 type Goal struct {
@@ -90,6 +91,32 @@ type Split struct {
 }
 
 type SplitPayment struct {
+	ID                 int64   `json:"id"`
+	AccountID          int64   `json:"-"`
+	PayerUserID        int64   `json:"payerUserId"`
+	PayerName          string  `json:"payerName,omitempty"`
+	ReceiverUserID     int64   `json:"receiverUserId"`
+	ReceiverName       string  `json:"receiverName,omitempty"`
+	Amount             float64 `json:"amount"`
+	Date               string  `json:"date"`
+	Note               string  `json:"note"`
+	RecurringPaymentID *int64  `json:"recurringPaymentId,omitempty"`
+}
+
+type RecurringIncome struct {
+	ID          int64   `json:"id"`
+	UserID      int64   `json:"-"`
+	AccountID   int64   `json:"-"`
+	Amount      float64 `json:"amount"`
+	Description string  `json:"description"`
+	Type        string  `json:"type"`
+	DayOfMonth  int     `json:"dayOfMonth"`
+	StartDate   string  `json:"startDate"`
+	EndDate     string  `json:"endDate"`
+	Enabled     bool    `json:"enabled"`
+}
+
+type RecurringPayment struct {
 	ID             int64   `json:"id"`
 	AccountID      int64   `json:"-"`
 	PayerUserID    int64   `json:"payerUserId"`
@@ -97,8 +124,11 @@ type SplitPayment struct {
 	ReceiverUserID int64   `json:"receiverUserId"`
 	ReceiverName   string  `json:"receiverName,omitempty"`
 	Amount         float64 `json:"amount"`
-	Date           string  `json:"date"`
 	Note           string  `json:"note"`
+	DayOfMonth     int     `json:"dayOfMonth"`
+	StartDate      string  `json:"startDate"`
+	EndDate        string  `json:"endDate"`
+	Enabled        bool    `json:"enabled"`
 }
 
 type AccountPermissions struct {

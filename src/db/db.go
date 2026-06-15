@@ -275,6 +275,37 @@ func createTables() error {
 			FOREIGN KEY(payer_user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY(receiver_user_id) REFERENCES users(id) ON DELETE CASCADE
 		);`,
+		`CREATE TABLE IF NOT EXISTS recurring_incomes (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id      INTEGER NOT NULL,
+			account_id   INTEGER NOT NULL,
+			amount       REAL NOT NULL,
+			description  TEXT NOT NULL DEFAULT '',
+			type         TEXT NOT NULL DEFAULT 'other',
+			day_of_month INTEGER NOT NULL,
+			start_date   TEXT NOT NULL,
+			end_date     TEXT,
+			enabled      INTEGER NOT NULL DEFAULT 1,
+			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+			FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+		);`,
+		`CREATE TABLE IF NOT EXISTS recurring_payments (
+			id               INTEGER PRIMARY KEY AUTOINCREMENT,
+			account_id       INTEGER NOT NULL,
+			payer_user_id    INTEGER NOT NULL,
+			receiver_user_id INTEGER NOT NULL,
+			amount           REAL NOT NULL,
+			note             TEXT NOT NULL DEFAULT '',
+			day_of_month     INTEGER NOT NULL,
+			start_date       TEXT NOT NULL,
+			end_date         TEXT,
+			enabled          INTEGER NOT NULL DEFAULT 1,
+			created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(account_id)       REFERENCES accounts(id) ON DELETE CASCADE,
+			FOREIGN KEY(payer_user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+			FOREIGN KEY(receiver_user_id) REFERENCES users(id)    ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS schema_migrations (
 			name TEXT PRIMARY KEY,
 			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -328,6 +359,10 @@ func createIndexes() error {
 		`CREATE INDEX IF NOT EXISTS idx_expenses_recurring ON expenses(recurring_expense_id, date);`,
 		`CREATE INDEX IF NOT EXISTS idx_account_categories_account ON account_categories(account_id, sort_order);`,
 		`CREATE INDEX IF NOT EXISTS idx_account_payment_methods_account ON account_payment_methods(account_id, sort_order);`,
+		`CREATE INDEX IF NOT EXISTS idx_recurring_incomes_account_enabled  ON recurring_incomes(account_id, enabled, day_of_month);`,
+		`CREATE INDEX IF NOT EXISTS idx_recurring_payments_account_enabled ON recurring_payments(account_id, enabled, day_of_month);`,
+		`CREATE INDEX IF NOT EXISTS idx_incomes_recurring ON incomes(recurring_income_id, date);`,
+		`CREATE INDEX IF NOT EXISTS idx_split_payments_recurring ON split_payments(recurring_payment_id, date);`,
 	}
 
 	for _, q := range queries {
@@ -355,7 +390,13 @@ func runMigrations() error {
 	if err := runAccountCustomizationV1Migration(); err != nil {
 		return err
 	}
-	return runSplittingV1Migration()
+	if err := runSplittingV1Migration(); err != nil {
+		return err
+	}
+	if err := runRecurringIncomesV1Migration(); err != nil {
+		return err
+	}
+	return runRecurringPaymentsV1Migration()
 }
 
 func runLegacyColumnMigrations() error {
@@ -491,6 +532,30 @@ func runRecurringExpensesV1Migration() error {
 		return err
 	}
 	_, err = DB.Exec(`INSERT INTO schema_migrations (name) VALUES ('recurring_expenses_v1')`)
+	return err
+}
+
+func runRecurringIncomesV1Migration() error {
+	applied, err := schemaMigrationApplied("recurring_incomes_v1")
+	if err != nil || applied {
+		return err
+	}
+	if _, err := DB.Exec(`ALTER TABLE incomes ADD COLUMN recurring_income_id INTEGER`); err != nil && !isIgnorableMigrationError(err) {
+		return err
+	}
+	_, err = DB.Exec(`INSERT INTO schema_migrations (name) VALUES ('recurring_incomes_v1')`)
+	return err
+}
+
+func runRecurringPaymentsV1Migration() error {
+	applied, err := schemaMigrationApplied("recurring_payments_v1")
+	if err != nil || applied {
+		return err
+	}
+	if _, err := DB.Exec(`ALTER TABLE split_payments ADD COLUMN recurring_payment_id INTEGER`); err != nil && !isIgnorableMigrationError(err) {
+		return err
+	}
+	_, err = DB.Exec(`INSERT INTO schema_migrations (name) VALUES ('recurring_payments_v1')`)
 	return err
 }
 
@@ -670,6 +735,182 @@ func createExpenseFromRecurring(recurringID, userID, accountID int64, amount flo
 	}
 
 	return tx.Commit()
+}
+
+func MaterializeRecurringIncomes(accountID int64) error {
+	now := time.Now()
+	today := now.Format("2006-01-02")
+
+	type entry struct {
+		id          int64
+		userID      int64
+		amount      float64
+		description string
+		incType     string
+		dayOfMonth  int
+		startDate   string
+		endDate     string
+	}
+
+	rows, err := DB.Query(`
+		SELECT id, user_id, amount, description, type, day_of_month, start_date, COALESCE(end_date, '')
+		FROM recurring_incomes
+		WHERE account_id = ? AND enabled = 1
+	`, accountID)
+	if err != nil {
+		return err
+	}
+
+	var entries []entry
+	for rows.Next() {
+		var e entry
+		if err := rows.Scan(&e.id, &e.userID, &e.amount, &e.description, &e.incType, &e.dayOfMonth, &e.startDate, &e.endDate); err != nil {
+			rows.Close()
+			return err
+		}
+		entries = append(entries, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, e := range entries {
+		startDate, err := time.Parse("2006-01-02", e.startDate)
+		if err != nil {
+			continue
+		}
+		cursor := time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+		limit := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+		for !cursor.After(limit) {
+			year := cursor.Year()
+			month := cursor.Month()
+
+			lastDay := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+			day := e.dayOfMonth
+			if day > lastDay {
+				day = lastDay
+			}
+
+			targetDate := fmt.Sprintf("%04d-%02d-%02d", year, int(month), day)
+
+			if targetDate > today || targetDate < e.startDate || (e.endDate != "" && targetDate > e.endDate) {
+				cursor = cursor.AddDate(0, 1, 0)
+				continue
+			}
+
+			yearMonth := fmt.Sprintf("%04d-%02d-%%", year, int(month))
+			var count int
+			if err := DB.QueryRow(`
+				SELECT COUNT(*) FROM incomes WHERE recurring_income_id = ? AND date LIKE ?
+			`, e.id, yearMonth).Scan(&count); err != nil {
+				cursor = cursor.AddDate(0, 1, 0)
+				continue
+			}
+
+			if count == 0 {
+				if _, err := DB.Exec(`
+					INSERT INTO incomes (user_id, account_id, amount, description, type, date, recurring_income_id)
+					VALUES (?, ?, ?, ?, ?, ?, ?)
+				`, e.userID, accountID, e.amount, e.description, e.incType, targetDate, e.id); err != nil {
+					log.Printf("materialize recurring income %d for %s: %v", e.id, targetDate, err)
+				}
+			}
+
+			cursor = cursor.AddDate(0, 1, 0)
+		}
+	}
+
+	return nil
+}
+
+func MaterializeRecurringPayments(accountID int64) error {
+	now := time.Now()
+	today := now.Format("2006-01-02")
+
+	type entry struct {
+		id             int64
+		payerUserID    int64
+		receiverUserID int64
+		amount         float64
+		note           string
+		dayOfMonth     int
+		startDate      string
+		endDate        string
+	}
+
+	rows, err := DB.Query(`
+		SELECT id, payer_user_id, receiver_user_id, amount, note, day_of_month, start_date, COALESCE(end_date, '')
+		FROM recurring_payments
+		WHERE account_id = ? AND enabled = 1
+	`, accountID)
+	if err != nil {
+		return err
+	}
+
+	var entries []entry
+	for rows.Next() {
+		var e entry
+		if err := rows.Scan(&e.id, &e.payerUserID, &e.receiverUserID, &e.amount, &e.note, &e.dayOfMonth, &e.startDate, &e.endDate); err != nil {
+			rows.Close()
+			return err
+		}
+		entries = append(entries, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, e := range entries {
+		startDate, err := time.Parse("2006-01-02", e.startDate)
+		if err != nil {
+			continue
+		}
+		cursor := time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+		limit := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+		for !cursor.After(limit) {
+			year := cursor.Year()
+			month := cursor.Month()
+
+			lastDay := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+			day := e.dayOfMonth
+			if day > lastDay {
+				day = lastDay
+			}
+
+			targetDate := fmt.Sprintf("%04d-%02d-%02d", year, int(month), day)
+
+			if targetDate > today || targetDate < e.startDate || (e.endDate != "" && targetDate > e.endDate) {
+				cursor = cursor.AddDate(0, 1, 0)
+				continue
+			}
+
+			yearMonth := fmt.Sprintf("%04d-%02d-%%", year, int(month))
+			var count int
+			if err := DB.QueryRow(`
+				SELECT COUNT(*) FROM split_payments WHERE recurring_payment_id = ? AND date LIKE ?
+			`, e.id, yearMonth).Scan(&count); err != nil {
+				cursor = cursor.AddDate(0, 1, 0)
+				continue
+			}
+
+			if count == 0 {
+				if _, err := DB.Exec(`
+					INSERT INTO split_payments (account_id, payer_user_id, receiver_user_id, amount, date, note, recurring_payment_id)
+					VALUES (?, ?, ?, ?, ?, ?, ?)
+				`, accountID, e.payerUserID, e.receiverUserID, e.amount, targetDate, e.note, e.id); err != nil {
+					log.Printf("materialize recurring payment %d for %s: %v", e.id, targetDate, err)
+				}
+			}
+
+			cursor = cursor.AddDate(0, 1, 0)
+		}
+	}
+
+	return nil
 }
 
 func runSplittingV1Migration() error {

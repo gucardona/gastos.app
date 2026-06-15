@@ -98,6 +98,77 @@ func validateRecurringExpense(recurring models.RecurringExpense) error {
 	return nil
 }
 
+func validateRecurringIncome(ri models.RecurringIncome) error {
+	if ri.Amount <= 0 {
+		return errors.New("Valor da entrada recorrente deve ser maior que zero")
+	}
+	if strings.TrimSpace(ri.Description) == "" {
+		return errors.New("Descrição é obrigatória")
+	}
+	if strings.TrimSpace(ri.Type) == "" {
+		return errors.New("Tipo é obrigatório")
+	}
+	if ri.DayOfMonth < 1 || ri.DayOfMonth > 31 {
+		return errors.New("Dia do mês deve estar entre 1 e 31")
+	}
+	if !isValidDate(ri.StartDate) {
+		return errors.New("Data inicial inválida")
+	}
+	if strings.TrimSpace(ri.EndDate) != "" {
+		if !isValidDate(ri.EndDate) {
+			return errors.New("Data limite inválida")
+		}
+		startDate, _ := time.Parse("2006-01-02", ri.StartDate)
+		endDate, _ := time.Parse("2006-01-02", ri.EndDate)
+		if endDate.Before(startDate) {
+			return errors.New("Data limite deve ser igual ou posterior à data inicial")
+		}
+	}
+	return nil
+}
+
+func validateRecurringPayment(accountID int64, rp models.RecurringPayment) error {
+	if rp.Amount <= 0 {
+		return errAmountPositive
+	}
+	if rp.PayerUserID <= 0 || rp.ReceiverUserID <= 0 || rp.PayerUserID == rp.ReceiverUserID {
+		return errInvalidSplitPaymentMembers
+	}
+	if rp.DayOfMonth < 1 || rp.DayOfMonth > 31 {
+		return errors.New("Dia do mês deve estar entre 1 e 31")
+	}
+	if !isValidDate(rp.StartDate) {
+		return errors.New("Data inicial inválida")
+	}
+	if strings.TrimSpace(rp.EndDate) != "" {
+		if !isValidDate(rp.EndDate) {
+			return errors.New("Data limite inválida")
+		}
+		startDate, _ := time.Parse("2006-01-02", rp.StartDate)
+		endDate, _ := time.Parse("2006-01-02", rp.EndDate)
+		if endDate.Before(startDate) {
+			return errors.New("Data limite deve ser igual ou posterior à data inicial")
+		}
+	}
+	members, err := accountMemberSplits(accountID)
+	if err != nil {
+		return err
+	}
+	foundPayer, foundReceiver := false, false
+	for _, m := range members {
+		if m.UserID == rp.PayerUserID {
+			foundPayer = true
+		}
+		if m.UserID == rp.ReceiverUserID {
+			foundReceiver = true
+		}
+	}
+	if !foundPayer || !foundReceiver {
+		return errInvalidSplitPaymentMembers
+	}
+	return nil
+}
+
 func validateAccountName(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return errors.New("Nome da conta é obrigatório")

@@ -15,8 +15,10 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		_ = db.MaterializeRecurringIncomes(accountID)
+
 		rows, err := db.DB.Query(`
-			SELECT id, user_id, account_id, amount, description, type, date
+			SELECT id, user_id, account_id, amount, description, type, date, recurring_income_id
 			FROM incomes
 			WHERE account_id = ?
 			ORDER BY date DESC, id DESC
@@ -38,6 +40,7 @@ func Incomes(w http.ResponseWriter, r *http.Request) {
 				&income.Description,
 				&income.Type,
 				&income.Date,
+				&income.RecurringIncomeID,
 			); err != nil {
 				jsonError(w, "Erro ao ler entradas", http.StatusInternalServerError)
 				return

@@ -15,8 +15,10 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		_ = db.MaterializeRecurringPayments(accountID)
+
 		rows, err := db.DB.Query(`
-			SELECT sp.id, sp.account_id, sp.payer_user_id, payer.name, sp.receiver_user_id, receiver.name, sp.amount, sp.date, sp.note
+			SELECT sp.id, sp.account_id, sp.payer_user_id, payer.name, sp.receiver_user_id, receiver.name, sp.amount, sp.date, sp.note, sp.recurring_payment_id
 			FROM split_payments sp
 			INNER JOIN users payer ON payer.id = sp.payer_user_id
 			INNER JOIN users receiver ON receiver.id = sp.receiver_user_id
@@ -42,6 +44,7 @@ func SplitPayments(w http.ResponseWriter, r *http.Request) {
 				&payment.Amount,
 				&payment.Date,
 				&payment.Note,
+				&payment.RecurringPaymentID,
 			); err != nil {
 				jsonError(w, "Erro ao ler pagamentos", http.StatusInternalServerError)
 				return
