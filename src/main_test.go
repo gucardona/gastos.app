@@ -95,6 +95,17 @@ type paymentMethodResponse struct {
 	SortOrder int    `json:"sortOrder"`
 }
 
+type recurringIncomeResponse struct {
+	ID          int64   `json:"id"`
+	Amount      float64 `json:"amount"`
+	Description string  `json:"description"`
+	Type        string  `json:"type"`
+	DayOfMonth  int     `json:"dayOfMonth"`
+	StartDate   string  `json:"startDate"`
+	EndDate     string  `json:"endDate"`
+	Enabled     bool    `json:"enabled"`
+}
+
 type apiClient struct {
 	t         *testing.T
 	serverURL string
@@ -592,4 +603,81 @@ func TestCategoriesAndPaymentMethods(t *testing.T) {
 			t.Fatalf("deleted payment method %q still in list", createdPM.Key)
 		}
 	}
+}
+
+func TestRecurringIncomesLifecycle(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	alice := registerUser(t, server.URL, "Alice", "alice@example.com")
+	bob := registerUser(t, server.URL, "Bob", "bob@example.com")
+
+	var shared accountResponse
+	alice.request(http.MethodPost, "/api/accounts", map[string]any{"name": "Casa"}, http.StatusCreated, &shared)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "bob@example.com",
+		"role":  "reader",
+	}, http.StatusCreated, nil)
+	alice.accountID = personalIDString(shared.ID)
+	bob.accountID = personalIDString(shared.ID)
+
+	// Create
+	var ri recurringIncomeResponse
+	alice.request(http.MethodPost, "/api/recurring-incomes", map[string]any{
+		"amount":      3000,
+		"description": "Salário",
+		"type":        "salary",
+		"dayOfMonth":  5,
+		"startDate":   "2026-01-05",
+		"endDate":     "2026-12-05",
+		"enabled":     true,
+	}, http.StatusCreated, &ri)
+	if ri.ID == 0 || ri.Description != "Salário" || ri.Amount != 3000 || ri.DayOfMonth != 5 || !ri.Enabled {
+		t.Fatalf("unexpected created recurring income: %+v", ri)
+	}
+
+	// Reader cannot create
+	bob.request(http.MethodPost, "/api/recurring-incomes", map[string]any{
+		"amount": 100, "description": "X", "type": "gift", "dayOfMonth": 1, "startDate": "2026-01-01", "enabled": true,
+	}, http.StatusForbidden, nil)
+
+	// List
+	var list []recurringIncomeResponse
+	alice.request(http.MethodGet, "/api/recurring-incomes", nil, http.StatusOK, &list)
+	if len(list) != 1 || list[0].Description != "Salário" {
+		t.Fatalf("unexpected recurring incomes list: %+v", list)
+	}
+
+	// Patch
+	var updated recurringIncomeResponse
+	alice.request(http.MethodPatch, "/api/recurring-incomes/"+personalIDString(ri.ID), map[string]any{
+		"amount":      3500,
+		"description": "Salário Atualizado",
+		"type":        "salary",
+		"dayOfMonth":  10,
+		"startDate":   "2026-02-10",
+		"endDate":     "",
+		"enabled":     false,
+	}, http.StatusOK, &updated)
+	if updated.Amount != 3500 || updated.Description != "Salário Atualizado" || updated.DayOfMonth != 10 || updated.Enabled {
+		t.Fatalf("unexpected updated recurring income: %+v", updated)
+	}
+
+	// Reader cannot patch
+	bob.request(http.MethodPatch, "/api/recurring-incomes/"+personalIDString(ri.ID), map[string]any{
+		"amount": 1, "description": "X", "type": "gift", "dayOfMonth": 1, "startDate": "2026-01-01", "enabled": true,
+	}, http.StatusForbidden, nil)
+
+	// Delete
+	alice.request(http.MethodDelete, "/api/recurring-incomes/"+personalIDString(ri.ID), nil, http.StatusNoContent, nil)
+
+	// List is now empty
+	var afterDelete []recurringIncomeResponse
+	alice.request(http.MethodGet, "/api/recurring-incomes", nil, http.StatusOK, &afterDelete)
+	if len(afterDelete) != 0 {
+		t.Fatalf("expected empty list after delete, got %d items", len(afterDelete))
+	}
+
+	// Delete nonexistent → 404
+	alice.request(http.MethodDelete, "/api/recurring-incomes/"+personalIDString(ri.ID), nil, http.StatusNotFound, nil)
 }
