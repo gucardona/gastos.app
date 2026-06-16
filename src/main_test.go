@@ -131,6 +131,24 @@ type splitPaymentResponse struct {
 	Note           string  `json:"note"`
 }
 
+type splitEntryResponse struct {
+	UserID     int64   `json:"userId"`
+	Name       string  `json:"name"`
+	Percentage float64 `json:"percentage"`
+	Amount     float64 `json:"amount"`
+}
+
+type expenseWithSplitsResponse struct {
+	ID           int64                `json:"id"`
+	Amount       float64              `json:"amount"`
+	Description  string               `json:"description"`
+	Category     string               `json:"category"`
+	Payment      string               `json:"payment"`
+	Date         string               `json:"date"`
+	PaidByUserID int64                `json:"paidByUserId"`
+	Splits       []splitEntryResponse `json:"splits"`
+}
+
 type apiClient struct {
 	t         *testing.T
 	serverURL string
@@ -866,4 +884,103 @@ func TestSplitPaymentsLifecycle(t *testing.T) {
 	if len(afterDelete) != 0 {
 		t.Fatalf("expected empty list after delete, got %d", len(afterDelete))
 	}
+}
+
+func TestExpenseSplitsRounding(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	alice := registerUser(t, server.URL, "Alice", "alice@example.com")
+	bob := registerUser(t, server.URL, "Bob", "bob@example.com")
+
+	var shared accountResponse
+	alice.request(http.MethodPost, "/api/accounts", map[string]any{"name": "Casa"}, http.StatusCreated, &shared)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "bob@example.com",
+		"role":  "editor",
+	}, http.StatusCreated, nil)
+	alice.accountID = personalIDString(shared.ID)
+	bob.accountID = personalIDString(shared.ID)
+
+	// Explicit splits: alice 60%, bob 40% of 100
+	var expense expenseWithSplitsResponse
+	alice.request(http.MethodPost, "/api/expenses", map[string]any{
+		"amount":      100,
+		"description": "Mercado",
+		"category":    "market",
+		"payment":     "pix",
+		"date":        "2026-04-10",
+		"splits": []map[string]any{
+			{"userId": alice.userID, "percentage": 60},
+			{"userId": bob.userID, "percentage": 40},
+		},
+	}, http.StatusCreated, &expense)
+	if expense.ID == 0 {
+		t.Fatal("expense should be created with an id")
+	}
+	if len(expense.Splits) != 2 {
+		t.Fatalf("expected 2 splits, got %d: %+v", len(expense.Splits), expense.Splits)
+	}
+
+	findSplit := func(userID int64) splitEntryResponse {
+		for _, s := range expense.Splits {
+			if s.UserID == userID {
+				return s
+			}
+		}
+		t.Fatalf("split for userID %d not found in %+v", userID, expense.Splits)
+		return splitEntryResponse{}
+	}
+	aliceSplit := findSplit(alice.userID)
+	bobSplit := findSplit(bob.userID)
+	if aliceSplit.Percentage != 60 || aliceSplit.Amount != 60 {
+		t.Errorf("alice split: want percentage=60 amount=60, got %+v", aliceSplit)
+	}
+	if bobSplit.Percentage != 40 || bobSplit.Amount != 40 {
+		t.Errorf("bob split: want percentage=40 amount=40, got %+v", bobSplit)
+	}
+
+	// Default split (no splits provided) → equal 50/50
+	var expense2 expenseWithSplitsResponse
+	alice.request(http.MethodPost, "/api/expenses", map[string]any{
+		"amount":      200,
+		"description": "Aluguel",
+		"category":    "home",
+		"payment":     "pix",
+		"date":        "2026-04-11",
+	}, http.StatusCreated, &expense2)
+	if len(expense2.Splits) != 2 {
+		t.Fatalf("expected 2 default splits, got %d: %+v", len(expense2.Splits), expense2.Splits)
+	}
+	for _, s := range expense2.Splits {
+		if s.Amount != 100 {
+			t.Errorf("default equal split: expected amount=100, got %+v", s)
+		}
+	}
+
+	// Splits that don't sum to 100 → 400
+	alice.request(http.MethodPost, "/api/expenses", map[string]any{
+		"amount":      100,
+		"description": "Erro",
+		"category":    "food",
+		"payment":     "pix",
+		"date":        "2026-04-12",
+		"splits": []map[string]any{
+			{"userId": alice.userID, "percentage": 60},
+			{"userId": bob.userID, "percentage": 30}, // sums to 90, not 100
+		},
+	}, http.StatusBadRequest, nil)
+
+	// Split referencing a user not in the account → 400
+	alice.request(http.MethodPost, "/api/expenses", map[string]any{
+		"amount":      100,
+		"description": "Erro",
+		"category":    "food",
+		"payment":     "pix",
+		"date":        "2026-04-12",
+		"splits": []map[string]any{
+			{"userId": alice.userID, "percentage": 60},
+			{"userId": int64(9999), "percentage": 40}, // non-member
+		},
+	}, http.StatusBadRequest, nil)
 }
