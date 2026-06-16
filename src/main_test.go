@@ -77,6 +77,24 @@ type recurringExpenseResponse struct {
 	Enabled     bool    `json:"enabled"`
 }
 
+type categoryResponse struct {
+	ID           int64  `json:"id"`
+	Key          string `json:"key"`
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	Color        string `json:"color"`
+	Essentiality string `json:"essentiality"`
+	SortOrder    int    `json:"sortOrder"`
+}
+
+type paymentMethodResponse struct {
+	ID        int64  `json:"id"`
+	Key       string `json:"key"`
+	Icon      string `json:"icon"`
+	Name      string `json:"name"`
+	SortOrder int    `json:"sortOrder"`
+}
+
 type apiClient struct {
 	t         *testing.T
 	serverURL string
@@ -445,6 +463,133 @@ func (c *apiClient) request(method, path string, body any, expectedStatus int, o
 	if out != nil && len(data) > 0 {
 		if err := json.Unmarshal(data, out); err != nil {
 			c.t.Fatalf("unmarshal response: %v, body=%s", err, string(data))
+		}
+	}
+}
+
+func TestCategoriesAndPaymentMethods(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	alice := registerUser(t, server.URL, "Alice", "alice@example.com")
+	aliceAccounts := fetchAccounts(t, alice)
+	alice.accountID = personalIDString(aliceAccounts[0].ID)
+
+	// Invite Bob as reader on a shared account to test permission enforcement
+	bob := registerUser(t, server.URL, "Bob", "bob@example.com")
+	var shared accountResponse
+	alice.request(http.MethodPost, "/api/accounts", map[string]any{"name": "Casa"}, http.StatusCreated, &shared)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "bob@example.com",
+		"role":  "reader",
+	}, http.StatusCreated, nil)
+	bob.accountID = personalIDString(shared.ID)
+
+	// --- Categories (on Alice's personal account) ---
+
+	var initCats []categoryResponse
+	alice.request(http.MethodGet, "/api/categories", nil, http.StatusOK, &initCats)
+	if len(initCats) == 0 {
+		t.Fatal("expected default categories to be seeded on account creation")
+	}
+	replacementKey := initCats[0].Key // use first seeded category as replacement target
+
+	// Create
+	var created categoryResponse
+	alice.request(http.MethodPost, "/api/categories", map[string]any{
+		"name":         "Lazer Extra",
+		"icon":         "🎮",
+		"color":        "#00AAFF",
+		"essentiality": "nonessential",
+	}, http.StatusCreated, &created)
+	if created.ID == 0 || created.Key == "" || created.Name != "Lazer Extra" || created.Color != "#00AAFF" || created.Essentiality != "nonessential" {
+		t.Fatalf("unexpected created category: %+v", created)
+	}
+
+	// Reader on shared account cannot create
+	bob.request(http.MethodPost, "/api/categories", map[string]any{
+		"name": "Tentativa", "icon": "x", "color": "#000000", "essentiality": "essential",
+	}, http.StatusForbidden, nil)
+
+	// Patch
+	var patched categoryResponse
+	alice.request(http.MethodPatch, "/api/categories/"+created.Key, map[string]any{
+		"name":         "Lazer Atualizado",
+		"icon":         "🎯",
+		"color":        "#112233",
+		"essentiality": "investment",
+	}, http.StatusOK, &patched)
+	if patched.Name != "Lazer Atualizado" || patched.Color != "#112233" || patched.Essentiality != "investment" {
+		t.Fatalf("unexpected patched category: %+v", patched)
+	}
+
+	// Patch unknown key → 404
+	alice.request(http.MethodPatch, "/api/categories/nonexistent", map[string]any{
+		"name": "X", "icon": "x", "color": "#000000", "essentiality": "essential",
+	}, http.StatusNotFound, nil)
+
+	// Delete requires a replacement key (passed as query param)
+	alice.request(http.MethodDelete, "/api/categories/"+created.Key+"?replacement="+replacementKey, nil, http.StatusNoContent, nil)
+
+	// Deleted key no longer in list
+	var afterDelete []categoryResponse
+	alice.request(http.MethodGet, "/api/categories", nil, http.StatusOK, &afterDelete)
+	for _, c := range afterDelete {
+		if c.Key == created.Key {
+			t.Fatalf("deleted category %q still in list", created.Key)
+		}
+	}
+
+	// Delete without replacement → 400
+	var extra categoryResponse
+	alice.request(http.MethodPost, "/api/categories", map[string]any{
+		"name": "Temp", "icon": "t", "color": "#FFFFFF", "essentiality": "essential",
+	}, http.StatusCreated, &extra)
+	alice.request(http.MethodDelete, "/api/categories/"+extra.Key, nil, http.StatusBadRequest, nil)
+
+	// --- Payment Methods (on Alice's personal account) ---
+
+	var initPMs []paymentMethodResponse
+	alice.request(http.MethodGet, "/api/payment-methods", nil, http.StatusOK, &initPMs)
+	if len(initPMs) == 0 {
+		t.Fatal("expected default payment methods to be seeded on account creation")
+	}
+	replacementPMKey := initPMs[0].Key
+
+	// Create
+	var createdPM paymentMethodResponse
+	alice.request(http.MethodPost, "/api/payment-methods", map[string]any{
+		"name": "Dinheiro Extra",
+		"icon": "💵",
+	}, http.StatusCreated, &createdPM)
+	if createdPM.ID == 0 || createdPM.Key == "" || createdPM.Name != "Dinheiro Extra" {
+		t.Fatalf("unexpected created payment method: %+v", createdPM)
+	}
+
+	// Reader cannot create payment method
+	bob.request(http.MethodPost, "/api/payment-methods", map[string]any{
+		"name": "Tentativa", "icon": "x",
+	}, http.StatusForbidden, nil)
+
+	// Patch
+	var patchedPM paymentMethodResponse
+	alice.request(http.MethodPatch, "/api/payment-methods/"+createdPM.Key, map[string]any{
+		"name": "Dinheiro Vivo",
+		"icon": "💰",
+	}, http.StatusOK, &patchedPM)
+	if patchedPM.Name != "Dinheiro Vivo" || patchedPM.Icon != "💰" {
+		t.Fatalf("unexpected patched payment method: %+v", patchedPM)
+	}
+
+	// Delete with replacement
+	alice.request(http.MethodDelete, "/api/payment-methods/"+createdPM.Key+"?replacement="+replacementPMKey, nil, http.StatusNoContent, nil)
+
+	// Deleted key no longer in list
+	var afterDeletePMs []paymentMethodResponse
+	alice.request(http.MethodGet, "/api/payment-methods", nil, http.StatusOK, &afterDeletePMs)
+	for _, p := range afterDeletePMs {
+		if p.Key == createdPM.Key {
+			t.Fatalf("deleted payment method %q still in list", createdPM.Key)
 		}
 	}
 }
