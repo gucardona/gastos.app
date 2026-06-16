@@ -120,6 +120,17 @@ type recurringPaymentResponse struct {
 	Enabled        bool    `json:"enabled"`
 }
 
+type splitPaymentResponse struct {
+	ID             int64   `json:"id"`
+	PayerUserID    int64   `json:"payerUserId"`
+	PayerName      string  `json:"payerName"`
+	ReceiverUserID int64   `json:"receiverUserId"`
+	ReceiverName   string  `json:"receiverName"`
+	Amount         float64 `json:"amount"`
+	Date           string  `json:"date"`
+	Note           string  `json:"note"`
+}
+
 type apiClient struct {
 	t         *testing.T
 	serverURL string
@@ -777,6 +788,81 @@ func TestRecurringPaymentsLifecycle(t *testing.T) {
 
 	var afterDelete []recurringPaymentResponse
 	alice.request(http.MethodGet, "/api/recurring-payments", nil, http.StatusOK, &afterDelete)
+	if len(afterDelete) != 0 {
+		t.Fatalf("expected empty list after delete, got %d", len(afterDelete))
+	}
+}
+
+func TestSplitPaymentsLifecycle(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	alice := registerUser(t, server.URL, "Alice", "alice@example.com")
+	bob := registerUser(t, server.URL, "Bob", "bob@example.com")
+	carol := registerUser(t, server.URL, "Carol", "carol@example.com")
+
+	var shared accountResponse
+	alice.request(http.MethodPost, "/api/accounts", map[string]any{"name": "Casa"}, http.StatusCreated, &shared)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "bob@example.com",
+		"role":  "editor",
+	}, http.StatusCreated, nil)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "carol@example.com",
+		"role":  "reader",
+	}, http.StatusCreated, nil)
+
+	alice.accountID = personalIDString(shared.ID)
+	bob.accountID = personalIDString(shared.ID)
+	carol.accountID = personalIDString(shared.ID)
+
+	// Create split payment (alice pays bob)
+	var sp splitPaymentResponse
+	alice.request(http.MethodPost, "/api/split-payments", map[string]any{
+		"payerUserId":    alice.userID,
+		"receiverUserId": bob.userID,
+		"amount":         150.50,
+		"date":           "2026-04-10",
+		"note":           "Conta do mercado",
+	}, http.StatusCreated, &sp)
+	if sp.ID == 0 || sp.PayerUserID != alice.userID || sp.ReceiverUserID != bob.userID || sp.Amount != 150.50 {
+		t.Fatalf("unexpected created split payment: %+v", sp)
+	}
+	if sp.PayerName != "Alice" || sp.ReceiverName != "Bob" {
+		t.Fatalf("split payment names incorrect: payer=%q receiver=%q", sp.PayerName, sp.ReceiverName)
+	}
+
+	// Reader cannot create
+	carol.request(http.MethodPost, "/api/split-payments", map[string]any{
+		"payerUserId": carol.userID, "receiverUserId": alice.userID,
+		"amount": 50, "date": "2026-04-10",
+	}, http.StatusForbidden, nil)
+
+	// List
+	var list []splitPaymentResponse
+	alice.request(http.MethodGet, "/api/split-payments", nil, http.StatusOK, &list)
+	if len(list) != 1 || list[0].Note != "Conta do mercado" {
+		t.Fatalf("unexpected split payments list: %+v", list)
+	}
+
+	// Patch
+	var updated splitPaymentResponse
+	alice.request(http.MethodPatch, "/api/split-payments/"+personalIDString(sp.ID), map[string]any{
+		"payerUserId":    alice.userID,
+		"receiverUserId": bob.userID,
+		"amount":         200,
+		"date":           "2026-04-15",
+		"note":           "Conta revisada",
+	}, http.StatusOK, &updated)
+	if updated.Amount != 200 || updated.Note != "Conta revisada" || updated.Date != "2026-04-15" {
+		t.Fatalf("unexpected updated split payment: %+v", updated)
+	}
+
+	// Delete
+	alice.request(http.MethodDelete, "/api/split-payments/"+personalIDString(sp.ID), nil, http.StatusNoContent, nil)
+
+	var afterDelete []splitPaymentResponse
+	alice.request(http.MethodGet, "/api/split-payments", nil, http.StatusOK, &afterDelete)
 	if len(afterDelete) != 0 {
 		t.Fatalf("expected empty list after delete, got %d", len(afterDelete))
 	}
