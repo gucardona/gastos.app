@@ -106,6 +106,20 @@ type recurringIncomeResponse struct {
 	Enabled     bool    `json:"enabled"`
 }
 
+type recurringPaymentResponse struct {
+	ID             int64   `json:"id"`
+	PayerUserID    int64   `json:"payerUserId"`
+	PayerName      string  `json:"payerName"`
+	ReceiverUserID int64   `json:"receiverUserId"`
+	ReceiverName   string  `json:"receiverName"`
+	Amount         float64 `json:"amount"`
+	Note           string  `json:"note"`
+	DayOfMonth     int     `json:"dayOfMonth"`
+	StartDate      string  `json:"startDate"`
+	EndDate        string  `json:"endDate"`
+	Enabled        bool    `json:"enabled"`
+}
+
 type apiClient struct {
 	t         *testing.T
 	serverURL string
@@ -680,4 +694,90 @@ func TestRecurringIncomesLifecycle(t *testing.T) {
 
 	// Delete nonexistent → 404
 	alice.request(http.MethodDelete, "/api/recurring-incomes/"+personalIDString(ri.ID), nil, http.StatusNotFound, nil)
+}
+
+func TestRecurringPaymentsLifecycle(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	alice := registerUser(t, server.URL, "Alice", "alice@example.com")
+	bob := registerUser(t, server.URL, "Bob", "bob@example.com")
+
+	// Create shared account and add Bob as editor
+	var shared accountResponse
+	alice.request(http.MethodPost, "/api/accounts", map[string]any{"name": "Casa"}, http.StatusCreated, &shared)
+	alice.request(http.MethodPost, "/api/accounts/"+personalIDString(shared.ID)+"/members", map[string]any{
+		"email": "bob@example.com",
+		"role":  "editor",
+	}, http.StatusCreated, nil)
+	alice.accountID = personalIDString(shared.ID)
+	bob.accountID = personalIDString(shared.ID)
+
+	// Create recurring payment (payer=alice, receiver=bob)
+	var rp recurringPaymentResponse
+	alice.request(http.MethodPost, "/api/recurring-payments", map[string]any{
+		"payerUserId":    alice.userID,
+		"receiverUserId": bob.userID,
+		"amount":         200,
+		"note":           "Aluguel mensal",
+		"dayOfMonth":     1,
+		"startDate":      "2026-01-01",
+		"endDate":        "2026-12-01",
+		"enabled":        true,
+	}, http.StatusCreated, &rp)
+	if rp.ID == 0 || rp.PayerUserID != alice.userID || rp.ReceiverUserID != bob.userID || rp.Amount != 200 {
+		t.Fatalf("unexpected created recurring payment: %+v", rp)
+	}
+
+	// List
+	var list []recurringPaymentResponse
+	alice.request(http.MethodGet, "/api/recurring-payments", nil, http.StatusOK, &list)
+	if len(list) != 1 || list[0].Note != "Aluguel mensal" {
+		t.Fatalf("unexpected recurring payments list: %+v", list)
+	}
+
+	// Patch
+	var updated recurringPaymentResponse
+	alice.request(http.MethodPatch, "/api/recurring-payments/"+personalIDString(rp.ID), map[string]any{
+		"payerUserId":    alice.userID,
+		"receiverUserId": bob.userID,
+		"amount":         250,
+		"note":           "Aluguel revisado",
+		"dayOfMonth":     5,
+		"startDate":      "2026-02-05",
+		"endDate":        "",
+		"enabled":        false,
+	}, http.StatusOK, &updated)
+	if updated.Amount != 250 || updated.Note != "Aluguel revisado" || updated.DayOfMonth != 5 || updated.Enabled {
+		t.Fatalf("unexpected updated recurring payment: %+v", updated)
+	}
+
+	// Same payer and receiver → 400
+	alice.request(http.MethodPost, "/api/recurring-payments", map[string]any{
+		"payerUserId":    alice.userID,
+		"receiverUserId": alice.userID,
+		"amount":         50,
+		"dayOfMonth":     1,
+		"startDate":      "2026-01-01",
+		"enabled":        true,
+	}, http.StatusBadRequest, nil)
+
+	// User not in account → 400 (use a fake user id)
+	alice.request(http.MethodPost, "/api/recurring-payments", map[string]any{
+		"payerUserId":    alice.userID,
+		"receiverUserId": int64(9999),
+		"amount":         50,
+		"dayOfMonth":     1,
+		"startDate":      "2026-01-01",
+		"enabled":        true,
+	}, http.StatusBadRequest, nil)
+
+	// Delete
+	alice.request(http.MethodDelete, "/api/recurring-payments/"+personalIDString(rp.ID), nil, http.StatusNoContent, nil)
+
+	var afterDelete []recurringPaymentResponse
+	alice.request(http.MethodGet, "/api/recurring-payments", nil, http.StatusOK, &afterDelete)
+	if len(afterDelete) != 0 {
+		t.Fatalf("expected empty list after delete, got %d", len(afterDelete))
+	}
 }
