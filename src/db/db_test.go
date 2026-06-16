@@ -125,7 +125,7 @@ func TestAccountsV1MigrationBackfillsPersonalAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin tx: %v", err)
 	}
-	secondAccountID, err := CreateAccountWithOwner(tx, "Empresa", 1)
+	secondAccountID, err := CreateAccountWithOwner(tx, "Empresa", 1, false)
 	if err != nil {
 		t.Fatalf("create second account: %v", err)
 	}
