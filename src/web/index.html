@@ -2158,6 +2158,7 @@ function app() {
           }
           this.editingRecurringIncomeInForm = ''
           this.resetIncomeForm()
+          await this.loadAllData()
         } else {
           const payload = {
             amount,
@@ -2339,6 +2340,7 @@ function app() {
             this.toast('Pagamento recorrente configurado ✓')
           }
           this.resetSplitPaymentForm()
+          await this.loadAllData()
         } else {
           const payload = {
             payerUserId: Number(this.newSplitPayment.payerUserId),
