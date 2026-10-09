@@ -53,6 +53,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	s.settlementRoutes(mux, wallet)
 	s.budgetRoutes(mux, wallet)
 	s.summaryRoutes(mux, wallet)
+	s.eventsRoutes(mux, wallet)
 
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("/api/", public(func(http.ResponseWriter, *http.Request) error { return errNotFound }))

@@ -2299,7 +2299,7 @@ Queries:
     - Ana: `+10000 - 5000 - 1501 + 1000 = 4499`;
     - Bia: `+3001 - 5000 - 1500 - 1000 = -4499`.
 
-  Confira os índices e a ordenação: os splits padrão saem em ordem de `user_id`, e a Ana tem o menor id. Esperado: `suggestedSettlements = [{Bia→Ana 4499}]`.
+  Confira os índices e a ordenação: os splits padrão saem em ordem de `user_id`, e a Ana tem o menor id. Esperado: `suggestedSettlements = [{Bia→Ana 2499}]`. Implementado em `summary_test.go` e passando.
   - Use `s.now` fixo em 2026-10-15 (no fuso de São Paulo) para `dailyAverageCents = 13001 / 15 = 866`.
 
 - [ ] **Commit:** `feat(api): resumo mensal e acertos sugeridos`
