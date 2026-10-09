@@ -135,6 +135,8 @@ func (s *Server) mutated(r *http.Request) {
 	s.bus.Notify(walletIDFrom(r.Context()), userIDFrom(r.Context()))
 }
 
+func asAPIError(err error, target **apiError) bool { return errors.As(err, target) }
+
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint")
 }

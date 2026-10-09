@@ -274,11 +274,11 @@ func (s *Server) deleteWallet(w http.ResponseWriter, r *http.Request) error {
 }
 
 type memberDTO struct {
-	UserID           int64  `json:"userId"`
-	Name             string `json:"name"`
-	Email            string `json:"email"`
-	Role             string `json:"role"`
-	SplitsByDefault  bool   `json:"splitsByDefault"`
+	UserID          int64  `json:"userId"`
+	Name            string `json:"name"`
+	Email           string `json:"email"`
+	Role            string `json:"role"`
+	SplitsByDefault bool   `json:"splitsByDefault"`
 }
 
 func (s *Server) memberByID(ctx context.Context, walletID, userID int64) (memberDTO, error) {

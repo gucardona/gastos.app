@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
@@ -33,7 +34,7 @@ type testApp struct {
 
 func newTestApp(t *testing.T) *testApp {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "t.db"))
+	d, err := db.Open(filepath.Join(tempDir(t), "t.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func (a *testApp) anon() *client {
 	return &client{app: a, http: &http.Client{Jar: jar}}
 }
 
-// register cria usuário, guarda o cookie e a carteira pessoal.
+// register cria usuÃ¡rio, guarda o cookie e a carteira pessoal.
 func (a *testApp) register(name, email string) *client {
 	a.t.Helper()
 	c := a.anon()
@@ -79,7 +80,7 @@ func (a *testApp) register(name, email string) *client {
 	return c
 }
 
-// do faz a request, confere o status e decodifica a resposta em out (se não nil).
+// do faz a request, confere o status e decodifica a resposta em out (se nÃ£o nil).
 func (c *client) do(method, path string, body any, wantStatus int, out any) {
 	c.app.t.Helper()
 	var rd io.Reader
@@ -113,3 +114,22 @@ func (c *client) wpath(format string, args ...any) string {
 }
 
 func itoa(n int64) string { return fmt.Sprint(n) }
+
+// tempDir is a t.TempDir that retries removal: on Windows the SQLite WAL files
+// sometimes take a moment to be released after Close.
+func tempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "gastos-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for i := 0; i < 20; i++ {
+			if os.RemoveAll(dir) == nil {
+				return
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+	})
+	return dir
+}
