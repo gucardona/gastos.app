@@ -3,3 +3,8 @@ gastos.db.bak
 
 .claude/
 .agents/
+
+/data/
+/gastos
+/gastos.exe
+web/node_modules/
