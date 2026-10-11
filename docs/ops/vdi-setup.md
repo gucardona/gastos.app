@@ -83,6 +83,10 @@ cp /caminho/do/clone/antigo/gastos.db ~/gastos-antigo.db   # guarde por seguran�
 
 Depois remova `/etc/systemd/system/gastos.service` e o clone antigo.
 
+## 7. Backup fora do servidor
+
+O backup do app fica no mesmo disco da VDI. Para ter uma cópia cifrada em outro lugar, sem custo, siga [backup.md](backup.md). Faça isso **antes** de usar o app de verdade.
+
 ## Primeiro deploy
 
 Faça merge na `master`. O script `scripts/remote-deploy.sh` ativa a release nova e volta sozinho para a anterior se o `/healthz` não responder em 10 segundos.
