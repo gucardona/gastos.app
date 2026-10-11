@@ -15,9 +15,10 @@ async function signUp(page: Page, name: string, email = unique(name), code = inv
   await expect(page).toHaveURL(/\/login$/); // without a session, it lands on the login
   // the toggle only shows once the server has said how sign-up works, so the field decision below is stable
   await page.getByRole("button", { name: "Criar uma conta" }).click();
-  await page.getByLabel("Nome").fill(name);
+  await page.getByLabel("Como você gostaria de ser chamado?").fill(name);
   await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill(password);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByLabel("Repita a senha").fill(password);
   // the very first account of a fresh database needs no code; every later one does
   const codeField = page.getByLabel("Código de convite");
   if (await codeField.count()) await codeField.fill(code);
@@ -72,11 +73,11 @@ test("session: sign out and back in, with a wrong password rejected", async ({ p
   await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill("errada-errada");
+  await page.getByLabel("Senha", { exact: true }).fill("errada-errada");
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByText("E-mail ou senha incorretos")).toBeVisible();
 
-  await page.getByLabel("Senha").fill(password);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByText("Saldo do mês")).toBeVisible();
 });

@@ -8,6 +8,7 @@ export function Login() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   // Who may sign up is decided by the server: open (first account), invite code, or closed.
   const registration = useQuery({ queryKey: ["registration"], queryFn: () => api.get<{ mode: "open" | "code" | "closed" }>("/auth/registration"), retry: false });
@@ -20,9 +21,13 @@ export function Login() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setErrors({});
     setGeneral("");
+    if (register && password !== confirm) {
+      setErrors({ confirm: "As senhas não são iguais." });
+      return;
+    }
+    setBusy(true);
     try {
       await api.post(register ? "/auth/register" : "/auth/login", register ? { name, email, password, ...(mode === "code" ? { inviteCode } : {}) } : { email, password });
       qc.clear();
@@ -45,7 +50,7 @@ export function Login() {
         <h1>gastos</h1>
         {register && (
           <div className="field">
-            <label htmlFor="name">Nome</label>
+            <label htmlFor="name">Como você gostaria de ser chamado?</label>
             <input id="name" className="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
             {field("name")}
           </div>
@@ -60,6 +65,13 @@ export function Login() {
           <input id="password" className="text" type="password" autoComplete={register ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />
           {field("password")}
         </div>
+        {register && (
+          <div className="field">
+            <label htmlFor="confirm">Repita a senha</label>
+            <input id="confirm" className="text" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            {field("confirm")}
+          </div>
+        )}
         {register && mode === "code" && (
           <div className="field">
             <label htmlFor="invite">Código de convite</label>
