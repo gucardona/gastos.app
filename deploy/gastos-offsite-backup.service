@@ -1,0 +1,16 @@
+[Unit]
+Description=Upload the gastos backup, encrypted, to the private repository
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gastos
+Environment=HOME=/var/lib/gastos
+EnvironmentFile=/etc/gastos/offsite.env
+ExecStart=/usr/local/bin/gastos-offsite-backup
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gastos
+PrivateTmp=true
