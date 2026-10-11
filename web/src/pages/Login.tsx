@@ -67,7 +67,7 @@ export function Login() {
           </div>
         )}
         {general && <p className="error" role="alert">{general}</p>}
-        <button className="btn" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
+        <button type="submit" className="btn" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
         {/* the toggle waits for the mode so a closed sign-up never flashes an option that cannot work */}
         {mode === "closed" && <p className="muted" style={{ margin: "16px 0 0" }}>O cadastro está fechado. Peça um convite.</p>}
         {!registration.isPending && mode !== "closed" && (

@@ -64,9 +64,18 @@ O servidor sobe em `:8000`. Teste com `curl localhost:8000/healthz`.
 ## Testes
 
 ```bash
+# backend
 go vet ./...
-go test ./...
+go test -race ./...
+
+# frontend (dentro de web/)
+npm run lint        # Biome
+npm run typecheck
+npm test            # unidade e componentes
+npm run build && npm run e2e   # navegador contra o binário Go real, em desktop e celular
 ```
+
+O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
 
 ## Banco de dados
 

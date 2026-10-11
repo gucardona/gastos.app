@@ -24,7 +24,7 @@ export function WalletSection() {
           Nome da carteira
           <input id="wname" className="text" value={name} disabled={!owner} onChange={(e) => setName(e.target.value)} />
         </label>
-        {owner && <button className="chip" disabled={rename.busy || name.trim() === wallet.name}>Salvar nome</button>}
+        {owner && <button type="submit" className="chip" disabled={rename.busy || name.trim() === wallet.name}>Salvar nome</button>}
       </form>
       {rename.error && <p className="error" role="alert">{rename.error}</p>}
 
@@ -43,17 +43,17 @@ export function WalletSection() {
       }}>
         <strong>Nova carteira</strong>
         <label>Nome<input className="text" aria-label="Nome da nova carteira" value={newName} onChange={(e) => setNewName(e.target.value)} /></label>
-        <label className="inline"><Switch checked={newSplitting} label="Dividir gastos na nova carteira" onChange={setNewSplitting} /> <span className="muted">Dividir gastos entre os membros</span></label>
+        <div className="inline"><Switch checked={newSplitting} label="Dividir gastos na nova carteira" onChange={setNewSplitting} /> <span className="muted">Dividir gastos entre os membros</span></div>
         {create.error && <p className="error" role="alert">{create.error}</p>}
-        <div className="item-actions"><button className="btn" disabled={create.busy || !newName.trim()}>Criar carteira</button></div>
+        <div className="item-actions"><button type="submit" className="btn" disabled={create.busy || !newName.trim()}>Criar carteira</button></div>
       </form>
 
       {owner && (
         <div className="line">
           <div>Excluir esta carteira<small>Apaga lançamentos, categorias e orçamentos para todos os membros. Não dá para desfazer.{wallets.length === 1 && " É a sua única carteira."}</small></div>
           {confirmDelete
-            ? <button className="chip danger" disabled={remove.busy} onClick={() => void remove.run(() => api.del(`/wallets/${wallet.id}`))}>Confirmar exclusão</button>
-            : <button className="chip" onClick={() => setConfirmDelete(true)}>Excluir</button>}
+            ? <button type="button" className="chip danger" disabled={remove.busy} onClick={() => void remove.run(() => api.del(`/wallets/${wallet.id}`))}>Confirmar exclusão</button>
+            : <button type="button" className="chip" onClick={() => setConfirmDelete(true)}>Excluir</button>}
         </div>
       )}
       {remove.error && <p className="error" role="alert">{remove.error}</p>}

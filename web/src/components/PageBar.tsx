@@ -23,9 +23,9 @@ export function MonthSwitcher() {
   const { month, setMonth } = useApp();
   return (
     <div className="month">
-      <button aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}>‹</button>
+      <button type="button" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}>‹</button>
       <span>{monthLabel(month)}</span>
-      <button aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}>›</button>
+      <button type="button" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}>›</button>
     </div>
   );
 }

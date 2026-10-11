@@ -23,7 +23,7 @@ export function Overview() {
       {summary.error || txs.error ? (
         <div className="empty">
           <p>Não foi possível carregar este mês.</p>
-          <button className="btn" onClick={() => { void summary.refetch(); void txs.refetch(); }}>Tentar de novo</button>
+          <button type="button" className="btn" onClick={() => { void summary.refetch(); void txs.refetch(); }}>Tentar de novo</button>
         </div>
       ) : !summary.data || !txs.data ? (
         <><div className="skeleton" style={{ height: 56, width: "55%" }} /><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>
@@ -167,7 +167,7 @@ function Settle({ summary }: { summary: { suggestedSettlements?: { fromUserId: n
           <>
             <p><span className="big num">{formatBRL(t.amountCents)}</span></p>
             <p>{who(t.fromUserId)} deve esse valor {t.toUserId === user.id ? "a você" : `para ${who(t.toUserId)}`}.</p>
-            {canEdit && <button className="btn full" disabled={busy} onClick={() => void register()}>Registrar acerto</button>}
+            {canEdit && <button type="button" className="btn full" disabled={busy} onClick={() => void register()}>Registrar acerto</button>}
             {error && <p className="error" role="alert">{error}</p>}
           </>
         ) : (

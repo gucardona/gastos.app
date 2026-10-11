@@ -3,6 +3,11 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 // Each test creates new users: unique emails avoid depending on execution order.
 const unique = (name: string) => `${name.toLowerCase()}.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
 const password = "senha-de-teste-123";
+// Sign-up is rate limited per IP (10 per 15 minutes) and every test here signs up, so each browser context
+// gets its own address; the server trusts X-Forwarded-For from loopback.
+const fakeIP = () => ({ "X-Forwarded-For": `10.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}.${1 + Math.floor(Math.random() * 250)}` });
+test.beforeEach(async ({ context }) => context.setExtraHTTPHeaders(fakeIP()));
+
 const inviteCode = "e2e-invite-code"; // same value as GASTOS_INVITE_CODE in playwright.config.ts
 
 async function signUp(page: Page, name: string, email = unique(name), code = inviteCode) {
@@ -135,8 +140,9 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
   await expect(ana.getByText("Você deve esse valor para Bia.")).toBeVisible();
 });
 
+// browser.newContext() does not inherit the project's device settings, so pass them along (otherwise the mobile project would run these on a desktop viewport)
 async function newPage(browser: Browser) {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ ...test.info().project.use, extraHTTPHeaders: fakeIP() });
   return context.newPage();
 }
 
@@ -179,6 +185,19 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
   await page.getByRole("switch", { name: "Pausar Netflix" }).click();
   await expect(page.getByText(/pausada/).first()).toBeVisible();
+});
+
+test("layout follows the viewport: bottom nav on a phone, sidebar on a desktop", async ({ page, isMobile }) => {
+  await signUpAndEnter(page, "Lia");
+  const bottomNav = page.locator("nav.bottom");
+  const sidebar = page.locator("aside.side");
+  if (isMobile) {
+    await expect(bottomNav).toBeVisible();
+    await expect(sidebar).toBeHidden();
+  } else {
+    await expect(sidebar).toBeVisible();
+    await expect(bottomNav).toBeHidden();
+  }
 });
 
 test("invite code: a wrong code is refused, the right one creates the account", async ({ page }) => {

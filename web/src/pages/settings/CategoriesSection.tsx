@@ -27,7 +27,7 @@ export function CategoriesSection() {
       {canEdit && <NewCategory kind={kind} />}
       {archived.length > 0 && (
         <>
-          <button className="chip" style={{ justifySelf: "start", marginTop: 12 }} aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
+          <button type="button" className="chip" style={{ justifySelf: "start", marginTop: 12 }} aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
             {showArchived ? "Ocultar" : "Mostrar"} arquivadas ({archived.length})
           </button>
           {showArchived && archived.map((c) => <Row key={c.id} c={c} />)}
@@ -58,22 +58,22 @@ function Row({ c }: { c: Category }) {
     <div className="item" style={c.archived ? { opacity: 0.65 } : undefined}>
       <div className="line" style={{ borderTop: 0, padding: 0 }}>
         <div><span aria-hidden>{c.icon}</span> {c.name}<small>{c.essentiality ? ESSENTIALITY[c.essentiality] : "Entrada"}{c.archived && ", arquivada"}</small></div>
-        <span className="swatch" style={{ background: c.color }} aria-label={`Cor ${c.color}`} />
+        <span className="swatch" role="img" style={{ background: c.color }} aria-label={`Cor ${c.color}`} />
       </div>
       {canEdit && (
         <div className="item-actions">
           {c.archived ? (
-            <button className="chip" disabled={busy} onClick={() => void run(() => api.put(path, body(c, draft, false)))}>Restaurar</button>
+            <button type="button" className="chip" disabled={busy} onClick={() => void run(() => api.put(path, body(c, draft, false)))}>Restaurar</button>
           ) : (
             <>
-              <button className="chip" onClick={() => setEditing(true)}>Editar</button>
+              <button type="button" className="chip" onClick={() => setEditing(true)}>Editar</button>
               {confirm
-                ? <button className="chip danger" disabled={busy} onClick={async () => {
+                ? <button type="button" className="chip danger" disabled={busy} onClick={async () => {
                     let archivedNow = false;
                     const ok = await run(async () => { archivedNow = (await api.del(path)) !== undefined; });
                     if (ok) setNote(archivedNow ? "Arquivada, porque já tem lançamentos." : "");
                   }}>Confirmar exclusão</button>
-                : <button className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
+                : <button type="button" className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
             </>
           )}
         </div>
@@ -88,7 +88,7 @@ function NewCategory({ kind }: { kind: Kind }) {
   const { wallet } = useApp();
   const { run, busy, error } = useAction();
   const [open, setOpen] = useState(false);
-  if (!open) return <button className="btn ghost" style={{ justifySelf: "start", marginTop: 12 }} onClick={() => setOpen(true)}>Nova categoria</button>;
+  if (!open) return <button type="button" className="btn ghost" style={{ justifySelf: "start", marginTop: 12 }} onClick={() => setOpen(true)}>Nova categoria</button>;
   return <Form key={kind} initial={emptyDraft} kind={kind} submit="Criar categoria" error={error} busy={busy} onCancel={() => setOpen(false)}
     onSubmit={async (d) => {
       const ok = await run(() => api.post(`/wallets/${wallet.id}/categories`, { kind, name: d.name, icon: d.icon, color: d.color, ...(kind === "expense" ? { essentiality: d.essentiality } : {}) }));
@@ -116,7 +116,7 @@ function Form({ initial, kind, submit, onSubmit, onCancel, error, busy }: {
       )}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="item-actions">
-        <button className="btn" disabled={busy}>{submit}</button>
+        <button type="submit" className="btn" disabled={busy}>{submit}</button>
         <button type="button" className="btn ghost" onClick={onCancel}>Cancelar</button>
       </div>
     </form>
