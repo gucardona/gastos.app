@@ -3,8 +3,11 @@ package config
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
+
+const minInviteCodeLen = 8
 
 type Config struct {
 	Addr         string
@@ -14,6 +17,8 @@ type Config struct {
 	Location     *time.Location
 	CookieSecure bool
 	Dev          bool
+	// InviteCode, when set, is required to sign up once the database has users.
+	InviteCode string
 }
 
 // Load reads the configuration from getenv (os.Getenv in production) and fails early on invalid values.
@@ -39,6 +44,10 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	if c.Dev, err = parseBool("GASTOS_DEV", getenv, false); err != nil {
 		return Config{}, err
+	}
+	c.InviteCode = strings.TrimSpace(getenv("GASTOS_INVITE_CODE"))
+	if c.InviteCode != "" && len(c.InviteCode) < minInviteCodeLen {
+		return Config{}, fmt.Errorf("invalid GASTOS_INVITE_CODE: use at least %d characters", minInviteCodeLen)
 	}
 	return c, nil
 }

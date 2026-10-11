@@ -3,15 +3,26 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 // Each test creates new users: unique emails avoid depending on execution order.
 const unique = (name: string) => `${name.toLowerCase()}.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
 const password = "senha-de-teste-123";
+const inviteCode = "e2e-invite-code"; // same value as GASTOS_INVITE_CODE in playwright.config.ts
 
-async function signUp(page: Page, name: string, email = unique(name)) {
+async function signUp(page: Page, name: string, email = unique(name), code = inviteCode) {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/); // without a session, it lands on the login
+  // the toggle only shows once the server has said how sign-up works, so the field decision below is stable
   await page.getByRole("button", { name: "Criar uma conta" }).click();
   await page.getByLabel("Nome").fill(name);
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha").fill(password);
+  // the very first account of a fresh database needs no code; every later one does
+  const codeField = page.getByLabel("Código de convite");
+  if (await codeField.count()) await codeField.fill(code);
   await page.getByRole("button", { name: "Criar conta" }).click();
+  return email;
+}
+
+/** signUp, then waits for the overview. */
+async function signUpAndEnter(page: Page, name: string) {
+  const email = await signUp(page, name);
   await expect(page.getByText("Saldo do mês")).toBeVisible();
   return email;
 }
@@ -27,7 +38,7 @@ async function addExpense(page: Page, amount: string, description: string, categ
 }
 
 test("sign up, add, edit and delete a transaction", async ({ page }) => {
-  await signUp(page, "Ana");
+  await signUpAndEnter(page, "Ana");
   await expect(page.getByText(/Nada lançado em Pessoal/)).toBeVisible();
 
   await addExpense(page, "48,90", "Mercado do bairro");
@@ -50,7 +61,7 @@ test("sign up, add, edit and delete a transaction", async ({ page }) => {
 });
 
 test("session: sign out and back in, with a wrong password rejected", async ({ page }) => {
-  const email = await signUp(page, "Caio");
+  const email = await signUpAndEnter(page, "Caio");
   await page.getByRole("link", { name: "Ajustes" }).first().click();
   await page.getByRole("button", { name: "Sair" }).click();
   await expect(page).toHaveURL(/\/login$/);
@@ -69,8 +80,8 @@ test("session: sign out and back in, with a wrong password rejected", async ({ p
 async function pairUp(browser: Browser) {
   const ana = await newPage(browser);
   const bia = await newPage(browser);
-  await signUp(ana, "Ana");
-  const biaEmail = await signUp(bia, "Bia");
+  await signUpAndEnter(ana, "Ana");
+  const biaEmail = await signUpAndEnter(bia, "Bia");
 
   // Ana invites Bia as an editor and enables splitting, through her own session's API
   const me = await (await ana.request.get("/api/me")).json();
@@ -130,7 +141,7 @@ async function newPage(browser: Browser) {
 }
 
 test("settings and recurring: category, overspent budget and paused recurrence", async ({ page }) => {
-  await signUp(page, "Dani");
+  await signUpAndEnter(page, "Dani");
 
   // new category
   await page.getByRole("link", { name: "Ajustes" }).first().click();
@@ -168,4 +179,20 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
   await page.getByRole("switch", { name: "Pausar Netflix" }).click();
   await expect(page.getByText(/pausada/).first()).toBeVisible();
+});
+
+test("invite code: a wrong code is refused, the right one creates the account", async ({ page }) => {
+  await signUpAndEnter(page, "Dona"); // makes sure an account exists, so the next sign-ups need the code
+  await page.getByRole("link", { name: "Ajustes" }).first().click();
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await signUp(page, "Intruso", unique("Intruso"), "not-the-right-code");
+  await expect(page.getByText("O cadastro está fechado. Peça um convite.")).toBeVisible();
+  await expect(page.getByText("Saldo do mês")).toBeHidden();
+
+  // same form, now with the right code
+  await page.getByLabel("Código de convite").fill(inviteCode);
+  await page.getByRole("button", { name: "Criar conta" }).click();
+  await expect(page.getByText("Saldo do mês")).toBeVisible();
 });

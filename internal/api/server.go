@@ -33,6 +33,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	user := func(h handlerFunc) http.Handler { return s.requireUser(s.handle(h)) }
 	wallet := func(min role, h handlerFunc) http.Handler { return s.requireUser(s.requireWallet(min, s.handle(h))) }
 
+	mux.Handle("GET /api/auth/registration", public(s.registrationInfo))
 	mux.Handle("POST /api/auth/register", public(s.register))
 	mux.Handle("POST /api/auth/login", public(s.login))
 	mux.Handle("POST /api/auth/logout", user(s.logout))
