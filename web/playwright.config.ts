@@ -1,0 +1,27 @@
+import { defineConfig } from "@playwright/test";
+
+const port = 18080;
+
+// E2E contra o binário Go real (com o frontend embutido) e um banco novo a cada execução.
+// Localmente: E2E_CHANNEL=chrome usa o Chrome instalado; no CI o Chromium vem do `playwright install`.
+export default defineConfig({
+  testDir: "e2e",
+  fullyParallel: false,
+  workers: 1,
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  use: { baseURL: `http://127.0.0.1:${port}`, channel: process.env.E2E_CHANNEL, trace: "retain-on-failure" },
+  webServer: {
+    command: "go run ./cmd/gastos",
+    cwd: "..",
+    url: `http://127.0.0.1:${port}/healthz`,
+    reuseExistingServer: false,
+    timeout: 120_000,
+    env: {
+      GASTOS_ADDR: `127.0.0.1:${port}`,
+      GASTOS_DB_PATH: "web/e2e-data/gastos.db",
+      GASTOS_BACKUP_DIR: "web/e2e-data/backups",
+      GASTOS_COOKIE_SECURE: "false",
+    },
+  },
+});
