@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { PageBar } from "../components/PageBar";
 import { useApp } from "../context";
 import { setTheme, storedTheme, type Theme } from "../lib/theme";
+import { BankSection } from "./settings/BankSection";
 import { BudgetsSection } from "./settings/BudgetsSection";
 import { CategoriesSection } from "./settings/CategoriesSection";
 import { MembersSection } from "./settings/MembersSection";
@@ -18,6 +19,7 @@ const SECTIONS = [
   { id: "categorias", label: "Categorias" },
   { id: "pagamentos", label: "Pagamentos" },
   { id: "orcamentos", label: "Orçamentos" },
+  { id: "bancos", label: "Contas bancárias" },
 ] as const;
 
 export function Settings() {
@@ -42,6 +44,7 @@ export function Settings() {
         {section === "categorias" && <CategoriesSection />}
         {section === "pagamentos" && <PaymentsSection />}
         {section === "orcamentos" && <BudgetsSection />}
+        {section === "bancos" && <BankSection />}
       </div>
     </>
   );

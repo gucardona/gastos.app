@@ -66,6 +66,7 @@ export interface Transaction {
   paidByUserId: number;
   createdBy: number;
   recurrenceId: number | null;
+  source: "manual" | "recurring" | "bank";
   splits: Split[];
 }
 
@@ -130,4 +131,35 @@ export interface Settlement {
   note: string;
   recurrenceId: number | null;
   createdBy: number;
+}
+
+export interface BankAccount {
+  id: number;
+  name: string;
+  paymentMethodId: number | null;
+  paidByUserId: number;
+  enabled: boolean;
+  pendingCount: number;
+}
+
+export interface InboxItem {
+  id: number;
+  bankAccountId: number;
+  accountName: string;
+  date: string;
+  /** Signed as in the statement: negative is money out. */
+  amountCents: number;
+  description: string;
+  status: "pending" | "accepted" | "matched" | "ignored";
+  suggestedCategoryId: number | null;
+  suggestedDescription: string | null;
+  suggestedMatch: { id: number; description: string; date: string } | null;
+}
+
+export interface Rule {
+  id: number;
+  pattern: string;
+  categoryId: number;
+  renameTo: string | null;
+  priority: number;
 }

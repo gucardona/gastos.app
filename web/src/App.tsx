@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router";
 import { Division } from "./pages/Division";
+import { Inbox } from "./pages/Inbox";
 import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
@@ -16,6 +17,7 @@ export function App() {
         <Route path="lancamentos" element={<Transactions />} />
         <Route path="recorrentes" element={<Recurring />} />
         <Route path="divisao" element={<Division />} />
+        <Route path="caixa" element={<Inbox />} />
         <Route path="ajustes" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
