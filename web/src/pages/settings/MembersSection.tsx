@@ -5,7 +5,7 @@ import { Switch } from "../../components/Switch";
 import { useApp } from "../../context";
 import { useAction } from "../../hooks/useAction";
 
-const ROLE_LABEL = { owner: "Dona ou dono", editor: "Pode editar", reader: "Só leitura" } as const;
+const ROLE_LABEL = { owner: "Administra", editor: "Pode editar", reader: "Só leitura" } as const;
 
 export function MembersSection() {
   const { user, wallet, members } = useApp();

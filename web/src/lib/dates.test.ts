@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, dayLabel, monthLabel, monthOf, monthRange, toISODate } from "./dates";
+import { addDays, addMonths, dayLabel, monthLabel, monthOf, monthRange, toISODate } from "./dates";
 
 describe("month helpers", () => {
   it("limites do mês, inclusive bissexto", () => {
@@ -16,6 +16,14 @@ describe("month helpers", () => {
   it("mês de uma data local, sem deslocar por fuso", () => {
     expect(toISODate(new Date(2026, 9, 31, 23, 59))).toBe("2026-10-31");
     expect(monthOf("2026-10-31")).toBe("2026-10");
+  });
+});
+
+describe("addDays", () => {
+  it("soma e subtrai dias atravessando mês e ano", () => {
+    expect(addDays("2026-10-31", 1)).toBe("2026-11-01");
+    expect(addDays("2026-01-01", -1)).toBe("2025-12-31");
+    expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
   });
 });
 
