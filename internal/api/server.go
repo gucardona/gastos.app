@@ -52,6 +52,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	s.recurrenceRoutes(mux, wallet)
 	s.settlementRoutes(mux, wallet)
 	s.budgetRoutes(mux, wallet)
+	s.bankRoutes(mux, wallet)
 	s.summaryRoutes(mux, wallet)
 	s.eventsRoutes(mux, wallet)
 
