@@ -14,6 +14,12 @@ export function monthRange(month: string) {
   return { from: `${month}-01`, to: toISODate(new Date(y, m, 0, 12)) };
 }
 
+export function addDays(isoDate: string, delta: number) {
+  const d = parse(isoDate);
+  d.setDate(d.getDate() + delta);
+  return toISODate(d);
+}
+
 export function addMonths(month: string, delta: number) {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1, 12);

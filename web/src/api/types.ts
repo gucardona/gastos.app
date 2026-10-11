@@ -120,3 +120,14 @@ export interface Budget {
   categoryId: number;
   limitCents: number;
 }
+
+export interface Settlement {
+  id: number;
+  fromUserId: number;
+  toUserId: number;
+  amountCents: number;
+  date: string;
+  note: string;
+  recurrenceId: number | null;
+  createdBy: number;
+}

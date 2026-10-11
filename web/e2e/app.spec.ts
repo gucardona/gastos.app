@@ -65,7 +65,8 @@ test("sessão: sair e entrar de novo, com senha errada recusada", async ({ page 
   await expect(page.getByText("Saldo do mês")).toBeVisible();
 });
 
-test("tempo real: o gasto de uma pessoa aparece para a outra sem recarregar", async ({ browser }) => {
+// Duas pessoas, cada uma no próprio navegador, na carteira da Ana com a divisão ligada.
+async function pairUp(browser: Browser) {
   const ana = await newPage(browser);
   const bia = await newPage(browser);
   await signUp(ana, "Ana");
@@ -85,12 +86,42 @@ test("tempo real: o gasto de uma pessoa aparece para a outra sem recarregar", as
   await bia.getByLabel("Carteira").selectOption(String(shared.id));
   await ana.reload();
   await expect(ana.getByText(/com Bia/)).toBeVisible();
+  return { ana, bia };
+}
+
+test("tempo real: o gasto de uma pessoa aparece para a outra sem recarregar", async ({ browser }) => {
+  const { ana, bia } = await pairUp(browser);
   await addExpense(bia, "380,00", "Jantar no Ida", "Mercado");
 
   // a Ana não recarrega: o SSE atualiza a tela
   await expect(ana.getByText("Jantar no Ida")).toBeVisible({ timeout: 10_000 });
   await expect(ana.getByText("Acerto entre vocês")).toBeVisible();
   await expect(ana.getByText(/Você deve esse valor para Bia/)).toBeVisible();
+});
+
+test("divisão: saldo, acerto sugerido e histórico", async ({ browser }) => {
+  const { ana, bia } = await pairUp(browser);
+  await addExpense(bia, "380,00", "Jantar no Ida", "Mercado");
+
+  await ana.getByRole("link", { name: /Divisão/ }).first().click();
+  await expect(ana.getByText("Saldo entre vocês")).toBeVisible();
+  await expect(ana.getByText("Você deve esse valor para Bia.")).toBeVisible();
+  await expect(ana.getByText(/−R\$\s*190,00/).first()).toBeVisible();
+
+  // a Ana acerta: o saldo zera e o acerto entra no histórico
+  await ana.getByRole("button", { name: "Registrar acerto" }).click();
+  await expect(ana.getByText("Vocês estão quites.")).toBeVisible();
+  await expect(ana.getByText(/Você pagou Bia/)).toBeVisible();
+
+  // a Bia vê o mesmo, sem recarregar
+  await bia.getByRole("link", { name: /Divisão/ }).first().click();
+  await expect(bia.getByText("Vocês estão quites.")).toBeVisible();
+  await expect(bia.getByText(/Ana pagou a você/)).toBeVisible();
+
+  // excluir o acerto traz o saldo de volta
+  await ana.getByRole("button", { name: "Excluir" }).click();
+  await ana.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(ana.getByText("Você deve esse valor para Bia.")).toBeVisible();
 });
 
 async function newPage(browser: Browser) {
