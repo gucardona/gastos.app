@@ -27,19 +27,19 @@ function serve(s: Summary = summary(), history: Settlement[] = [past]) {
 const writes = (fetch: ReturnType<typeof mockFetch>) => fetch.mock.calls.filter((c) => c[1]?.method && c[1].method !== "GET");
 const writeBody = (fetch: ReturnType<typeof mockFetch>, i = 0) => bodyOf(fetch, fetch.mock.calls.indexOf(writes(fetch)[i]));
 
-describe("Divisão", () => {
-  it("explica e oferece ligar a divisão quando está desligada", () => {
+describe("Division", () => {
+  it("explains and offers to turn splitting on when it is off", () => {
     renderApp(<Division />);
     expect(screen.getByText(/divisão de gastos está desligada/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Ligar a divisão" }).getAttribute("href")).toBe("/ajustes?s=carteira");
   });
 
-  it("quem não administra a carteira não vê o botão de ligar", () => {
+  it("whoever does not manage the wallet does not see the turn-on button", () => {
     renderApp(<Division />, appCtx({ wallet: { ...wallet, role: "editor" } }));
     expect(screen.queryByRole("link", { name: "Ligar a divisão" })).toBeNull();
   });
 
-  it("mostra os saldos de cada pessoa e o que falta acertar", async () => {
+  it("shows each person's balance and what is left to settle", async () => {
     serve();
     renderApp(<Division />, splitting());
     expect(await screen.findByText("tem a receber")).toBeTruthy();
@@ -49,14 +49,14 @@ describe("Divisão", () => {
     expect(screen.getByText("Bia deve esse valor a você.")).toBeTruthy();
   });
 
-  it("diz que estão quites quando não há acerto sugerido", async () => {
+  it("says everyone is even when there is no suggested settlement", async () => {
     serve(summary({ memberBalances: [{ userId: 1, netCents: 0 }, { userId: 2, netCents: 0 }], suggestedSettlements: [] }));
     renderApp(<Division />, splitting());
     expect(await screen.findByText("Vocês estão quites.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Registrar acerto" })).toBeNull();
   });
 
-  it("registra o acerto sugerido com a data de hoje", async () => {
+  it("registers the suggested settlement with today's date", async () => {
     const fetch = serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
@@ -66,7 +66,7 @@ describe("Divisão", () => {
     expect(writeBody(fetch)).toEqual({ fromUserId: 2, toUserId: 1, amountCents: 19000, date: today() });
   });
 
-  it("registra outro acerto à mão, validando valor e pessoas", async () => {
+  it("registers another settlement by hand, validating amount and people", async () => {
     const fetch = serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
@@ -76,7 +76,7 @@ describe("Divisão", () => {
     expect(await screen.findByText("Informe um valor maior que zero.")).toBeTruthy();
 
     await user.type(screen.getByLabelText("Valor do acerto"), "75,50");
-    await user.selectOptions(screen.getByLabelText("Quem pagou"), "1"); // Ana paga e também recebe
+    await user.selectOptions(screen.getByLabelText("Quem pagou"), "1"); // Ana pays and also receives
     await user.click(screen.getByRole("button", { name: "Registrar" }));
     expect(await screen.findByText(/Escolha pessoas diferentes/)).toBeTruthy();
     expect(writes(fetch)).toHaveLength(0);
@@ -88,7 +88,7 @@ describe("Divisão", () => {
     expect(writeBody(fetch)).toMatchObject({ fromUserId: 2, toUserId: 1, amountCents: 7550, note: "Pix" });
   });
 
-  it("lista o histórico com data, valor e observação", async () => {
+  it("lists the history with date, amount and note", async () => {
     serve();
     renderApp(<Division />, splitting());
     expect(await screen.findByText(/Bia pagou a você/)).toBeTruthy();
@@ -96,7 +96,7 @@ describe("Divisão", () => {
     expect(screen.getByText(/R\$\s50,00/)).toBeTruthy();
   });
 
-  it("edita um acerto do histórico com PUT", async () => {
+  it("edits a settlement from the history with PUT", async () => {
     const fetch = serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
@@ -112,7 +112,7 @@ describe("Divisão", () => {
     expect(writeBody(fetch)).toMatchObject({ amountCents: 6000, date: "2026-09-20", note: "Pix do aluguel" });
   });
 
-  it("exclui um acerto só depois de confirmar", async () => {
+  it("deletes a settlement only after confirming", async () => {
     const fetch = serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
@@ -123,7 +123,7 @@ describe("Divisão", () => {
     expect(writes(fetch)[0][1]!.method).toBe("DELETE");
   });
 
-  it("leitores só consultam: sem botões de registrar, editar ou excluir", async () => {
+  it("readers only look: no register, edit or delete buttons", async () => {
     serve();
     renderApp(<Division />, splitting({ canEdit: false }));
     await screen.findByText(/Bia pagou a você/);
@@ -133,7 +133,7 @@ describe("Divisão", () => {
     expect(screen.queryByRole("button", { name: "Excluir" })).toBeNull();
   });
 
-  it("mostra erro de carregamento com opção de tentar de novo", async () => {
+  it("shows a load error with a retry option", async () => {
     mockFetch({ status: 500, body: { error: { code: "internal", message: "Erro interno" } } });
     renderApp(<Division />, splitting());
     expect(await screen.findByText("Não foi possível carregar a divisão.")).toBeTruthy();

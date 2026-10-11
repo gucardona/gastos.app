@@ -14,13 +14,13 @@ describe("parseCents", () => {
     ["  7,00 ", 700],
   ])("%s → %i", (input, want) => expect(parseCents(input)).toBe(want));
 
-  it.each(["", "abc", "12,345", "1,2,3", "-5", "0", "0,00"])("recusa %j", (input) =>
+  it.each(["", "abc", "12,345", "1,2,3", "-5", "0", "0,00"])("rejects %j", (input) =>
     expect(parseCents(input)).toBeNull(),
   );
 });
 
 describe("formatBRL", () => {
-  it("formata centavos em reais", () => {
+  it("formats cents as reais", () => {
     expect(formatBRL(123456).replace(/\s/g, " ")).toBe("R$ 1.234,56");
     expect(formatBRL(5).replace(/\s/g, " ")).toBe("R$ 0,05");
     expect(formatBRL(-2500).replace(/\s/g, " ")).toBe("-R$ 25,00");
@@ -28,7 +28,7 @@ describe("formatBRL", () => {
 });
 
 describe("splitBRL", () => {
-  it("separa reais e centavos", () => {
+  it("splits reais and cents", () => {
     expect(splitBRL(437660)).toEqual({ reais: "4.376", cents: "60" });
     expect(splitBRL(5)).toEqual({ reais: "0", cents: "05" });
     expect(splitBRL(-100)).toEqual({ reais: "-1", cents: "00" });

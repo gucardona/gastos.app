@@ -36,7 +36,7 @@ function Probe() {
 
 type Me = { user: typeof ana; wallets: (typeof wallet)[] };
 
-/** Responde a API inteira que o Shell consome; `me` pode ser trocado por um status de erro. */
+/** Serves the whole API the Shell consumes; `me` can be swapped for an error status. */
 function serve(me: Me | { status: number } = { user: ana, wallets: [wallet, viagem] }, extra: Record<string, unknown> = {}) {
   return mockFetch((url) => {
     if (url === "/api/me") return "status" in me ? { status: me.status, body: { error: { code: "x", message: "falhou" } } } : { body: me };
@@ -73,14 +73,14 @@ beforeEach(() => {
   vi.stubGlobal("EventSource", FakeEventSource);
 });
 
-describe("Shell: sessão e carregamento", () => {
-  it("sem sessão, leva ao login", async () => {
+describe("Shell: session and loading", () => {
+  it("without a session, goes to the login", async () => {
     serve({ status: 401 });
     renderShell();
     expect(await screen.findByText("tela de login")).toBeTruthy();
   });
 
-  it("mostra o carregamento e depois a página dentro da casca", async () => {
+  it("shows loading and then the page inside the shell", async () => {
     serve();
     const { container } = renderShell();
     expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0);
@@ -91,7 +91,7 @@ describe("Shell: sessão e carregamento", () => {
     }
   });
 
-  it("o link da página atual fica marcado como atual", async () => {
+  it("the current page's link is marked as current", async () => {
     serve();
     renderShell("/lancamentos");
     await screen.findByText("página de lançamentos");
@@ -100,7 +100,7 @@ describe("Shell: sessão e carregamento", () => {
     expect(current.every((l) => /Lançamentos/.test(l.textContent ?? ""))).toBe(true);
   });
 
-  it("erro de rede em /me mostra a falha e deixa tentar de novo", async () => {
+  it("a network error on /me shows the failure and allows a retry", async () => {
     const fetch = serve({ status: 500 });
     const user = userEvent.setup();
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -111,28 +111,28 @@ describe("Shell: sessão e carregamento", () => {
     await waitFor(() => expect(urls(fetch).filter((u) => u === "/api/me").length).toBeGreaterThan(before));
   });
 
-  it("falha nos dados da carteira também mostra a falha", async () => {
+  it("a failure loading the wallet data shows the failure too", async () => {
     mockFetch((url) => (url === "/api/me" ? { body: { user: ana, wallets: [wallet] } } : url.endsWith("/members") ? { body: members } : { status: 500, body: { error: { code: "x", message: "falhou" } } }));
     renderShell();
     expect(await screen.findByText(/Não foi possível carregar seus dados/)).toBeTruthy();
   });
 
-  it("usuário sem nenhuma carteira recebe um aviso claro", async () => {
+  it("a user with no wallet gets a clear notice", async () => {
     serve({ user: ana, wallets: [] });
     renderShell();
     expect(await screen.findByText("Você não participa de nenhuma carteira.")).toBeTruthy();
   });
 });
 
-describe("Shell: carteira e mês ativos", () => {
-  it("usa a primeira carteira por padrão e o mês corrente", async () => {
+describe("Shell: active wallet and month", () => {
+  it("uses the first wallet by default and the current month", async () => {
     serve();
     renderShell();
     expect(await screen.findByText("carteira Casa")).toBeTruthy();
     expect(screen.getByText(/^mês \d{4}-\d{2}$/)).toBeTruthy();
   });
 
-  it("usa a carteira guardada no navegador", async () => {
+  it("uses the wallet stored in the browser", async () => {
     localStorage.setItem("walletId", "2");
     const fetch = serve();
     renderShell();
@@ -141,14 +141,14 @@ describe("Shell: carteira e mês ativos", () => {
     expect(urls(fetch)).not.toContain("/api/wallets/1/categories");
   });
 
-  it("ignora uma carteira guardada que não existe mais", async () => {
+  it("ignores a stored wallet that no longer exists", async () => {
     localStorage.setItem("walletId", "99");
     serve();
     renderShell();
     expect(await screen.findByText("carteira Casa")).toBeTruthy();
   });
 
-  it("trocar de carteira guarda a escolha e recarrega os dados dela", async () => {
+  it("switching wallet stores the choice and reloads its data", async () => {
     const fetch = serve();
     const { user } = renderShell();
     await screen.findByText("carteira Casa");
@@ -158,7 +158,7 @@ describe("Shell: carteira e mês ativos", () => {
     await waitFor(() => expect(urls(fetch)).toContain("/api/wallets/2/members"));
   });
 
-  it("o mês vem da URL e a troca de mês atualiza a URL", async () => {
+  it("the month comes from the URL and changing month updates the URL", async () => {
     serve();
     const { user } = renderShell("/?m=2026-03");
     expect(await screen.findByText("mês 2026-03")).toBeTruthy();
@@ -167,8 +167,8 @@ describe("Shell: carteira e mês ativos", () => {
   });
 });
 
-describe("Shell: tempo real (SSE)", () => {
-  it("abre o fluxo da carteira ativa com credenciais e fecha ao sair", async () => {
+describe("Shell: real time (SSE)", () => {
+  it("opens the active wallet's stream with credentials and closes on unmount", async () => {
     serve();
     const { unmount } = renderShell();
     await screen.findByText("carteira Casa");
@@ -179,13 +179,13 @@ describe("Shell: tempo real (SSE)", () => {
     expect(FakeEventSource.all[0].closed).toBe(true);
   });
 
-  it("não abre fluxo nenhum enquanto não sabe qual é a carteira", () => {
+  it("opens no stream until it knows which wallet is active", () => {
     serve({ status: 401 });
     renderShell();
     expect(FakeEventSource.all).toHaveLength(0);
   });
 
-  it("um aviso do servidor renova os dados da carteira", async () => {
+  it("a server notice refreshes the wallet's data", async () => {
     const fetch = serve();
     renderShell();
     await screen.findByText("carteira Casa");
@@ -195,7 +195,7 @@ describe("Shell: tempo real (SSE)", () => {
     await waitFor(() => expect(urls(fetch).filter((u) => u === "/api/wallets/1/categories").length).toBeGreaterThan(before));
   });
 
-  it("ao trocar de carteira, fecha o fluxo antigo e abre o da nova", async () => {
+  it("when switching wallet, closes the old stream and opens the new one", async () => {
     serve();
     const { user } = renderShell();
     await screen.findByText("carteira Casa");
@@ -207,10 +207,10 @@ describe("Shell: tempo real (SSE)", () => {
   });
 });
 
-describe("Shell: lançamento rápido", () => {
+describe("Shell: quick add", () => {
   const dialogOpen = () => document.querySelector("dialog[open]") !== null;
 
-  it("a tecla N abre o lançamento rápido", async () => {
+  it("the N key opens quick add", async () => {
     serve();
     renderShell();
     await screen.findByText("carteira Casa");
@@ -220,7 +220,7 @@ describe("Shell: lançamento rápido", () => {
     expect(screen.getByRole("textbox", { name: "Valor" })).toBeTruthy();
   });
 
-  it("o botão 'Novo lançamento' também abre", async () => {
+  it("the 'Novo lançamento' button opens it too", async () => {
     serve();
     const { user } = renderShell();
     await screen.findByText("carteira Casa");
@@ -228,7 +228,7 @@ describe("Shell: lançamento rápido", () => {
     await waitFor(() => expect(dialogOpen()).toBe(true));
   });
 
-  it("digitar a letra n num campo não abre nada", async () => {
+  it("typing the letter n in a field opens nothing", async () => {
     serve();
     const { user } = renderShell();
     await screen.findByText("carteira Casa");
@@ -236,7 +236,7 @@ describe("Shell: lançamento rápido", () => {
     expect(dialogOpen()).toBe(false);
   });
 
-  it("Ctrl+N e Cmd+N seguem para o navegador", async () => {
+  it("Ctrl+N and Cmd+N are left to the browser", async () => {
     serve();
     renderShell();
     await screen.findByText("carteira Casa");
@@ -245,7 +245,7 @@ describe("Shell: lançamento rápido", () => {
     expect(dialogOpen()).toBe(false);
   });
 
-  it("leitores não têm botão nem atalho", async () => {
+  it("readers have neither the button nor the shortcut", async () => {
     serve({ user: ana, wallets: [{ ...wallet, role: "reader" }] });
     renderShell();
     await screen.findByText("carteira Casa");
@@ -254,7 +254,7 @@ describe("Shell: lançamento rápido", () => {
     expect(dialogOpen()).toBe(false);
   });
 
-  it("fechar o lançamento rápido pelo botão fecha o dialog", async () => {
+  it("closing quick add with the button closes the dialog", async () => {
     serve();
     const { user } = renderShell();
     await screen.findByText("carteira Casa");

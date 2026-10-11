@@ -6,7 +6,7 @@ import { formatBRL } from "../lib/money";
 const signed = (t: Transaction) => (t.kind === "income" ? t.amountCents : -t.amountCents);
 const money = (cents: number) => `${cents < 0 ? "−" : "+"}${formatBRL(Math.abs(cents))}`;
 
-/** Lançamentos agrupados por dia, na ordem recebida (a API já entrega do mais novo ao mais antigo). */
+/** Transactions grouped by day, in the order received (the API already returns newest first). */
 export function TransactionList({ items }: { items: Transaction[] }) {
   const { categories, paymentMethods, members, canEdit, openAdd } = useApp();
   const cat = (id: number) => categories.find((c) => c.id === id);

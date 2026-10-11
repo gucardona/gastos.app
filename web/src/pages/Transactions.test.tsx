@@ -15,18 +15,18 @@ const items: Transaction[] = [
 const serve = (list: Transaction[] = items) => mockFetch({ body: list });
 const rows = () => screen.queryAllByRole("button", { name: /Padaria|Feira|Salário/ });
 
-describe("Lançamentos", () => {
-  it("totaliza entradas e saídas do mês e lista tudo por padrão", async () => {
+describe("Transactions", () => {
+  it("totals the month's income and expenses and lists everything by default", async () => {
     serve();
     renderApp(<Transactions />);
     expect(await screen.findByText("Padaria")).toBeTruthy();
     expect(screen.getByText(/Entrou/).textContent).toMatch(/8\.500,00/);
-    expect(screen.getByText(/Saiu/).textContent).toMatch(/299,50/); // 18,00 + 281,50
+    expect(screen.getByText(/Saiu/).textContent).toMatch(/299,50/); // 18.00 + 281.50
     expect(rows()).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Tudo" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("busca na descrição sem diferenciar maiúsculas", async () => {
+  it("searches the description case-insensitively", async () => {
     serve();
     const user = userEvent.setup();
     renderApp(<Transactions />);
@@ -35,7 +35,7 @@ describe("Lançamentos", () => {
     expect(rows().map((r) => r.textContent)).toEqual([expect.stringContaining("Feira da semana")]);
   });
 
-  it("filtra por gastos e por entradas", async () => {
+  it("filters by expenses and by income", async () => {
     serve();
     const user = userEvent.setup();
     renderApp(<Transactions />);
@@ -50,18 +50,18 @@ describe("Lançamentos", () => {
     expect(rows().map((r) => r.textContent)).toEqual([expect.stringContaining("Salário")]);
   });
 
-  it("combina filtro e busca; os totais continuam sendo os do mês inteiro", async () => {
+  it("combines filter and search; the totals stay those of the whole month", async () => {
     serve();
     const user = userEvent.setup();
     renderApp(<Transactions />);
     await screen.findByText("Padaria");
     await user.click(screen.getByRole("button", { name: "Gastos" }));
-    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "sal"); // só "Salário", que é entrada
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "sal"); // only "Salário", which is income
     expect(screen.getByText("Nenhum lançamento corresponde ao filtro.")).toBeTruthy();
     expect(screen.getByText(/Entrou/).textContent).toMatch(/8\.500,00/);
   });
 
-  it("mês sem lançamentos convida a criar o primeiro", async () => {
+  it("a month with no transactions invites creating the first one", async () => {
     serve([]);
     const ctx = appCtx();
     const user = userEvent.setup();
@@ -71,27 +71,27 @@ describe("Lançamentos", () => {
     expect(ctx.openAdd).toHaveBeenCalledWith();
   });
 
-  it("leitores não recebem o convite para criar", async () => {
+  it("readers do not get the invitation to create", async () => {
     serve([]);
     renderApp(<Transactions />, appCtx({ canEdit: false }));
     expect(await screen.findByText("Nenhum lançamento neste mês.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Novo lançamento" })).toBeNull();
   });
 
-  it("pede à API o mês certo", async () => {
+  it("asks the API for the right month", async () => {
     const fetch = serve([]);
     renderApp(<Transactions />, appCtx({ month: "2026-02" }));
     await screen.findByText("Nenhum lançamento neste mês.");
     expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/transactions?from=2026-02-01&to=2026-02-28");
   });
 
-  it("agrupa por dia, com o dia de hoje identificado", async () => {
+  it("groups by day, with today identified", async () => {
     serve([tx({ id: 1, date: today() })]);
     renderApp(<Transactions />);
     expect(await screen.findByText(/^Hoje,/)).toBeTruthy();
   });
 
-  it("mostra o erro com opção de tentar de novo", async () => {
+  it("shows the error with a retry option", async () => {
     const fetch = mockFetch({ status: 500, body: { error: { code: "internal", message: "Erro interno" } } });
     const user = userEvent.setup();
     renderApp(<Transactions />);
@@ -101,7 +101,7 @@ describe("Lançamentos", () => {
     await waitFor(() => expect(fetch.mock.calls.length).toBeGreaterThan(before));
   });
 
-  it("mostra o carregamento enquanto a API não responde", () => {
+  it("shows loading while the API has not answered", () => {
     mockFetch(() => new Promise(() => {}) as never);
     const { container } = renderApp(<Transactions />);
     expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0);

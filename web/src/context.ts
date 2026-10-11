@@ -12,7 +12,7 @@ export interface AppCtx {
   paymentMethods: PaymentMethod[];
   members: Member[];
   canEdit: boolean;
-  /** Abre o lançamento rápido; com `tx`, edita esse lançamento. */
+  /** Opens quick add; with `tx`, edits that transaction. */
   openAdd: (tx?: Transaction) => void;
 }
 
@@ -20,7 +20,7 @@ export const Ctx = createContext<AppCtx | null>(null);
 
 export function useApp() {
   const c = useContext(Ctx);
-  if (!c) throw new Error("useApp fora do Shell");
+  if (!c) throw new Error("useApp used outside the Shell");
   return c;
 }
 

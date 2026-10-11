@@ -16,7 +16,7 @@ export function setTheme(t: Theme) {
     if (t === "system") localStorage.removeItem("theme");
     else localStorage.setItem("theme", t);
   } catch {
-    // sem armazenamento: o tema vale só nesta sessão
+    // no storage available: the theme only lasts for this session
   }
 }
 

@@ -53,8 +53,8 @@ type transactionInput struct {
 
 func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
 
-// validate normaliza a entrada e confere as referências dentro da carteira.
-// currentCategoryID permite manter uma categoria arquivada que já era da transação (0 na criação).
+// validate normalizes the input and checks references within the wallet.
+// currentCategoryID allows keeping an archived category the transaction already had (0 on create).
 func (in *transactionInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.PaidByUserID == 0 {
@@ -120,7 +120,7 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 	return nil
 }
 
-// resolveSplits aplica as regras de divisão da spec e devolve os splits finais (sem amountCents).
+// resolveSplits applies the spec's split rules and returns the final splits (without amountCents).
 func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, requested []split) ([]split, error) {
 	var splitting bool
 	if err := q.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
@@ -284,7 +284,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
-// attachSplits carrega os splits de todas as transações da lista com uma única query.
+// attachSplits loads the splits of every transaction in the list with a single query.
 func (s *Server) attachSplits(ctx context.Context, list []transaction, index map[int64]int) error {
 	if len(list) == 0 {
 		return nil
@@ -368,7 +368,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 		if err := tx.QueryRowContext(ctx,
 			`SELECT category_id, created_by, recurrence_id FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
 		).Scan(&currentCat, &createdBy, &recurrenceID); err != nil {
-			return err // sql.ErrNoRows → 404 via writeError
+			return err // sql.ErrNoRows → 404 through writeError
 		}
 		if err := in.validate(ctx, tx, walletID, userID, currentCat); err != nil {
 			return err

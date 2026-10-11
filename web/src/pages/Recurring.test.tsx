@@ -15,8 +15,8 @@ function serve(list: Recurrence[]) {
 }
 const writes = (fetch: ReturnType<typeof mockFetch>) => fetch.mock.calls.filter((c) => c[1]?.method && c[1].method !== "GET");
 
-describe("Recurrentes", () => {
-  it("lista com dia, próxima data e valor", async () => {
+describe("Recurring", () => {
+  it("lists with day, next date and amount", async () => {
     serve([netflix]);
     renderApp(<Recurring />);
     expect(await screen.findByText("Netflix")).toBeTruthy();
@@ -24,13 +24,13 @@ describe("Recurrentes", () => {
     expect(screen.getByText(/−R\$\s55,90/)).toBeTruthy();
   });
 
-  it("mostra o estado vazio com a dica de como criar", async () => {
+  it("shows the empty state with a hint on how to create one", async () => {
     serve([]);
     renderApp(<Recurring />);
     expect(await screen.findByText(/ative "Repetir todo mês"/)).toBeTruthy();
   });
 
-  it("pausa enviando o objeto inteiro com enabled=false", async () => {
+  it("pauses by sending the whole object with enabled=false", async () => {
     const fetch = serve([netflix]);
     const user = userEvent.setup();
     renderApp(<Recurring />);
@@ -44,7 +44,7 @@ describe("Recurrentes", () => {
     });
   });
 
-  it("edita valor e dia, validando antes de enviar", async () => {
+  it("edits amount and day, validating before sending", async () => {
     const fetch = serve([netflix]);
     const user = userEvent.setup();
     renderApp(<Recurring />);
@@ -64,7 +64,7 @@ describe("Recurrentes", () => {
     expect(bodyOf(fetch, fetch.mock.calls.indexOf(writes(fetch)[0]))).toMatchObject({ amountCents: 5990, dayOfMonth: 10 });
   });
 
-  it("exclui só depois de confirmar", async () => {
+  it("deletes only after confirming", async () => {
     const fetch = serve([netflix]);
     const user = userEvent.setup();
     renderApp(<Recurring />);
@@ -75,7 +75,7 @@ describe("Recurrentes", () => {
     expect(writes(fetch)[0][1]!.method).toBe("DELETE");
   });
 
-  it("só envia as partes da divisão quando a carteira divide gastos", async () => {
+  it("only sends the split parts when the wallet splits expenses", async () => {
     const split = { ...netflix, splits: [{ userId: 1, shareBp: 6000, amountCents: 3354 }, { userId: 2, shareBp: 4000, amountCents: 2236 }] };
     const fetch = serve([split]);
     const user = userEvent.setup();
@@ -85,7 +85,7 @@ describe("Recurrentes", () => {
     expect(bodyOf(fetch, fetch.mock.calls.indexOf(writes(fetch)[0])).splits).toEqual([{ userId: 1, shareBp: 6000 }, { userId: 2, shareBp: 4000 }]);
   });
 
-  it("leitores veem a lista sem os controles", async () => {
+  it("readers see the list without the controls", async () => {
     serve([netflix]);
     renderApp(<Recurring />, appCtx({ canEdit: false }));
     await screen.findByText("Netflix");

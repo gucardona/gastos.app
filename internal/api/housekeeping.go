@@ -7,12 +7,12 @@ import (
 	"gastos/internal/db"
 )
 
-// Housekeeping remove sessões expiradas e garante um backup diário, até ctx ser cancelado.
+// Housekeeping removes expired sessions and ensures a daily backup, until ctx is cancelled.
 func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 	run := func() {
 		now := s.now().UTC()
 		if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, now.Format(tsLayout)); err != nil && ctx.Err() == nil {
-			s.log.Error("limpar sessões", "err", err)
+			s.log.Error("clean up sessions", "err", err)
 		}
 		if db.LastBackupAge(s.cfg.BackupDir, now) > 24*time.Hour {
 			if p, err := db.Backup(ctx, s.db, s.cfg.BackupDir, s.cfg.BackupKeep, now); err != nil {

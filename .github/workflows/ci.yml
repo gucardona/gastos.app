@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  # Unitários e de integração do backend (internal/api sobe o servidor com SQLite real via httptest).
+  # Backend unit and integration tests (internal/api starts the server with a real SQLite through httptest).
   backend:
     runs-on: ubuntu-latest
     steps:
@@ -18,7 +18,7 @@ jobs:
       - name: Off-site backup script
         run: bash scripts/offsite-backup.test.sh
 
-  # Typecheck, unitários e testes de componente (Vitest + Testing Library).
+  # Typecheck, unit and component tests (Vitest + Testing Library).
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -35,7 +35,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-  # Fluxos completos no navegador contra o binário Go real, com o frontend embutido.
+  # Full browser flows against the real Go binary, with the embedded frontend.
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -84,7 +84,7 @@ jobs:
           name: gastos-linux-amd64
           path: gastos
 
-  # Só a master faz deploy (produção). Branches e PRs rodam os testes e o build, mas nunca publicam.
+  # Only master deploys (production). Branches and PRs run the tests and the build, but never publish.
   deploy:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'

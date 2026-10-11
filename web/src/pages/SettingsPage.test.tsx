@@ -31,8 +31,8 @@ beforeEach(() => {
   delete document.documentElement.dataset.theme;
 });
 
-describe("Ajustes", () => {
-  it("abre na conta, com nome, e-mail e o papel na carteira", () => {
+describe("Settings", () => {
+  it("opens on the account, with name, email and the role in the wallet", () => {
     mockFetch();
     renderSettings();
     expect(screen.getByRole("button", { name: "Conta" }).getAttribute("aria-pressed")).toBe("true");
@@ -40,7 +40,7 @@ describe("Ajustes", () => {
     expect(screen.getByText(/Casa, você administra/)).toBeTruthy();
   });
 
-  it("troca de seção e guarda a escolha na URL", async () => {
+  it("switches section and keeps the choice in the URL", async () => {
     mockFetch({ body: [] });
     const user = userEvent.setup();
     renderSettings();
@@ -62,13 +62,13 @@ describe("Ajustes", () => {
     expect(await screen.findByText(new RegExp(marker))).toBeTruthy();
   });
 
-  it("seção desconhecida cai na conta", () => {
+  it("an unknown section falls back to the account", () => {
     mockFetch();
     renderSettings("/ajustes?s=nao-existe");
     expect(screen.getByText("ana@example.com")).toBeTruthy();
   });
 
-  it("o tema escolhido vale na hora e fica guardado", async () => {
+  it("the chosen theme applies immediately and is remembered", async () => {
     mockFetch();
     const user = userEvent.setup();
     renderSettings();
@@ -80,7 +80,7 @@ describe("Ajustes", () => {
     expect(localStorage.getItem("theme")).toBeNull();
   });
 
-  it("sair encerra a sessão e volta ao login", async () => {
+  it("signing out ends the session and returns to the login", async () => {
     const fetch = mockFetch({ status: 204 });
     const user = userEvent.setup();
     renderSettings();
@@ -90,7 +90,7 @@ describe("Ajustes", () => {
     expect(fetch.mock.calls[0][1]!.method).toBe("POST");
   });
 
-  it("sair funciona mesmo se a chamada falhar (sem conexão)", async () => {
+  it("signing out works even if the call fails (offline)", async () => {
     const fetch = mockFetch();
     fetch.mockRejectedValue(new Error("offline"));
     const user = userEvent.setup();

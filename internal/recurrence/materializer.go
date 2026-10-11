@@ -31,9 +31,9 @@ type template struct {
 
 type splitRow struct{ userID, shareBP int64 }
 
-// Run materializa as ocorrências devidas até hoje (no fuso configurado).
-// walletID == 0 processa todas as carteiras. É idempotente e seguro sob concorrência,
-// graças aos índices únicos (recurrence_id, occurrence).
+// Run materializes the occurrences due up to today (in the configured time zone).
+// walletID == 0 processes every wallet. It is idempotent and safe under concurrency,
+// thanks to the unique indexes on (recurrence_id, occurrence).
 func (m *Materializer) Run(ctx context.Context, walletID int64) error {
 	templates, err := m.load(ctx, walletID)
 	if err != nil {
@@ -45,7 +45,7 @@ func (m *Materializer) Run(ctx context.Context, walletID int64) error {
 	for _, t := range templates {
 		occ, err := Occurrences(t.day, t.startDate, t.endDate, today)
 		if err != nil {
-			m.log.Error("recorrência inválida", "id", t.id, "err", err)
+			m.log.Error("invalid recurrence", "id", t.id, "err", err)
 			continue
 		}
 		for _, o := range occ {
@@ -114,7 +114,7 @@ func (m *Materializer) load(ctx context.Context, walletID int64) ([]template, er
 	return out, nil
 }
 
-// insert grava uma ocorrência; devolve false se ela já existia.
+// insert writes an occurrence; it returns false if it already existed.
 func (m *Materializer) insert(ctx context.Context, t template, o Occurrence) (bool, error) {
 	tx, err := m.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -166,11 +166,11 @@ func (m *Materializer) insert(ctx context.Context, t template, o Occurrence) (bo
 	return true, tx.Commit()
 }
 
-// Loop roda Run imediatamente e depois a cada intervalo, até ctx ser cancelado.
+// Loop runs Run immediately and then at every interval, until ctx is cancelled.
 func (m *Materializer) Loop(ctx context.Context, every time.Duration) {
 	run := func() {
 		if err := m.Run(ctx, 0); err != nil && ctx.Err() == nil {
-			m.log.Error("materializar recorrências", "err", err)
+			m.log.Error("materialize recurrences", "err", err)
 		}
 	}
 	run()

@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { firstName, useApp } from "../context";
 import { addMonths, monthLabel } from "../lib/dates";
 
-/** Topo das telas: carteira ativa e avatar. */
+/** Top of the screens: active wallet and avatar. */
 export function PageBar() {
   const { user, wallet, wallets, setWalletId, members } = useApp();
   const others = members.filter((m) => m.userId !== user.id).map((m) => firstName(m.name));

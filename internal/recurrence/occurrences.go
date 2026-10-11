@@ -12,11 +12,11 @@ type Occurrence struct {
 	Date  string // YYYY-MM-DD
 }
 
-// Occurrences lista as datas mensais de uma recorrência entre start e until (inclusivos),
-// respeitando end (inclusivo, vazio = sem fim). O dia é limitado ao último dia de cada mês.
+// Occurrences lists a recurrence's monthly dates between start and until (inclusive),
+// honoring end (inclusive, empty = no end). The day is clamped to the last day of each month.
 func Occurrences(day int, start, end, until string) ([]Occurrence, error) {
 	if day < 1 || day > 31 {
-		return nil, fmt.Errorf("dia do mês inválido: %d", day)
+		return nil, fmt.Errorf("invalid day of month: %d", day)
 	}
 	s, err := time.Parse(dateLayout, start)
 	if err != nil {

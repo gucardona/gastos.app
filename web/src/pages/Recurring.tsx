@@ -44,7 +44,7 @@ function Item({ r }: { r: Recurrence }) {
   const title = r.description || (r.kind === "settlement" ? `Acerto de ${name(r.paidByUserId)} para ${name(r.toUserId)}` : cat?.name ?? "Recorrência");
   const sign = r.kind === "income" ? "+" : "−";
 
-  // a API espera o objeto inteiro no PUT; o resto do formulário é preservado como está
+  // the API expects the whole object on PUT; the rest of the form is preserved as is
   const body = (over: Partial<Recurrence> = {}) => {
     const x = { ...r, ...over };
     return {

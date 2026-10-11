@@ -34,7 +34,7 @@ type testApp struct {
 
 func newTestApp(t *testing.T) *testApp { return newTestAppWith(t, nil) }
 
-// newTestAppWith permite ajustar a configuração (modo dev, diretório de backup...) antes de subir o servidor.
+// newTestAppWith lets a test tweak the configuration (dev mode, backup directory...) before the server starts.
 func newTestAppWith(t *testing.T, tweak func(*config.Config)) *testApp {
 	t.Helper()
 	d, err := db.Open(filepath.Join(testutil.TempDir(t), "t.db"))
@@ -63,7 +63,7 @@ type client struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
-	walletID int64 // carteira "Pessoal" criada no registro
+	walletID int64 // the "Pessoal" wallet created on signup
 }
 
 func (a *testApp) anon() *client {
@@ -71,7 +71,7 @@ func (a *testApp) anon() *client {
 	return &client{app: a, http: &http.Client{Jar: jar}}
 }
 
-// register cria usuÃ¡rio, guarda o cookie e a carteira pessoal.
+// register creates a user, keeps the cookie and the personal wallet.
 func (a *testApp) register(name, email string) *client {
 	a.t.Helper()
 	c := a.anon()
@@ -86,7 +86,7 @@ func (a *testApp) register(name, email string) *client {
 	return c
 }
 
-// do faz a request, confere o status e decodifica a resposta em out (se nÃ£o nil).
+// do makes the request, checks the status and decodes the response into out (if not nil).
 func (c *client) do(method, path string, body any, wantStatus int, out any) {
 	c.app.t.Helper()
 	var rd io.Reader
@@ -114,7 +114,7 @@ func (c *client) do(method, path string, body any, wantStatus int, out any) {
 	}
 }
 
-// wpath monta um path dentro da carteira ativa do client.
+// wpath builds a path inside the client's active wallet.
 func (c *client) wpath(format string, args ...any) string {
 	return fmt.Sprintf("/api/wallets/%d", c.walletID) + fmt.Sprintf(format, args...)
 }

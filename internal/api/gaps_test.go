@@ -13,16 +13,16 @@ func TestListMembers(t *testing.T) {
 	shareWallet(ana, caio, "reader")
 
 	var list []memberDTO
-	bia.do("GET", bia.wpath("/members"), nil, 200, &list) // qualquer membro lista
+	bia.do("GET", bia.wpath("/members"), nil, 200, &list) // any member can list
 	if len(list) != 3 {
 		t.Fatalf("%d membros, want 3: %+v", len(list), list)
 	}
-	// dona primeiro, depois quem edita, depois quem só lê
+	// owner first, then editors, then readers
 	if list[0].Role != "owner" || list[1].Role != "editor" || list[2].Role != "reader" {
-		t.Fatalf("ordem inesperada: %+v", list)
+		t.Fatalf("unexpected order: %+v", list)
 	}
 	if list[0].Email != "ana@example.com" || !list[0].SplitsByDefault {
-		t.Fatalf("campos do primeiro membro: %+v", list[0])
+		t.Fatalf("first member's fields: %+v", list[0])
 	}
 }
 
@@ -43,9 +43,9 @@ func TestUpdateMemberSplitsByDefault(t *testing.T) {
 	var m memberDTO
 	ana.do("PATCH", ana.wpath("/members/%d", bia.user.ID), map[string]any{"splitsByDefault": false}, 200, &m)
 	if m.SplitsByDefault {
-		t.Fatalf("deveria ter saído da divisão padrão: %+v", m)
+		t.Fatalf("should have left the default split: %+v", m)
 	}
-	ana.do("PATCH", ana.wpath("/members/%d", ana.user.ID), map[string]any{"role": "reader"}, 400, nil) // o papel da dona não muda
+	ana.do("PATCH", ana.wpath("/members/%d", ana.user.ID), map[string]any{"role": "reader"}, 400, nil) // the owner's role cannot change
 	ana.do("PATCH", ana.wpath("/members/%d", bia.user.ID), map[string]any{"role": "owner"}, 400, nil)
 	ana.do("PATCH", ana.wpath("/members/9999"), map[string]any{"role": "reader"}, 404, nil)
 }
@@ -59,11 +59,11 @@ func TestUpdateWallet(t *testing.T) {
 
 	ana.do("PATCH", ana.wpath(""), map[string]any{"name": "  Casa nova  "}, 200, &w)
 	if w.Name != "Casa nova" || w.SplittingEnabled {
-		t.Fatalf("só o nome deveria mudar (e sem espaços): %+v", w)
+		t.Fatalf("only the name should change (and be trimmed): %+v", w)
 	}
 	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, &w)
 	if w.Name != "Casa nova" || !w.SplittingEnabled {
-		t.Fatalf("só a divisão deveria mudar: %+v", w)
+		t.Fatalf("only splitting should change: %+v", w)
 	}
 
 	var res struct {
@@ -72,7 +72,7 @@ func TestUpdateWallet(t *testing.T) {
 	ana.do("PATCH", ana.wpath(""), map[string]any{}, 400, nil)
 	ana.do("PATCH", ana.wpath(""), map[string]any{"name": "   "}, 400, &res)
 	if res.Error.Fields["name"] == "" {
-		t.Errorf("faltou erro de campo: %+v", res.Error)
+		t.Errorf("missing field error: %+v", res.Error)
 	}
 	ana.do("PATCH", ana.wpath(""), map[string]any{"nome": "x"}, 400, nil) // campo desconhecido
 }
@@ -86,18 +86,18 @@ func TestCreateWalletValidation(t *testing.T) {
 	var cats []categoryDTO
 	ana.do("GET", "/api/wallets/"+itoa(w.ID)+"/categories", nil, 200, &cats)
 	if len(cats) != 20 {
-		t.Fatalf("a carteira nova deveria ter as 20 categorias padrão, tem %d", len(cats))
+		t.Fatalf("the new wallet should have the 20 default categories, has %d", len(cats))
 	}
 }
 
-// ---- catálogo: caminhos que ficaram de fora ----
+// ---- catalog: paths that were left out ----
 
 func TestDeleteUnusedPaymentMethodAndEmptyIcon(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	var p paymentMethodDTO
 	ana.do("POST", ana.wpath("/payment-methods"), map[string]any{"name": "Cheque", "icon": "🧾"}, 201, &p)
-	ana.do("DELETE", ana.wpath("/payment-methods/%d", p.ID), nil, 204, nil) // sem uso: apaga de verdade
+	ana.do("DELETE", ana.wpath("/payment-methods/%d", p.ID), nil, 204, nil) // unused: really deletes
 	ana.do("PUT", ana.wpath("/payment-methods/%d", p.ID), map[string]any{"name": "x", "icon": "x"}, 404, nil)
 
 	var res struct {
@@ -105,12 +105,12 @@ func TestDeleteUnusedPaymentMethodAndEmptyIcon(t *testing.T) {
 	}
 	ana.do("POST", ana.wpath("/payment-methods"), map[string]any{"name": "Vale", "icon": ""}, 400, &res)
 	if res.Error.Fields["icon"] == "" {
-		t.Errorf("faltou erro no ícone: %+v", res.Error)
+		t.Errorf("missing icon error: %+v", res.Error)
 	}
 	ana.do("POST", ana.wpath("/payment-methods"), map[string]any{"name": "Vale", "icon": "um ícone muito mais comprido que o limite de bytes"}, 400, nil)
 }
 
-// ---- recorrência com divisão ----
+// ---- recurrence with splitting ----
 
 func TestRecurrenceKeepsSplits(t *testing.T) {
 	app := newTestApp(t)
@@ -127,21 +127,21 @@ func TestRecurrenceKeepsSplits(t *testing.T) {
 		"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 7000}, {"userId": bia.user.ID, "shareBp": 3000}},
 	}, 201, &rec)
 	if len(rec.Splits) != 2 || rec.Splits[0].AmountCents != 7000 || rec.Splits[1].AmountCents != 3000 {
-		t.Fatalf("splits da recorrência: %+v", rec.Splits)
+		t.Fatalf("recurrence splits: %+v", rec.Splits)
 	}
-	// os lançamentos gerados herdam a divisão
+	// generated transactions inherit the split
 	for _, tx := range listRange(ana, start) {
 		if len(tx.Splits) != 2 || tx.Splits[0].ShareBP != 7000 {
-			t.Fatalf("o lançamento gerado perdeu a divisão: %+v", tx)
+			t.Fatalf("the generated transaction lost its split: %+v", tx)
 		}
 	}
-	// trocar a divisão na recorrência substitui as partes
+	// changing the split on the recurrence replaces the parts
 	ana.do("PUT", ana.wpath("/recurrences/%d", rec.ID), map[string]any{
 		"kind": "expense", "amountCents": 10000, "description": "Internet", "categoryId": rec.CategoryID,
 		"dayOfMonth": 1, "startDate": start,
 		"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 5000}, {"userId": bia.user.ID, "shareBp": 5000}},
 	}, 200, &rec)
 	if rec.Splits[0].ShareBP != 5000 {
-		t.Fatalf("splits depois do PUT: %+v", rec.Splits)
+		t.Fatalf("splits after the PUT: %+v", rec.Splits)
 	}
 }

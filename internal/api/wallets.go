@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// bcryptCost é variável para os testes usarem um custo baixo.
+// bcryptCost is a variable so tests can use a low cost.
 var bcryptCost = 12
 
 type role int
@@ -42,8 +42,8 @@ func parseRole(s string) (role, bool) {
 	return 0, false
 }
 
-// requireWallet exige que o usuário seja membro da carteira do path com papel >= min.
-// Quem não é membro recebe 404 para não revelar que a carteira existe.
+// requireWallet requires the user to be a member of the wallet in the path with role >= min.
+// Non-members get 404 so the wallet's existence is not revealed.
 func (s *Server) requireWallet(min role, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		walletID, err := pathID(r, "walletID")
@@ -113,7 +113,7 @@ func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (wallet
 	return d, err
 }
 
-// createWallet insere a carteira, o owner e os padrões (categorias e formas de pagamento).
+// createWallet inserts the wallet, the owner and the defaults (categories and payment methods).
 func createWallet(ctx context.Context, q querier, name string, ownerID int64, splitting bool) (int64, error) {
 	var id int64
 	if err := q.QueryRowContext(ctx, `INSERT INTO wallets (name, splitting_enabled) VALUES (?, ?) RETURNING id`,
@@ -265,7 +265,7 @@ func (s *Server) updateWallet(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) deleteWallet(w http.ResponseWriter, r *http.Request) error {
-	s.mutated(r) // avisa os outros membros antes de a carteira sumir
+	s.mutated(r) // notify the other members before the wallet disappears
 	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM wallets WHERE id = ?`, walletIDFrom(r.Context())); err != nil {
 		return err
 	}

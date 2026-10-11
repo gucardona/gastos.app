@@ -2,7 +2,7 @@ package api
 
 import "testing"
 
-// shareWallet adiciona other à carteira de owner com o papel dado e aponta other.walletID para ela.
+// shareWallet adds other to owner's wallet with the given role and points other.walletID at it.
 func shareWallet(owner, other *client, role string) {
 	owner.app.t.Helper()
 	owner.do("POST", owner.wpath("/members"), map[string]string{"email": other.user.Email, "role": role}, 201, nil)
@@ -49,8 +49,8 @@ func TestMemberLeave(t *testing.T) {
 	bia := app.register("Bia", "bia@example.com")
 	shareWallet(ana, bia, "editor")
 
-	bia.do("DELETE", bia.wpath("/members/%d", ana.user.ID), nil, 403, nil) // reader/editor não remove outro
-	ana.do("DELETE", ana.wpath("/members/%d", ana.user.ID), nil, 400, nil) // owner não sai
+	bia.do("DELETE", bia.wpath("/members/%d", ana.user.ID), nil, 403, nil) // an editor/reader cannot remove someone else
+	ana.do("DELETE", ana.wpath("/members/%d", ana.user.ID), nil, 400, nil) // the owner cannot leave
 	bia.do("DELETE", bia.wpath("/members/%d", bia.user.ID), nil, 204, nil)
 	bia.do("GET", bia.wpath("/categories"), nil, 404, nil)
 }
@@ -73,7 +73,7 @@ func TestWalletCRUD(t *testing.T) {
 	var created walletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa", "splittingEnabled": true}, 201, &created)
 	if created.Role != "owner" || !created.SplittingEnabled || created.OwnerName != "Ana" {
-		t.Fatalf("carteira criada: %+v", created)
+		t.Fatalf("created wallet: %+v", created)
 	}
 
 	var list []walletDTO
@@ -86,6 +86,6 @@ func TestWalletCRUD(t *testing.T) {
 	ana.do("DELETE", "/api/wallets/"+itoa(created.ID), nil, 204, nil)
 	ana.do("GET", "/api/wallets", nil, 200, &list)
 	if len(list) != 0 {
-		t.Fatalf("%d carteiras após apagar, want 0", len(list))
+		t.Fatalf("%d wallets after deleting, want 0", len(list))
 	}
 }

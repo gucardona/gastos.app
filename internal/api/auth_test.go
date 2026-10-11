@@ -10,7 +10,7 @@ func TestAuthFlow(t *testing.T) {
 	app := newTestApp(t)
 	c := app.register("Ana", "ana@example.com")
 	if c.user.ID == 0 || c.walletID == 0 {
-		t.Fatalf("registro sem user/carteira: %+v", c)
+		t.Fatalf("signup without user/wallet: %+v", c)
 	}
 
 	c.do("POST", "/api/auth/logout", nil, 204, nil)
@@ -29,7 +29,7 @@ func TestRegisterValidation(t *testing.T) {
 	c.do("POST", "/api/auth/register", map[string]string{"name": "", "email": "x", "password": "123"}, 400, &res)
 	for _, f := range []string{"name", "email", "password"} {
 		if res.Error.Fields[f] == "" {
-			t.Errorf("faltou erro em %s: %+v", f, res.Error.Fields)
+			t.Errorf("missing error on %s: %+v", f, res.Error.Fields)
 		}
 	}
 	app.register("Ana", "ana@example.com")

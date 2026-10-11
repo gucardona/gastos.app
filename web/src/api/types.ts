@@ -1,4 +1,4 @@
-// Espelha o contrato da API v2 (docs/superpowers/specs/2026-10-09-backend-foundation-design.md). Dinheiro sempre em centavos.
+// Mirrors the API v2 contract (docs/superpowers/specs/2026-10-09-backend-foundation-design.md). Money is always in cents.
 
 export type Kind = "expense" | "income";
 export type Role = "owner" | "editor" | "reader";

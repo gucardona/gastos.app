@@ -40,7 +40,7 @@ export function Shell() {
   const month = params.get("m") ?? monthOf(today());
   const canEdit = wallet?.role !== "reader";
 
-  // atalho N abre o lançamento rápido, como na spec
+  // the N shortcut opens quick add, as in the spec
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
@@ -64,7 +64,7 @@ export function Shell() {
         try {
           localStorage.setItem("walletId", String(id));
         } catch {
-          // sem armazenamento: vale só nesta sessão
+          // no storage available: only lasts for this session
         }
       },
       month,

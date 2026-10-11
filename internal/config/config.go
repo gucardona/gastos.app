@@ -16,7 +16,7 @@ type Config struct {
 	Dev          bool
 }
 
-// Load lê a configuração de getenv (os.Getenv em produção) e falha cedo em valores inválidos.
+// Load reads the configuration from getenv (os.Getenv in production) and fails early on invalid values.
 func Load(getenv func(string) string) (Config, error) {
 	c := Config{
 		Addr:      or(getenv("GASTOS_ADDR"), ":8000"),
@@ -26,13 +26,13 @@ func Load(getenv func(string) string) (Config, error) {
 
 	keep, err := strconv.Atoi(or(getenv("GASTOS_BACKUP_KEEP"), "14"))
 	if err != nil || keep < 1 {
-		return Config{}, fmt.Errorf("GASTOS_BACKUP_KEEP inválido: %q", getenv("GASTOS_BACKUP_KEEP"))
+		return Config{}, fmt.Errorf("invalid GASTOS_BACKUP_KEEP: %q", getenv("GASTOS_BACKUP_KEEP"))
 	}
 	c.BackupKeep = keep
 
 	c.Location, err = time.LoadLocation(or(getenv("GASTOS_TZ"), "America/Sao_Paulo"))
 	if err != nil {
-		return Config{}, fmt.Errorf("GASTOS_TZ inválido: %w", err)
+		return Config{}, fmt.Errorf("invalid GASTOS_TZ: %w", err)
 	}
 	if c.CookieSecure, err = parseBool("GASTOS_COOKIE_SECURE", getenv, true); err != nil {
 		return Config{}, err
@@ -57,7 +57,7 @@ func parseBool(key string, getenv func(string) string, def bool) (bool, error) {
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
-		return false, fmt.Errorf("%s inválido: %q", key, v)
+		return false, fmt.Errorf("invalid %s: %q", key, v)
 	}
 	return b, nil
 }

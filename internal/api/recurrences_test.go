@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// monthsAgoFirst devolve o dia 1 de n meses atrás, no fuso do app.
+// monthsAgoFirst returns the 1st of the month n months ago, in the app's time zone.
 func monthsAgoFirst(t *testing.T, app *testApp, n int) string {
 	t.Helper()
 	now := time.Now().In(app.s.cfg.Location)
@@ -31,15 +31,15 @@ func TestRecurrenceMaterializesImmediately(t *testing.T) {
 		"dayOfMonth": 1, "startDate": start,
 	}, 201, &rec)
 	if !rec.Enabled || rec.NextDate == nil {
-		t.Fatalf("recorrência: %+v", rec)
+		t.Fatalf("recurrence: %+v", rec)
 	}
 	list := listRange(ana, start)
 	if len(list) != 3 {
-		t.Fatalf("%d lançamentos, want 3: %+v", len(list), list)
+		t.Fatalf("%d transactions, want 3: %+v", len(list), list)
 	}
 	for _, tx := range list {
 		if tx.RecurrenceID == nil || *tx.RecurrenceID != rec.ID || tx.AmountCents != 9990 {
-			t.Fatalf("lançamento inesperado: %+v", tx)
+			t.Fatalf("unexpected transaction: %+v", tx)
 		}
 	}
 }
@@ -61,17 +61,17 @@ func TestRecurrenceUpdateKeepsOldTransactionsAndDeleteDetaches(t *testing.T) {
 	}
 	for _, tx := range listRange(ana, start) {
 		if tx.AmountCents != 100000 {
-			t.Fatalf("lançamento antigo mudou: %+v", tx)
+			t.Fatalf("an old transaction changed: %+v", tx)
 		}
 	}
 	ana.do("DELETE", ana.wpath("/recurrences/%d", rec.ID), nil, 204, nil)
 	list := listRange(ana, start)
 	if len(list) != 2 {
-		t.Fatalf("%d lançamentos, want 2", len(list))
+		t.Fatalf("%d transactions, want 2", len(list))
 	}
 	for _, tx := range list {
 		if tx.RecurrenceID != nil {
-			t.Fatalf("deveria ter desvinculado: %+v", tx)
+			t.Fatalf("should have been detached: %+v", tx)
 		}
 	}
 }
@@ -89,7 +89,7 @@ func TestRecurrenceDisabledDoesNotMaterialize(t *testing.T) {
 		t.Fatalf("%+v", rec)
 	}
 	if n := len(listRange(ana, start)); n != 0 {
-		t.Fatalf("%d lançamentos, want 0", n)
+		t.Fatalf("%d transactions, want 0", n)
 	}
 }
 
@@ -102,7 +102,7 @@ func TestRecurrenceSettlement(t *testing.T) {
 	body := map[string]any{"kind": "settlement", "amountCents": 30000, "paidByUserId": bia.user.ID, "toUserId": ana.user.ID,
 		"dayOfMonth": 1, "startDate": start}
 
-	ana.do("POST", ana.wpath("/recurrences"), body, 400, nil) // divisão desligada
+	ana.do("POST", ana.wpath("/recurrences"), body, 400, nil) // splitting disabled
 	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
 	ana.do("POST", ana.wpath("/recurrences"), body, 201, nil)
 
@@ -110,7 +110,7 @@ func TestRecurrenceSettlement(t *testing.T) {
 	to := mustDate(start).AddDate(0, 0, 365).Format(dateLayout)
 	ana.do("GET", ana.wpath("/settlements?from=%s&to=%s", start, to), nil, 200, &list)
 	if len(list) != 2 || list[0].FromUserID != bia.user.ID || list[0].ToUserID != ana.user.ID {
-		t.Fatalf("acertos: %+v", list)
+		t.Fatalf("settlements: %+v", list)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestRecurrenceValidation(t *testing.T) {
 	}, 400, &res)
 	for _, f := range []string{"dayOfMonth", "endDate"} {
 		if res.Error.Fields[f] == "" {
-			t.Errorf("faltou erro em %s: %+v", f, res.Error.Fields)
+			t.Errorf("missing error on %s: %+v", f, res.Error.Fields)
 		}
 	}
 	ana.do("POST", ana.wpath("/recurrences"), map[string]any{"kind": "settlement", "amountCents": 100, "dayOfMonth": 1, "startDate": "2026-01-01"}, 400, nil)

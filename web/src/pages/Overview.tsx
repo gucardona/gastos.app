@@ -98,7 +98,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
   );
 }
 
-/** O mês como uma régua: um traço por dia, o futuro pontilhado. */
+/** The month as a ruler: one tick per day, the future dotted. */
 function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; summary: { dailyAverageCents: number; previous: { expenseCents: number } } }) {
   const days = Number(monthRange(month).to.slice(8));
   const now = today();

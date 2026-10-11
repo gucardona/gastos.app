@@ -86,7 +86,7 @@ func TestDeleteWalletCascades(t *testing.T) {
 		var n int
 		d.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n)
 		if n != 0 {
-			t.Errorf("%s: %d linhas após apagar carteira", table, n)
+			t.Errorf("%s: %d rows after deleting the wallet", table, n)
 		}
 	}
 }
@@ -97,7 +97,7 @@ func TestOneOwnerPerWallet(t *testing.T) {
 	mustExec(t, d, `INSERT INTO wallets (id, name) VALUES (1, 'W')`)
 	mustExec(t, d, `INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 1, 'owner')`)
 	if _, err := d.Exec(`INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 2, 'owner')`); err == nil {
-		t.Fatal("segundo owner deveria violar o índice único")
+		t.Fatal("a second owner should violate the unique index")
 	}
 }
 
@@ -107,7 +107,7 @@ func TestOpenFailsWhenParentIsAFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := Open(filepath.Join(file, "sub", "g.db")); err == nil {
-		t.Fatal("deveria falhar quando o diretório pai é um arquivo")
+		t.Fatal("should fail when the parent directory is a file")
 	}
 }
 
@@ -120,16 +120,16 @@ func TestOpenRefusesDatabaseFromTheFuture(t *testing.T) {
 	mustExec(t, d, `PRAGMA user_version = 99`)
 	d.Close()
 	if _, err := Open(path); err == nil {
-		t.Fatal("um banco mais novo que o binário não pode ser aberto (evita rodar código velho em schema novo)")
+		t.Fatal("a database newer than the binary must not be opened (avoids running old code against a new schema)")
 	}
 }
 
 func TestOpenFailsOnACorruptFile(t *testing.T) {
 	path := filepath.Join(testutil.TempDir(t), "t.db")
-	if err := os.WriteFile(path, []byte("isto não é um banco sqlite, é só lixo de texto com mais de cem bytes para passar do cabeçalho..........."), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("this is not a sqlite database, it is just text garbage with more than a hundred bytes to get past the header..........."), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Open(path); err == nil {
-		t.Fatal("arquivo corrompido deveria falhar na abertura")
+		t.Fatal("a corrupt file should fail on open")
 	}
 }

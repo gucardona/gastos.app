@@ -36,7 +36,7 @@ func validIcon(fe fieldErrors, v string) {
 	}
 }
 
-// ---- categorias ----
+// ---- categories ----
 
 type categoryDTO struct {
 	ID           int64   `json:"id"`
@@ -197,7 +197,7 @@ func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// ensureNotLastActive impede ficar sem nenhuma categoria ativa do tipo.
+// ensureNotLastActive prevents ending up with no active category of the kind.
 func (s *Server) ensureNotLastActive(ctx context.Context, walletID int64, kind string) error {
 	var n int
 	if err := s.db.QueryRowContext(ctx,
@@ -250,7 +250,7 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// ---- formas de pagamento ----
+// ---- payment methods ----
 
 type paymentMethodDTO struct {
 	ID        int64  `json:"id"`

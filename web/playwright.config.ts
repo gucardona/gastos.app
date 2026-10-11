@@ -2,8 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 const port = 18080;
 
-// E2E contra o binário Go real (com o frontend embutido) e um banco novo a cada execução.
-// Localmente: E2E_CHANNEL=chrome usa o Chrome instalado; no CI o Chromium vem do `playwright install`.
+// E2E against the real Go binary (with the embedded frontend) and a fresh database on every run.
+// Locally: E2E_CHANNEL=chrome uses the installed Chrome; in CI the Chromium comes from `playwright install`.
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: false,

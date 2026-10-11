@@ -18,8 +18,8 @@ async function fill(user: ReturnType<typeof userEvent.setup>, amount = "48,90", 
   await user.type(screen.getByRole("textbox", { name: "Descrição" }), description);
 }
 
-describe("AddSheet: novo lançamento", () => {
-  it("não envia e mostra o que falta quando o formulário está vazio", async () => {
+describe("AddSheet: new transaction", () => {
+  it("does not submit and shows what is missing when the form is empty", async () => {
     const fetch = mockFetch();
     const { user } = open();
     await user.click(save());
@@ -28,7 +28,7 @@ describe("AddSheet: novo lançamento", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("cria o gasto com categoria e pagamento padrão e fecha", async () => {
+  it("creates the expense with the default payment method and closes", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user, onClose } = open();
     await fill(user);
@@ -45,7 +45,7 @@ describe("AddSheet: novo lançamento", () => {
     });
   });
 
-  it("troca para entrada e usa as categorias de entrada", async () => {
+  it("switches to income and uses the income categories", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open();
     await user.click(screen.getByRole("button", { name: "Entrada" }));
@@ -56,7 +56,7 @@ describe("AddSheet: novo lançamento", () => {
     expect(bodyOf(fetch)).toMatchObject({ kind: "income", amountCents: 850000, categoryId: 3 });
   });
 
-  it("'Salvar e lançar outro' mantém o sheet aberto e limpa valor e descrição", async () => {
+  it("'Salvar e lançar outro' keeps the sheet open and clears amount and description", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user, onClose } = open();
     await fill(user);
@@ -67,7 +67,7 @@ describe("AddSheet: novo lançamento", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("mostra o erro de campo devolvido pela API", async () => {
+  it("shows the field error returned by the API", async () => {
     mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { categoryId: "categoria arquivada" } } } });
     const { user, onClose } = open();
     await fill(user);
@@ -76,7 +76,7 @@ describe("AddSheet: novo lançamento", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("mostra a mensagem geral quando a API falha sem campos", async () => {
+  it("shows the general message when the API fails without fields", async () => {
     mockFetch({ status: 403, body: { error: { code: "forbidden", message: "Sem permissão para esta ação" } } });
     const { user } = open();
     await fill(user);
@@ -84,7 +84,7 @@ describe("AddSheet: novo lançamento", () => {
     expect(await screen.findByText("Sem permissão para esta ação")).toBeTruthy();
   });
 
-  it("'Repetir todo mês' cria uma recorrência a partir da data", async () => {
+  it("'Repetir todo mês' creates a recurrence starting at the date", async () => {
     const fetch = mockFetch({ status: 201, body: {} });
     const { user } = open();
     await fill(user);
@@ -96,15 +96,15 @@ describe("AddSheet: novo lançamento", () => {
   });
 });
 
-describe("AddSheet: divisão", () => {
+describe("AddSheet: splitting", () => {
   const splitting = () => appCtx({ wallet: { ...wallet, splittingEnabled: true } });
 
-  it("não mostra divisão numa carteira sem divisão", () => {
+  it("shows no splitting on a wallet without splitting", () => {
     open();
     expect(screen.queryByRole("button", { name: "Ajustar" })).toBeNull();
   });
 
-  it("recusa porcentagens que não somam 100% e envia quando fecham", async () => {
+  it("rejects percentages that do not add up to 100% and submits when they do", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user, onClose } = open({}, splitting());
     await fill(user);
@@ -127,7 +127,7 @@ describe("AddSheet: divisão", () => {
     ]);
   });
 
-  it("divisão padrão não envia splits (o servidor divide por igual)", async () => {
+  it("the default split sends no splits (the server splits equally)", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open({}, splitting());
     await fill(user);
@@ -136,7 +136,7 @@ describe("AddSheet: divisão", () => {
     expect(bodyOf(fetch)).not.toHaveProperty("splits");
   });
 
-  it("permite escolher quem pagou", async () => {
+  it("lets the user choose who paid", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open({}, splitting());
     await fill(user);
@@ -147,8 +147,8 @@ describe("AddSheet: divisão", () => {
   });
 });
 
-describe("AddSheet: edição", () => {
-  it("preenche com o lançamento e salva com PUT", async () => {
+describe("AddSheet: editing", () => {
+  it("is prefilled with the transaction and saves with PUT", async () => {
     const fetch = mockFetch({ body: tx() });
     const { user, onClose } = open({ tx: tx({ amountCents: 12990, description: "Feira" }) });
     expect((screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement).value).toBe("129,90");
@@ -161,7 +161,7 @@ describe("AddSheet: edição", () => {
     expect(bodyOf(fetch)).toMatchObject({ amountCents: 12990, description: "Feira da semana" });
   });
 
-  it("exclui só depois de confirmar", async () => {
+  it("deletes only after confirming", async () => {
     const fetch = mockFetch({ status: 204 });
     const { user, onClose } = open({ tx: tx() });
     await user.click(screen.getByRole("button", { name: "Excluir lançamento" }));
@@ -172,7 +172,7 @@ describe("AddSheet: edição", () => {
     expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/transactions/10");
   });
 
-  it("não oferece 'Repetir todo mês' nem 'lançar outro' ao editar", () => {
+  it("does not offer 'Repetir todo mês' or 'lançar outro' when editing", () => {
     open({ tx: tx() });
     expect(screen.queryByRole("switch", { name: "Repetir todo mês" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Salvar e lançar outro" })).toBeNull();
