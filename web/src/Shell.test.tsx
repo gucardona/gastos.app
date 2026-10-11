@@ -27,8 +27,8 @@ function Probe() {
     <>
       <p>mês {a.month}</p>
       <p>carteira {a.wallet.name}</p>
-      <button onClick={() => a.setWalletId(2)}>trocar de carteira</button>
-      <button onClick={() => a.setMonth("2026-05")}>ir para maio</button>
+      <button type="button" onClick={() => a.setWalletId(2)}>trocar de carteira</button>
+      <button type="button" onClick={() => a.setMonth("2026-05")}>ir para maio</button>
       <input aria-label="campo de texto" />
     </>
   );

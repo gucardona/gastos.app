@@ -33,7 +33,7 @@ export function Settings() {
       <h1 style={{ font: "700 28px var(--display)", margin: "8px 0 12px" }}>Ajustes</h1>
       <div className="filters" role="group" aria-label="Seções dos ajustes">
         {SECTIONS.map((s) => (
-          <button key={s.id} className="chip" aria-pressed={section === s.id} onClick={() => setParams((p) => { p.set("s", s.id); return p; }, { replace: true })}>{s.label}</button>
+          <button type="button" key={s.id} className="chip" aria-pressed={section === s.id} onClick={() => setParams((p) => { p.set("s", s.id); return p; }, { replace: true })}>{s.label}</button>
         ))}
       </div>
       {/* a key reinicia os formulários ao trocar de carteira */}
@@ -74,7 +74,7 @@ function Account() {
           <option value="dark">Escuro</option>
         </select>
       </div>
-      <div className="line"><button className="btn ghost" onClick={() => void logout()}>Sair</button></div>
+      <div className="line"><button type="button" className="btn ghost" onClick={() => void logout()}>Sair</button></div>
     </div>
   );
 }

@@ -13,7 +13,7 @@ export function BudgetsSection() {
   const budgets = useBudgets(wallet.id);
   const expense = categories.filter((c) => c.kind === "expense" && !c.archived);
 
-  if (budgets.error) return <div className="empty"><p>Não foi possível carregar os orçamentos.</p><button className="btn" onClick={() => void budgets.refetch()}>Tentar de novo</button></div>;
+  if (budgets.error) return <div className="empty"><p>Não foi possível carregar os orçamentos.</p><button type="button" className="btn" onClick={() => void budgets.refetch()}>Tentar de novo</button></div>;
   if (!budgets.data) return <div className="skeleton" />;
   return (
     <div className="settings">
@@ -44,7 +44,7 @@ function Row({ c, current }: { c: Category; current?: number }) {
       <div className="item-actions" style={{ margin: 0 }}>
         <span className="muted">R$</span>
         <input className="text" style={{ width: 96, textAlign: "right" }} inputMode="decimal" placeholder="sem limite" aria-label={`Limite mensal de ${c.name}`} value={value} disabled={!canEdit} onChange={(e) => setValue(e.target.value)} />
-        {canEdit && <button className="chip" disabled={busy || !value.trim()}>Definir</button>}
+        {canEdit && <button type="submit" className="chip" disabled={busy || !value.trim()}>Definir</button>}
         {canEdit && current !== undefined && (
           <button type="button" className="chip" disabled={busy} onClick={async () => { if (await run(() => api.del(path))) setValue(""); }}>Remover</button>
         )}

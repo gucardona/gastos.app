@@ -33,7 +33,7 @@ export function TransactionList({ items }: { items: Transaction[] }) {
             const method = pm(t.paymentMethodId);
             const others = t.splits.filter((s) => s.userId !== t.paidByUserId).map((s) => name(s.userId));
             return (
-              <button className="row" key={t.id} disabled={!canEdit} onClick={() => openAdd(t)} style={{ cursor: canEdit ? "pointer" : "default" }}>
+              <button type="button" className="row" key={t.id} disabled={!canEdit} onClick={() => openAdd(t)} style={{ cursor: canEdit ? "pointer" : "default" }}>
                 <span className="emoji" aria-hidden>{c?.icon}</span>
                 <span>
                   <span className="desc">{t.description}</span>

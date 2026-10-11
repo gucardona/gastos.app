@@ -21,7 +21,7 @@ export function Recurring() {
       <h1 style={{ font: "700 28px var(--display)", margin: "8px 0 4px" }}>Recorrentes</h1>
       <p className="muted" style={{ margin: "0 0 12px" }}>Lançamentos que se repetem todo mês. Eles aparecem na lista quando a data chega.</p>
       {list.error ? (
-        <div className="empty"><p>Não foi possível carregar as recorrências.</p><button className="btn" onClick={() => void list.refetch()}>Tentar de novo</button></div>
+        <div className="empty"><p>Não foi possível carregar as recorrências.</p><button type="button" className="btn" onClick={() => void list.refetch()}>Tentar de novo</button></div>
       ) : !list.data ? (
         <><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>
       ) : list.data.length === 0 ? (
@@ -75,15 +75,15 @@ function Item({ r }: { r: Recurrence }) {
       </div>
       {canEdit && (
         <div className="item-actions">
-          <label className="inline">
+          <div className="inline">
             <Switch checked={r.enabled} disabled={busy} label={`${r.enabled ? "Pausar" : "Retomar"} ${title}`} onChange={(v) => void run(() => api.put(`/wallets/${wallet.id}/recurrences/${r.id}`, body({ enabled: v })))} />
             <span className="muted">{r.enabled ? "Ativa" : "Pausada"}</span>
-          </label>
-          <button className="chip" onClick={() => setEditing(true)}>Editar</button>
+          </div>
+          <button type="button" className="chip" onClick={() => setEditing(true)}>Editar</button>
           {confirmDelete ? (
-            <button className="chip danger" disabled={busy} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/recurrences/${r.id}`))}>Confirmar exclusão</button>
+            <button type="button" className="chip danger" disabled={busy} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/recurrences/${r.id}`))}>Confirmar exclusão</button>
           ) : (
-            <button className="chip" onClick={() => setConfirmDelete(true)}>Excluir</button>
+            <button type="button" className="chip" onClick={() => setConfirmDelete(true)}>Excluir</button>
           )}
         </div>
       )}
@@ -120,7 +120,7 @@ function EditForm({ r, body, onDone }: { r: Recurrence; body: (over?: Partial<Re
       <label>Até (opcional)<input className="text" type="date" aria-label="Data final" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
       {(problem || error) && <p className="error" role="alert">{problem || error}</p>}
       <div className="item-actions">
-        <button className="btn" disabled={busy}>Salvar</button>
+        <button type="submit" className="btn" disabled={busy}>Salvar</button>
         <button type="button" className="btn ghost" onClick={onDone}>Cancelar</button>
       </div>
     </form>

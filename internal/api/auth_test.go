@@ -33,7 +33,7 @@ func TestRegisterValidation(t *testing.T) {
 		}
 	}
 	app.register("Ana", "ana@example.com")
-	c.do("POST", "/api/auth/register", map[string]string{"name": "Outra", "email": "ana@example.com", "password": "senha-segura"}, 409, nil)
+	c.do("POST", "/api/auth/register", map[string]string{"name": "Outra", "email": "ana@example.com", "password": "senha-segura", "inviteCode": testInvite}, 409, nil)
 }
 
 func TestLoginWrongPassword(t *testing.T) {

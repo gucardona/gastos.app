@@ -20,6 +20,7 @@ export function AddSheet({ state, onClose }: { state: { tx?: Transaction } | nul
   }, [open]);
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: a click on the backdrop is a pointer shortcut; keyboard users close with Esc (native dialog)
     <dialog
       ref={ref}
       className="sheet"
@@ -52,7 +53,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const [otherDay, setOtherDay] = useState(false);
   const [paidBy, setPaidBy] = useState(tx?.paidByUserId ?? user.id);
   const [percents, setPercents] = useState<Record<number, string> | null>(
-    tx && tx.splits.length ? Object.fromEntries(tx.splits.map((s) => [s.userId, String(s.shareBp / 100).replace(".", ",")])) : null,
+    tx?.splits.length ? Object.fromEntries(tx.splits.map((s) => [s.userId, String(s.shareBp / 100).replace(".", ",")])) : null,
   );
   const [repeat, setRepeat] = useState(false);
   const [showAllCats, setShowAllCats] = useState(false);
@@ -142,6 +143,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
 
       <div className="amount">
         <span className="cur">R$</span>
+        {/* biome-ignore lint/a11y/noAutofocus: quick add exists to type an amount, so the sheet opens with it focused */}
         <input ref={amountRef} autoFocus inputMode="decimal" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} />
       </div>
       {err("amountCents")}
@@ -229,7 +231,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
 
       {general && <p className="error" role="alert">{general}</p>}
       <div className="actions">
-        <button className="btn full" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</button>
+        <button type="submit" className="btn full" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</button>
         {!tx && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void save(true)}>Salvar e lançar outro</button>}
         {tx && (confirmDelete
           ? <button type="button" className="btn danger full" disabled={busy} onClick={() => void remove()}>Confirmar exclusão</button>

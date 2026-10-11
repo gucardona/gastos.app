@@ -29,7 +29,7 @@ export function Transactions() {
       {txs.error ? (
         <div className="empty">
           <p>Não foi possível carregar os lançamentos.</p>
-          <button className="btn" onClick={() => void txs.refetch()}>Tentar de novo</button>
+          <button type="button" className="btn" onClick={() => void txs.refetch()}>Tentar de novo</button>
         </div>
       ) : !txs.data ? (
         <><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>
@@ -42,13 +42,13 @@ export function Transactions() {
           <input className="search" type="search" placeholder="Buscar por descrição" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="filters" role="group" aria-label="Filtros">
             {FILTERS.map((f) => (
-              <button key={f.id} className="chip" aria-pressed={kind === f.id} onClick={() => setKind(f.id)}>{f.label}</button>
+              <button type="button" key={f.id} className="chip" aria-pressed={kind === f.id} onClick={() => setKind(f.id)}>{f.label}</button>
             ))}
           </div>
           {shown.length === 0 ? (
             <div className="empty">
               <p>{all.length === 0 ? "Nenhum lançamento neste mês." : "Nenhum lançamento corresponde ao filtro."}</p>
-              {all.length === 0 && canEdit && <button className="btn" onClick={() => openAdd()}>Novo lançamento</button>}
+              {all.length === 0 && canEdit && <button type="button" className="btn" onClick={() => openAdd()}>Novo lançamento</button>}
             </div>
           ) : (
             <TransactionList items={shown} />

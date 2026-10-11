@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -42,13 +43,81 @@ type userDTO struct {
 	Email string `json:"email"`
 }
 
+type registrationMode string
+
+const (
+	modeOpen   registrationMode = "open"   // anyone can sign up (only while the database has no users)
+	modeCode   registrationMode = "code"   // signing up requires the invite code
+	modeClosed registrationMode = "closed" // nobody can sign up
+)
+
+// modeFor decides who may sign up: anyone while the database has no users (so the first account can be
+// created), afterwards only people holding the invite code, if one is configured.
+func modeFor(userCount int, inviteCode string) registrationMode {
+	switch {
+	case userCount == 0:
+		return modeOpen
+	case inviteCode != "":
+		return modeCode
+	default:
+		return modeClosed
+	}
+}
+
+// errSignupClosed is the same for a missing and a wrong code, so it reveals nothing about the code.
+var errSignupClosed = &apiError{Status: 403, Code: "forbidden", Message: "O cadastro está fechado. Peça um convite."}
+
+func (s *Server) currentMode(ctx context.Context, q querier) (registrationMode, error) {
+	var n int
+	if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+		return "", err
+	}
+	return modeFor(n, s.cfg.InviteCode), nil
+}
+
+// checkRegistration applies the sign-up policy. q is the transaction when called from inside one,
+// so two simultaneous "first" sign-ups cannot both succeed.
+func (s *Server) checkRegistration(ctx context.Context, q querier, code string) error {
+	mode, err := s.currentMode(ctx, q)
+	if err != nil {
+		return err
+	}
+	switch mode {
+	case modeOpen:
+		return nil
+	case modeCode:
+		if subtle.ConstantTimeCompare([]byte(code), []byte(s.cfg.InviteCode)) == 1 {
+			return nil
+		}
+	}
+	return errSignupClosed
+}
+
+// registrationInfo tells the sign-in screen what to show. It is public and reveals only the mode.
+func (s *Server) registrationInfo(w http.ResponseWriter, r *http.Request) error {
+	mode, err := s.currentMode(r.Context(), s.db)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]registrationMode{"mode": mode})
+	return nil
+}
+
 func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
+	if !s.limiter.allow("register:ip:" + clientIP(r)) {
+		return errRateLimited
+	}
 	var in struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Name       string `json:"name"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
+		InviteCode string `json:"inviteCode"`
 	}
 	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	// refuse early, before spending a bcrypt hash; the check is repeated inside the transaction
+	if err := s.checkRegistration(r.Context(), s.db, in.InviteCode); err != nil {
 		return err
 	}
 	in.Name = strings.TrimSpace(in.Name)
@@ -73,6 +142,9 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 
 	var userID int64
 	err = s.inTx(r.Context(), func(tx *sql.Tx) error {
+		if err := s.checkRegistration(r.Context(), tx, in.InviteCode); err != nil {
+			return err
+		}
 		err := tx.QueryRowContext(r.Context(),
 			`INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?) RETURNING id`,
 			in.Name, in.Email, string(hash)).Scan(&userID)

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { addDays, monthRange, today } from "../lib/dates";
 import { api } from "./client";
 import type { BankAccount, Budget, Category, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
@@ -45,10 +45,13 @@ export const useTransactions = (id: number, month: string) => {
 /** Refreshes the active wallet's data (and `me`, which carries the wallets' name and role). */
 export function useRefresh() {
   const qc = useQueryClient();
-  return (walletId: number) => {
-    void qc.invalidateQueries({ queryKey: ["wallet", walletId] });
-    void qc.invalidateQueries({ queryKey: ["me"] });
-  };
+  return useCallback(
+    (walletId: number) => {
+      void qc.invalidateQueries({ queryKey: ["wallet", walletId] });
+      void qc.invalidateQueries({ queryKey: ["me"] });
+    },
+    [qc],
+  );
 }
 
 /** Updates the screen when another member changes the wallet. The browser reconnects the SSE by itself. */
@@ -59,8 +62,7 @@ export function useWalletEvents(walletId: number) {
     const es = new EventSource(`/api/wallets/${walletId}/events`, { withCredentials: true });
     es.onmessage = () => refresh(walletId);
     return () => es.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletId]);
+  }, [walletId, refresh]);
 }
 
 export const useBankAccounts = (id: number) =>
