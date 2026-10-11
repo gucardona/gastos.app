@@ -8,3 +8,7 @@ gastos.db.bak
 /gastos
 /gastos.exe
 web/node_modules/
+
+# build do frontend: o CI gera; .gitkeep mantém a pasta para o go:embed compilar
+web/dist/*
+!web/dist/.gitkeep
