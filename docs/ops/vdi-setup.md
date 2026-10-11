@@ -45,18 +45,23 @@ deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart gastos@production, /usr/b
 
 ## 4. HTTPS (Caddy)
 
-Troque os domínios pelos seus. O `flush_interval -1` é necessário para o SSE.
+O bloco de produção que já existe na VDI não muda: o Caddy já repassa `text/event-stream` sem buffer, então o SSE funciona.
 
 ```
-gastos.exemplo.com {
-	reverse_proxy 127.0.0.1:8000 { flush_interval -1 }
-}
-staging.gastos.exemplo.com {
-	reverse_proxy 127.0.0.1:8001 { flush_interval -1 }
+gastos.gupa.dev {
+	reverse_proxy 127.0.0.1:8000
 }
 ```
 
-Sem domínio, deixe o staging só em localhost e acesse por túnel: `ssh -L 8001:127.0.0.1:8001 deploy@<ip>` (nesse caso use `GASTOS_COOKIE_SECURE=false` no `staging.env`).
+Para o staging, crie o registro DNS `staging.gastos.gupa.dev` apontando para o IP da VDI e acrescente:
+
+```
+staging.gastos.gupa.dev {
+	reverse_proxy 127.0.0.1:8001
+}
+```
+
+Depois `systemctl reload caddy`. Sem o DNS do staging, acesse por túnel (`ssh -L 8001:127.0.0.1:8001 deploy@<ip>`) e use `GASTOS_COOKIE_SECURE=false` no `staging.env`.
 
 ## 5. Chave SSH do CI
 
