@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  # O frontend entra aqui na fase 3: se existir web/package.json, builda antes do binário.
+  build:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: hashFiles('web/package.json') != ''
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: npm ci && npm run build
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_SHA::7}" -o gastos ./cmd/gastos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gastos-linux-amd64
+          path: gastos
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # master vai para produção; qualquer outra branch vai para o staging
+    env:
+      TARGET: ${{ github.ref == 'refs/heads/master' && 'production' || 'staging' }}
+      PORT: ${{ github.ref == 'refs/heads/master' && '8000' || '8001' }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+    environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: gastos-linux-amd64
+      - name: Enviar e ativar
+        if: env.DEPLOY_HOST != ''
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "$KEY" > ~/.ssh/id && chmod 600 ~/.ssh/id
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          sha=${GITHUB_SHA::7}
+          ssh="ssh -i ~/.ssh/id deploy@$DEPLOY_HOST"
+          $ssh "mkdir -p /opt/gastos/$TARGET/releases/$sha"
+          scp -i ~/.ssh/id gastos "deploy@$DEPLOY_HOST:/opt/gastos/$TARGET/releases/$sha/gastos"
+          $ssh "chmod +x /opt/gastos/$TARGET/releases/$sha/gastos"
+          $ssh "bash -s -- $TARGET $sha $PORT" < scripts/remote-deploy.sh

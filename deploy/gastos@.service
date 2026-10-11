@@ -1,0 +1,18 @@
+[Unit]
+Description=gastos.app (%i)
+After=network-online.target
+
+[Service]
+User=gastos
+EnvironmentFile=/etc/gastos/%i.env
+ExecStart=/opt/gastos/%i/current/gastos
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gastos/%i
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
