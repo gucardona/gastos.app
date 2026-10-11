@@ -82,15 +82,16 @@ jobs:
           name: gastos-linux-amd64
           path: gastos
 
+  # Só a master faz deploy (produção). Branches e PRs rodam os testes e o build, mas nunca publicam.
   deploy:
     needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    # master vai para produção; qualquer outra branch vai para o staging
     env:
-      TARGET: ${{ github.ref == 'refs/heads/master' && 'production' || 'staging' }}
-      PORT: ${{ github.ref == 'refs/heads/master' && '8000' || '8001' }}
+      TARGET: production
+      PORT: "8000"
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-    environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'staging' }}
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4

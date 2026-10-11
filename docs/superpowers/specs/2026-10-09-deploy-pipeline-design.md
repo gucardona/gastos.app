@@ -4,6 +4,8 @@
 **Status:** Draft — depende das perguntas em aberto 1 e 2 do roadmap
 **Roadmap:** [2026-10-09-roadmap.md](2026-10-09-roadmap.md)
 
+> **Decisão posterior (2026-10-11):** o deploy roda **somente em push na `master`**, só para produção. Não há ambiente de staging; as menções a staging abaixo ficam como histórico. O que vale está em `.github/workflows/ci.yml` e `docs/ops/vdi-setup.md`.
+
 ## Objetivo
 
 Desenvolver tudo localmente (Windows), fazer push no GitHub e ter staging e produção atualizados na VDI Hetzner (`46.225.89.218`) sem compilar nada lá.
