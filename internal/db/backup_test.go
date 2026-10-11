@@ -1,0 +1,75 @@
+package db
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestBackupRotation(t *testing.T) {
+	d := openTemp(t)
+	dir := t.TempDir()
+	base := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	var last string
+	for i := 0; i < 3; i++ {
+		p, err := Backup(context.Background(), d, dir, 2, base.Add(time.Duration(i)*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = p
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, backupGlob))
+	if len(files) != 2 {
+		t.Fatalf("sobraram %d backups, want 2: %v", len(files), files)
+	}
+	if _, err := os.Stat(last); err != nil {
+		t.Fatalf("o mais novo deveria existir: %v", err)
+	}
+}
+
+func TestBackupIsOpenable(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	p, err := Backup(context.Background(), d, t.TempDir(), 5, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	var n int
+	b.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("backup com %d usuários, want 1", n)
+	}
+}
+
+func TestBackupNeverOverwrites(t *testing.T) {
+	d := openTemp(t)
+	dir := t.TempDir()
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	if _, err := Backup(context.Background(), d, dir, 5, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Backup(context.Background(), d, dir, 5, now); err == nil {
+		t.Fatal("segundo backup no mesmo instante deveria falhar")
+	}
+}
+
+func TestLastBackupAge(t *testing.T) {
+	dir := t.TempDir()
+	if LastBackupAge(dir, time.Now()) < 1000*time.Hour {
+		t.Fatal("sem backups deveria devolver idade enorme")
+	}
+	d := openTemp(t)
+	if _, err := Backup(context.Background(), d, dir, 5, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if age := LastBackupAge(dir, time.Now()); age > time.Minute {
+		t.Fatalf("idade %v, esperava ~0", age)
+	}
+}
