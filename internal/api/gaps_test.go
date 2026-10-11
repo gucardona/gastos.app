@@ -19,10 +19,10 @@ func TestListMembers(t *testing.T) {
 	}
 	// owner first, then editors, then readers
 	if list[0].Role != "owner" || list[1].Role != "editor" || list[2].Role != "reader" {
-		t.Fatalf("ordem inesperada: %+v", list)
+		t.Fatalf("unexpected order: %+v", list)
 	}
 	if list[0].Email != "ana@example.com" || !list[0].SplitsByDefault {
-		t.Fatalf("campos do primeiro membro: %+v", list[0])
+		t.Fatalf("first member's fields: %+v", list[0])
 	}
 }
 
@@ -72,7 +72,7 @@ func TestUpdateWallet(t *testing.T) {
 	ana.do("PATCH", ana.wpath(""), map[string]any{}, 400, nil)
 	ana.do("PATCH", ana.wpath(""), map[string]any{"name": "   "}, 400, &res)
 	if res.Error.Fields["name"] == "" {
-		t.Errorf("faltou erro de campo: %+v", res.Error)
+		t.Errorf("missing field error: %+v", res.Error)
 	}
 	ana.do("PATCH", ana.wpath(""), map[string]any{"nome": "x"}, 400, nil) // campo desconhecido
 }

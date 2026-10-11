@@ -118,7 +118,7 @@ func TestFieldErrors(t *testing.T) {
 		t.Fatalf("err() = %v", fe.err())
 	}
 	if ae.Fields["amount"] != "first" || ae.Fields["date"] != "invalid" || len(ae.Fields) != 2 {
-		t.Errorf("campos: %+v", ae.Fields)
+		t.Errorf("fields: %+v", ae.Fields)
 	}
 	if ae.Error() == "" || !asAPIError(ae, &ae) {
 		t.Error("apiError must implement error and be recognizable by errors.As")
@@ -155,7 +155,7 @@ func TestWithAmountsSumsToTotal(t *testing.T) {
 	}
 	// exact: 3334.33 / 3333.33 / 3333.33; the leftover cent goes to the largest remainder
 	if !slices.Equal(amounts, []int64{3335, 3333, 3333}) {
-		t.Errorf("rateio inesperado: %v", amounts)
+		t.Errorf("unexpected allocation: %v", amounts)
 	}
 	if got[0].UserID != 1 || got[1].ShareBP != 3333 {
 		t.Errorf("the order and the original shares must be preserved: %+v", got)

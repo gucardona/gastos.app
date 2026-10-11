@@ -13,10 +13,10 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c.Addr != ":8000" || c.DBPath != "./data/gastos.db" || c.BackupKeep != 14 {
-		t.Fatalf("defaults inesperados: %+v", c)
+		t.Fatalf("unexpected defaults: %+v", c)
 	}
 	if c.Location.String() != "America/Sao_Paulo" || !c.CookieSecure || c.Dev {
-		t.Fatalf("defaults inesperados: %+v", c)
+		t.Fatalf("unexpected defaults: %+v", c)
 	}
 }
 

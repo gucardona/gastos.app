@@ -13,13 +13,13 @@ func TestTransactionCRUD(t *testing.T) {
 		"categoryId": cat, "date": "2026-10-09",
 	}, 201, &created)
 	if created.PaidByUserID != ana.user.ID || created.CreatedBy != ana.user.ID || len(created.Splits) != 0 {
-		t.Fatalf("criado: %+v", created)
+		t.Fatalf("created: %+v", created)
 	}
 
 	var list []transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 1 || list[0].AmountCents != 12990 {
-		t.Fatalf("lista: %+v", list)
+		t.Fatalf("list: %+v", list)
 	}
 
 	ana.do("PUT", ana.wpath("/transactions/%d", created.ID), map[string]any{
@@ -27,7 +27,7 @@ func TestTransactionCRUD(t *testing.T) {
 		"categoryId": cat, "date": "2026-10-08",
 	}, 200, &created)
 	if created.AmountCents != 5000 || created.Description != "Feira" {
-		t.Fatalf("atualizado: %+v", created)
+		t.Fatalf("updated: %+v", created)
 	}
 
 	ana.do("DELETE", ana.wpath("/transactions/%d", created.ID), nil, 204, nil)
@@ -80,7 +80,7 @@ func TestTransactionValidation(t *testing.T) {
 	}, 400, &res)
 	for _, f := range []string{"amountCents", "description", "categoryId", "date"} {
 		if res.Error.Fields[f] == "" {
-			t.Errorf("faltou erro em %s: %+v", f, res.Error.Fields)
+			t.Errorf("missing error on %s: %+v", f, res.Error.Fields)
 		}
 	}
 	ana.do("GET", ana.wpath("/transactions"), nil, 400, nil) // from/to are required
@@ -157,7 +157,7 @@ func TestSplits(t *testing.T) {
 	var list []transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 2 || len(list[0].Splits) != 2 {
-		t.Fatalf("lista: %+v", list)
+		t.Fatalf("list: %+v", list)
 	}
 
 	// shares that do not add up to 10000

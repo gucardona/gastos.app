@@ -73,7 +73,7 @@ func TestWalletCRUD(t *testing.T) {
 	var created walletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa", "splittingEnabled": true}, 201, &created)
 	if created.Role != "owner" || !created.SplittingEnabled || created.OwnerName != "Ana" {
-		t.Fatalf("carteira criada: %+v", created)
+		t.Fatalf("created wallet: %+v", created)
 	}
 
 	var list []walletDTO

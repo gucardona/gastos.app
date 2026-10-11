@@ -110,7 +110,7 @@ func TestRecurrenceSettlement(t *testing.T) {
 	to := mustDate(start).AddDate(0, 0, 365).Format(dateLayout)
 	ana.do("GET", ana.wpath("/settlements?from=%s&to=%s", start, to), nil, 200, &list)
 	if len(list) != 2 || list[0].FromUserID != bia.user.ID || list[0].ToUserID != ana.user.ID {
-		t.Fatalf("acertos: %+v", list)
+		t.Fatalf("settlements: %+v", list)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestRecurrenceValidation(t *testing.T) {
 	}, 400, &res)
 	for _, f := range []string{"dayOfMonth", "endDate"} {
 		if res.Error.Fields[f] == "" {
-			t.Errorf("faltou erro em %s: %+v", f, res.Error.Fields)
+			t.Errorf("missing error on %s: %+v", f, res.Error.Fields)
 		}
 	}
 	ana.do("POST", ana.wpath("/recurrences"), map[string]any{"kind": "settlement", "amountCents": 100, "dayOfMonth": 1, "startDate": "2026-01-01"}, 400, nil)

@@ -36,7 +36,7 @@ func TestSummaryScenario(t *testing.T) {
 	ana.do("GET", ana.wpath("/summary?month=2026-10"), nil, 200, &sum)
 
 	if sum.IncomeCents != 500000 || sum.ExpenseCents != 13001 || sum.BalanceCents != 486999 {
-		t.Errorf("totais: %+v", sum)
+		t.Errorf("totals: %+v", sum)
 	}
 	if sum.Previous.ExpenseCents != 2000 || sum.Previous.IncomeCents != 0 {
 		t.Errorf("previous month: %+v", sum.Previous)
@@ -45,19 +45,19 @@ func TestSummaryScenario(t *testing.T) {
 		t.Errorf("daily average: %d, want %d", sum.DailyAverageCents, 13001/15)
 	}
 	if len(sum.ByCategory) != 2 || sum.ByCategory[0].CategoryID != inc || sum.ByCategory[0].Cents != 500000 {
-		t.Fatalf("por categoria: %+v", sum.ByCategory)
+		t.Fatalf("by category: %+v", sum.ByCategory)
 	}
 	if c := sum.ByCategory[1]; c.CategoryID != exp || c.Cents != 13001 || c.BudgetCents == nil || *c.BudgetCents != 20000 {
-		t.Errorf("categoria de gasto: %+v", c)
+		t.Errorf("expense category: %+v", c)
 	}
 	if sum.ByEssentiality["essential"]+sum.ByEssentiality["nonessential"]+sum.ByEssentiality["investment"] != 13001 {
-		t.Errorf("por essencialidade: %+v", sum.ByEssentiality)
+		t.Errorf("by essentiality: %+v", sum.ByEssentiality)
 	}
 
 	// Ana paid 10000 and owes 5000+1501; Bia paid 3001 and owes 5000+1500; Bia already settled 1000.
 	balances, _ := sum.MemberBalances.([]any)
 	if len(balances) != 2 {
-		t.Fatalf("saldos: %+v", sum.MemberBalances)
+		t.Fatalf("balances: %+v", sum.MemberBalances)
 	}
 	nets := map[int64]float64{}
 	for _, b := range balances {
@@ -65,15 +65,15 @@ func TestSummaryScenario(t *testing.T) {
 		nets[int64(m["userId"].(float64))] = m["netCents"].(float64)
 	}
 	if nets[ana.user.ID] != 2499 || nets[bia.user.ID] != -2499 {
-		t.Errorf("saldos: %+v", nets)
+		t.Errorf("balances: %+v", nets)
 	}
 	sug, _ := sum.SuggestedSettlements.([]any)
 	if len(sug) != 1 {
-		t.Fatalf("acertos sugeridos: %+v", sum.SuggestedSettlements)
+		t.Fatalf("suggested settlements: %+v", sum.SuggestedSettlements)
 	}
 	first := sug[0].(map[string]any)
 	if int64(first["fromUserId"].(float64)) != bia.user.ID || int64(first["toUserId"].(float64)) != ana.user.ID || first["amountCents"].(float64) != 2499 {
-		t.Errorf("acerto sugerido: %+v", first)
+		t.Errorf("suggested settlement: %+v", first)
 	}
 }
 

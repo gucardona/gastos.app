@@ -29,7 +29,7 @@ func TestRegisterValidation(t *testing.T) {
 	c.do("POST", "/api/auth/register", map[string]string{"name": "", "email": "x", "password": "123"}, 400, &res)
 	for _, f := range []string{"name", "email", "password"} {
 		if res.Error.Fields[f] == "" {
-			t.Errorf("faltou erro em %s: %+v", f, res.Error.Fields)
+			t.Errorf("missing error on %s: %+v", f, res.Error.Fields)
 		}
 	}
 	app.register("Ana", "ana@example.com")

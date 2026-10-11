@@ -24,14 +24,14 @@ func TestCategoryCRUD(t *testing.T) {
 		"kind": "expense", "name": "Pets", "icon": "🐶", "color": "#112233", "essentiality": "nonessential",
 	}, 201, &c)
 	if c.ID == 0 || c.SortOrder != 15 {
-		t.Fatalf("criada: %+v", c)
+		t.Fatalf("created: %+v", c)
 	}
 
 	ana.do("PUT", ana.wpath("/categories/%d", c.ID), map[string]any{
 		"kind": "expense", "name": "Bichos", "icon": "🐱", "color": "#445566", "essentiality": "essential", "sortOrder": 0,
 	}, 200, &c)
 	if c.Name != "Bichos" || c.SortOrder != 0 || *c.Essentiality != "essential" {
-		t.Fatalf("atualizada: %+v", c)
+		t.Fatalf("updated: %+v", c)
 	}
 
 	ana.do("DELETE", ana.wpath("/categories/%d", c.ID), nil, 204, nil)
@@ -50,7 +50,7 @@ func TestCategoryValidation(t *testing.T) {
 		"kind": "expense", "name": "Pets", "icon": "🐶", "color": "vermelho", "essentiality": "essential",
 	}, 400, &res)
 	if res.Error.Fields["color"] == "" {
-		t.Errorf("faltou erro de cor: %+v", res.Error)
+		t.Errorf("missing color error: %+v", res.Error)
 	}
 	ana.do("POST", ana.wpath("/categories"), map[string]any{
 		"kind": "income", "name": "Pets", "icon": "🐶", "color": "#112233", "essentiality": "essential",
