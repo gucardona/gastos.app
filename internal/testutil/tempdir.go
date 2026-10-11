@@ -1,4 +1,4 @@
-// Package testutil reúne ajudantes usados só por testes.
+// Package testutil holds helpers used only by tests.
 package testutil
 
 import (
@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// TempDir é um t.TempDir que tenta remover de novo: no Windows os arquivos WAL do SQLite
-// às vezes demoram a ser liberados depois do Close.
+// TempDir is a t.TempDir that retries the removal: on Windows the SQLite WAL files
+// sometimes take a moment to be released after Close.
 func TempDir(t testing.TB) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "gastos-test-")

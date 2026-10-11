@@ -66,12 +66,12 @@ func TestRunCreatesDueOccurrences(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 3 {
-		t.Fatalf("%d transações, want 3", n)
+		t.Fatalf("%d transactions, want 3", n)
 	}
 	var desc string
 	d.QueryRow(`SELECT description FROM transactions LIMIT 1`).Scan(&desc)
 	if desc != "Contas" {
-		t.Fatalf("descrição vazia deveria virar o nome da categoria, veio %q", desc)
+		t.Fatalf("an empty description should become the category name, got %q", desc)
 	}
 }
 
@@ -84,7 +84,7 @@ func TestRunIsIdempotent(t *testing.T) {
 		}
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 3 {
-		t.Fatalf("%d transações, want 3", n)
+		t.Fatalf("%d transactions, want 3", n)
 	}
 }
 
@@ -108,19 +108,19 @@ func TestRunConcurrent(t *testing.T) {
 		}
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 3 {
-		t.Fatalf("%d transações, want 3", n)
+		t.Fatalf("%d transactions, want 3", n)
 	}
 }
 
 func TestRunRespectsTimezone(t *testing.T) {
-	// 05/10 02:00 UTC ainda é 04/10 em São Paulo: outubro não pode ser gerado.
+	// Oct 5 02:00 UTC is still Oct 4 in São Paulo: October must not be generated.
 	m, d := setup(t, time.Date(2026, 10, 5, 2, 0, 0, 0, time.UTC))
 	addExpenseRecurrence(t, d, 5, "2026-10-01")
 	if err := m.Run(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 0 {
-		t.Fatalf("%d transações, want 0", n)
+		t.Fatalf("%d transactions, want 0", n)
 	}
 }
 
@@ -161,7 +161,7 @@ func TestDisabledSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 0 {
-		t.Fatalf("%d transações, want 0", n)
+		t.Fatalf("%d transactions, want 0", n)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestRunNotifiesWallet(t *testing.T) {
 	select {
 	case <-ch:
 	case <-time.After(time.Second):
-		t.Fatal("esperava notificação")
+		t.Fatal("expected a notification")
 	}
 }
 
@@ -192,13 +192,13 @@ func TestLoopRunsImmediatelyThenStopsOnCancel(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 1 {
-		t.Fatalf("o Loop deveria materializar na hora: %d transações", n)
+		t.Fatalf("Loop should materialize right away: %d transactions", n)
 	}
 	cancel()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("o Loop não parou ao cancelar o contexto")
+		t.Fatal("Loop did not stop when the context was cancelled")
 	}
 }
 
@@ -208,32 +208,32 @@ func TestLoopRunsAgainOnTick(t *testing.T) {
 	defer cancel()
 	go m.Loop(ctx, 50*time.Millisecond)
 
-	time.Sleep(150 * time.Millisecond) // o primeiro Run já passou, sem recorrência nenhuma
+	time.Sleep(150 * time.Millisecond) // the first Run is already over, with no recurrence at all
 	addExpenseRecurrence(t, d, 5, "2026-10-01")
 	deadline := time.Now().Add(3 * time.Second)
 	for count(t, d, `SELECT COUNT(*) FROM transactions`) == 0 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 1 {
-		t.Fatalf("o tick deveria materializar a recorrência nova: %d transações", n)
+		t.Fatalf("the tick should materialize the new recurrence: %d transactions", n)
 	}
 }
 
 func TestRunSkipsInvalidTemplateAndKeepsGoing(t *testing.T) {
 	m, d := setup(t, time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC))
-	// a recorrência com data inicial inválida é ignorada; a outra continua sendo gerada
+	// the recurrence with an invalid start date is skipped; the other one is still generated
 	if _, err := d.Exec(`PRAGMA ignore_check_constraints = ON`); err != nil {
-		t.Skip("não consegui desligar os checks para plantar dado inválido")
+		t.Skip("could not turn off the checks to plant invalid data")
 	}
 	if _, err := d.Exec(`INSERT INTO recurrences (wallet_id, kind, amount_cents, description, category_id, paid_by_user_id, day_of_month, start_date, created_by)
-		VALUES (1, 'expense', 100, 'quebrada', 1, 1, 5, 'não-é-data', 1)`); err != nil {
+		VALUES (1, 'expense', 100, 'broken', 1, 1, 5, 'not-a-date', 1)`); err != nil {
 		t.Fatal(err)
 	}
 	addExpenseRecurrence(t, d, 5, "2026-10-01")
 	if err := m.Run(context.Background(), 0); err != nil {
-		t.Fatalf("uma recorrência inválida não pode derrubar as outras: %v", err)
+		t.Fatalf("an invalid recurrence must not bring down the others: %v", err)
 	}
 	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 1 {
-		t.Fatalf("%d transações, want 1", n)
+		t.Fatalf("%d transactions, want 1", n)
 	}
 }

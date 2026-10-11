@@ -40,7 +40,7 @@ export function appCtx(over: Partial<AppCtx> = {}): AppCtx {
   };
 }
 
-/** Renderiza dentro do contexto do app, do React Query e de um roteador em memória. */
+/** Renders inside the app context, React Query and an in-memory router. */
 export function renderApp(ui: ReactElement, ctx: AppCtx = appCtx(), route = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -54,7 +54,7 @@ export function renderApp(ui: ReactElement, ctx: AppCtx = appCtx(), route = "/")
 
 type Reply = { status?: number; body?: unknown };
 
-/** Troca o fetch global; devolve o mock para conferir as chamadas. */
+/** Replaces the global fetch; returns the mock so calls can be inspected. */
 export function mockFetch(reply: Reply | ((url: string, init: RequestInit) => Reply) = {}) {
   const fn = vi.fn(async (url: string, init: RequestInit = {}) => {
     const r = typeof reply === "function" ? reply(url, init) : reply;
@@ -65,5 +65,5 @@ export function mockFetch(reply: Reply | ((url: string, init: RequestInit) => Re
   return fn;
 }
 
-/** Corpo JSON da n-ésima chamada ao fetch. */
+/** JSON body of the n-th call to fetch. */
 export const bodyOf = (fn: ReturnType<typeof mockFetch>, call = 0) => JSON.parse(fn.mock.calls[call][1]!.body as string);

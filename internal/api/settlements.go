@@ -35,7 +35,7 @@ type settlementInput struct {
 	Note        string `json:"note"`
 }
 
-// checkSettlementMembers exige divisão ligada na carteira e os dois usuários como membros.
+// checkSettlementMembers requires splitting enabled on the wallet and both users to be members.
 func checkSettlementMembers(ctx context.Context, q querier, walletID, from, to int64) error {
 	var splitting bool
 	if err := q.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {

@@ -10,8 +10,8 @@ func (s *Server) eventsRoutes(mux *http.ServeMux, wallet routeWrap) {
 	mux.Handle("GET /api/wallets/{walletID}/events", wallet(roleReader, s.events))
 }
 
-// events mantém uma conexão SSE aberta e avisa quando outro membro altera a carteira.
-// Autentica pelo cookie de sessão, sem token na URL.
+// events keeps an SSE connection open and notifies when another member changes the wallet.
+// Authenticates with the session cookie, no token in the URL.
 func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	walletID, userID := walletIDFrom(r.Context()), userIDFrom(r.Context())
 	rc := http.NewResponseController(w)
@@ -20,7 +20,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("X-Accel-Buffering", "no") // nginx
 	w.WriteHeader(http.StatusOK)
 	if err := rc.Flush(); err != nil {
-		return nil // sem suporte a streaming; nada a fazer
+		return nil // streaming not supported; nothing to do
 	}
 
 	ch := s.bus.Subscribe(walletID, userID)

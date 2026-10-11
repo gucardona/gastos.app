@@ -38,7 +38,7 @@ type summaryDTO struct {
 	ByCategory        []categoryTotal  `json:"byCategory"`
 	ByEssentiality    map[string]int64 `json:"byEssentiality"`
 	Previous          monthTotals      `json:"previous"`
-	// Só presentes quando a divisão está ativa na carteira.
+	// Only present when splitting is enabled on the wallet.
 	MemberBalances       any `json:"memberBalances,omitempty"`
 	SuggestedSettlements any `json:"suggestedSettlements,omitempty"`
 }
@@ -180,9 +180,9 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// memberNet calcula o saldo de cada membro com o histórico inteiro da carteira:
-// quem pagou um gasto dividido recebe crédito do total; cada participante é debitado da sua parte
-// (rateio em centavos, igual ao que a lista de lançamentos mostra); acertos movem o saldo de quem envia para quem recebe.
+// memberNet computes each member's balance over the wallet's entire history:
+// whoever paid a split expense is credited the total; each participant is debited their share
+// (allocated in cents, the same as the transaction list shows); settlements move balance from the sender to the receiver.
 func (s *Server) memberNet(ctx context.Context, walletID int64) (map[int64]int64, []int64, error) {
 	net := map[int64]int64{}
 	var order []int64

@@ -45,7 +45,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("GET /api/wallets/{walletID}/members", wallet(roleReader, s.listMembers))
 	mux.Handle("POST /api/wallets/{walletID}/members", wallet(roleOwner, s.addMember))
 	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", wallet(roleOwner, s.updateMember))
-	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner ou o próprio: checado no handler
+	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner or the member themselves: checked in the handler
 
 	s.catalogRoutes(mux, wallet)
 	s.transactionRoutes(mux, wallet)
@@ -64,7 +64,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	if err := s.db.PingContext(r.Context()); err != nil {
-		http.Error(w, "db indisponível", http.StatusServiceUnavailable)
+		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	w.Write([]byte("ok"))
@@ -76,7 +76,7 @@ type statusRecorder struct {
 }
 
 func (r *statusRecorder) WriteHeader(code int)        { r.status = code; r.ResponseWriter.WriteHeader(code) }
-func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter } // mantém Flusher via ResponseController
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter } // keeps Flusher available through ResponseController
 
 func (s *Server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +100,7 @@ func (s *Server) recoverPanic(next http.Handler) http.Handler {
 	})
 }
 
-// devCORS libera o Vite em localhost:5173 apenas com GASTOS_DEV=true.
+// devCORS allows Vite on localhost:5173 only when GASTOS_DEV=true.
 func (s *Server) devCORS(next http.Handler) http.Handler {
 	if !s.cfg.Dev {
 		return next

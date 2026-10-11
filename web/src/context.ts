@@ -12,7 +12,7 @@ export interface AppCtx {
   paymentMethods: PaymentMethod[];
   members: Member[];
   canEdit: boolean;
-  /** Abre o lançamento rápido; com `tx`, edita esse lançamento. */
+  /** Opens quick add; with `tx`, edits that transaction. */
   openAdd: (tx?: Transaction) => void;
 }
 

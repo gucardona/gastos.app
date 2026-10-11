@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// openStream abre o SSE da carteira e entrega cada linha lida no canal.
+// openStream opens the wallet's SSE stream and delivers every line read on the channel.
 func openStream(t *testing.T, c *client) <-chan string {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -47,12 +47,12 @@ func TestSSEDeliversOthersChangesOnly(t *testing.T) {
 	}
 
 	stream := openStream(t, ana)
-	time.Sleep(100 * time.Millisecond) // garante a inscrição no bus
+	time.Sleep(100 * time.Millisecond) // make sure the subscription on the bus is in place
 
-	post(ana) // a própria mudança não gera evento
+	post(ana) // your own change does not produce an event
 	select {
 	case l := <-stream:
-		t.Fatalf("não esperava evento da própria mudança, veio %q", l)
+		t.Fatalf("did not expect an event for your own change, got %q", l)
 	case <-time.After(300 * time.Millisecond):
 	}
 
@@ -65,7 +65,7 @@ func TestSSEDeliversOthersChangesOnly(t *testing.T) {
 				return
 			}
 		case <-deadline:
-			t.Fatal("evento não chegou")
+			t.Fatal("event did not arrive")
 		}
 	}
 }

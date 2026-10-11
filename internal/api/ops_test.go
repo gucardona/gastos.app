@@ -11,7 +11,7 @@ import (
 	"gastos/internal/config"
 )
 
-// ---- /healthz: o deploy decide o rollback por ele ----
+// ---- /healthz: the deploy decides on rollback based on it ----
 
 func TestHealthzOK(t *testing.T) {
 	app := newTestApp(t)
@@ -38,7 +38,7 @@ func TestHealthzFailsWhenDatabaseIsGone(t *testing.T) {
 	}
 }
 
-// ---- Housekeeping: limpeza de sessões e backup diário ----
+// ---- Housekeeping: session cleanup and daily backup ----
 
 func countRows(t *testing.T, app *testApp, query string) int {
 	t.Helper()
@@ -49,7 +49,7 @@ func countRows(t *testing.T, app *testApp, query string) int {
 	return n
 }
 
-// runHousekeeping executa o job até a condição ser verdadeira e então o cancela.
+// runHousekeeping runs the job until the condition is true and then cancels it.
 func runHousekeeping(t *testing.T, app *testApp, until func() bool) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -63,7 +63,7 @@ func runHousekeeping(t *testing.T, app *testApp, until func() bool) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Housekeeping não parou ao cancelar o contexto")
+		t.Fatal("Housekeeping did not stop when the context was cancelled")
 	}
 }
 
@@ -79,30 +79,30 @@ func TestHousekeepingRemovesExpiredSessionsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := countRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 2 {
-		t.Fatalf("%d sessões antes, want 2", n)
+		t.Fatalf("%d sessions before, want 2", n)
 	}
 	runHousekeeping(t, app, func() bool { return countRows(t, app, `SELECT COUNT(*) FROM sessions`) == 1 })
 	if n := countRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 1 {
-		t.Fatalf("%d sessões depois, want 1 (a válida fica)", n)
+		t.Fatalf("%d sessions after, want 1 (the valid one stays)", n)
 	}
-	ana.do("GET", "/api/me", nil, 200, nil) // a sessão ativa continua funcionando
+	ana.do("GET", "/api/me", nil, 200, nil) // the active session keeps working
 }
 
 func TestHousekeepingMakesBackupOnlyWhenTheLastIsOld(t *testing.T) {
 	app := newTestApp(t)
 	if len(backups(app)) != 0 {
-		t.Fatal("não deveria haver backup antes")
+		t.Fatal("there should be no backup before")
 	}
 	runHousekeeping(t, app, func() bool { return len(backups(app)) == 1 })
 	if n := len(backups(app)); n != 1 {
 		t.Fatalf("%d backups, want 1", n)
 	}
 
-	// com um backup recente, rodar de novo não cria outro
+	// with a recent backup, running again does not create another
 	settle := time.Now().Add(300 * time.Millisecond)
 	runHousekeeping(t, app, func() bool { return time.Now().After(settle) })
 	if n := len(backups(app)); n != 1 {
-		t.Fatalf("%d backups depois da segunda execução, want 1", n)
+		t.Fatalf("%d backups after the second run, want 1", n)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestHousekeepingRotatesOldBackups(t *testing.T) {
 	}
 	runHousekeeping(t, app, func() bool { return len(backups(app)) == 2 && !exists(filepath.Join(dir, "gastos-20200101-000000.db")) })
 	if len(backups(app)) != 2 || exists(filepath.Join(dir, "gastos-20200101-000000.db")) {
-		t.Fatalf("esperava manter os 2 mais novos, tenho %v", backups(app))
+		t.Fatalf("expected to keep the 2 newest, have %v", backups(app))
 	}
 }
 
@@ -149,15 +149,15 @@ func TestDevCORS(t *testing.T) {
 
 	res := do(dev, "GET", "http://localhost:5173")
 	if res.Header.Get("Access-Control-Allow-Origin") != "http://localhost:5173" || res.Header.Get("Access-Control-Allow-Credentials") != "true" {
-		t.Errorf("dev + origem do Vite: cabeçalhos %v", res.Header)
+		t.Errorf("dev + Vite origin: headers %v", res.Header)
 	}
 	if res := do(dev, "OPTIONS", "http://localhost:5173"); res.StatusCode != http.StatusNoContent {
 		t.Errorf("preflight: status %d, want 204", res.StatusCode)
 	}
 	if res := do(dev, "GET", "https://evil.example"); res.Header.Get("Access-Control-Allow-Origin") != "" {
-		t.Error("origem desconhecida não deve receber CORS, nem em dev")
+		t.Error("an unknown origin must not get CORS, not even in dev")
 	}
 	if res := do(prod, "GET", "http://localhost:5173"); res.Header.Get("Access-Control-Allow-Origin") != "" {
-		t.Error("em produção ninguém recebe CORS")
+		t.Error("nobody gets CORS in production")
 	}
 }

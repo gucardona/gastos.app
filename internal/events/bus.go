@@ -7,7 +7,7 @@ type sub struct {
 	ch     chan struct{}
 }
 
-// Bus entrega avisos de mudança por carteira para quem está com o SSE aberto.
+// Bus delivers change notices per wallet to everyone with an SSE connection open.
 type Bus struct {
 	mu   sync.RWMutex
 	subs map[int64][]*sub
@@ -38,8 +38,8 @@ func (b *Bus) Unsubscribe(walletID int64, ch chan struct{}) {
 	}
 }
 
-// Notify avisa todos os inscritos da carteira, menos quem fez a mudança.
-// actorUserID = 0 representa o sistema (jobs) e avisa todo mundo.
+// Notify tells every subscriber of the wallet, except whoever made the change.
+// actorUserID = 0 stands for the system (jobs) and notifies everyone.
 func (b *Bus) Notify(walletID, actorUserID int64) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

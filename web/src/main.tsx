@@ -15,7 +15,7 @@ applyStoredTheme();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // erros 4xx (sessão expirada, sem permissão) não melhoram tentando de novo
+      // 4xx errors (expired session, no permission) do not improve by retrying
       retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
       refetchOnWindowFocus: false,
     },

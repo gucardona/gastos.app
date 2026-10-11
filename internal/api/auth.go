@@ -113,7 +113,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 		`SELECT id, name, email, password_hash FROM users WHERE email = ?`, in.Email).
 		Scan(&u.ID, &u.Name, &u.Email, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		// gasta o mesmo tempo para não revelar se o e-mail existe
+		// spend the same time so the response does not reveal whether the email exists
 		bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(in.Password))
 		return errBadLogin
 	}
@@ -132,7 +132,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 
 var errBadLogin = &apiError{Status: 401, Code: "unauthenticated", Message: "E-mail ou senha incorretos"}
 
-// dummyHash é um hash bcrypt válido de uma senha qualquer, usado para igualar o tempo de resposta.
+// dummyHash is a valid bcrypt hash of an arbitrary password, used to equalize response time.
 var dummyHash = func() string {
 	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcryptCost)
 	return string(h)
@@ -220,7 +220,7 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 }
 
 func clientIP(r *http.Request) string {
-	// Atrás do Caddy/nginx em localhost: só confia no X-Forwarded-For se o peer é loopback.
+	// Behind Caddy/nginx on localhost: only trust X-Forwarded-For when the peer is loopback.
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
@@ -241,7 +241,7 @@ func newRateLimiter(max int, window time.Duration) *rateLimiter {
 	return &rateLimiter{max: max, window: window, hits: map[string][]time.Time{}}
 }
 
-// allow registra uma tentativa e diz se ainda está dentro do limite.
+// allow records an attempt and reports whether it is still within the limit.
 func (l *rateLimiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()

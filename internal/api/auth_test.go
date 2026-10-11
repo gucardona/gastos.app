@@ -10,7 +10,7 @@ func TestAuthFlow(t *testing.T) {
 	app := newTestApp(t)
 	c := app.register("Ana", "ana@example.com")
 	if c.user.ID == 0 || c.walletID == 0 {
-		t.Fatalf("registro sem user/carteira: %+v", c)
+		t.Fatalf("signup without user/wallet: %+v", c)
 	}
 
 	c.do("POST", "/api/auth/logout", nil, 204, nil)

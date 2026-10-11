@@ -8,7 +8,7 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-// Dist devolve o build do frontend com dist/ como raiz.
+// Dist returns the frontend build with dist/ as the root.
 func Dist() fs.FS {
 	sub, err := fs.Sub(dist, "dist")
 	if err != nil {

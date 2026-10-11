@@ -1,7 +1,7 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
-// o jsdom não implementa <dialog>.showModal/close
+// jsdom does not implement <dialog>.showModal/close
 HTMLDialogElement.prototype.showModal = function () {
   this.setAttribute("open", "");
 };

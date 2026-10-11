@@ -49,7 +49,7 @@ type recurrenceInput struct {
 	Splits          []split `json:"splits"`
 }
 
-// validate confere a entrada; currentCategoryID permite manter categoria arquivada já usada (0 na criação).
+// validate checks the input; currentCategoryID allows keeping an archived category that is already in use (0 on create).
 func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.EndDate != nil && strings.TrimSpace(*in.EndDate) == "" {
@@ -81,7 +81,7 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 		}
 		desc := in.Description
 		if desc == "" {
-			desc = "-" // a descrição é opcional em recorrências (vira o nome da categoria)
+			desc = "-" // the description is optional on recurrences (it becomes the category name)
 		}
 		ti := transactionInput{Kind: in.Kind, AmountCents: in.AmountCents, Description: desc, CategoryID: *in.CategoryID,
 			PaymentMethodID: in.PaymentMethodID, Date: in.StartDate, PaidByUserID: in.PaidByUserID, Splits: in.Splits}
@@ -171,7 +171,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 	return list, nil
 }
 
-// nextDate é a primeira ocorrência depois de hoje (nil se desabilitada ou encerrada).
+// nextDate is the first occurrence after today (nil if disabled or finished).
 func (s *Server) nextDate(d recurrenceDTO) *string {
 	if !d.Enabled {
 		return nil
@@ -324,9 +324,9 @@ func (s *Server) deleteRecurrence(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
-// materialize gera na hora o que já é devido; falhas só são logadas (o job horário tenta de novo).
+// materialize generates what is already due right away; failures are only logged (the hourly job retries).
 func (s *Server) materialize(ctx context.Context, walletID int64) {
 	if err := s.mat.Run(ctx, walletID); err != nil {
-		s.log.ErrorContext(ctx, "materializar recorrências", "wallet", walletID, "err", err)
+		s.log.ErrorContext(ctx, "materialize recurrences", "wallet", walletID, "err", err)
 	}
 }

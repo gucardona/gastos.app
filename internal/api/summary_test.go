@@ -22,10 +22,10 @@ func TestSummaryScenario(t *testing.T) {
 		}, 201, nil)
 	}
 
-	post(ana, "expense", exp, 2000, "2026-09-10") // antes de ligar a divisão: não entra nos saldos
+	post(ana, "expense", exp, 2000, "2026-09-10") // before enabling splitting: not part of the balances
 	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
-	post(ana, "expense", exp, 10000, "2026-10-02") // 50/50 → 5000 cada
-	post(bia, "expense", exp, 3001, "2026-10-03")  // 50/50 → Ana 1501, Bia 1500 (menor user_id fica com o resto)
+	post(ana, "expense", exp, 10000, "2026-10-02") // 50/50 → 5000 each
+	post(bia, "expense", exp, 3001, "2026-10-03")  // 50/50 → Ana 1501, Bia 1500 (the lowest user_id gets the remainder)
 	post(ana, "income", inc, 500000, "2026-10-05")
 	ana.do("POST", ana.wpath("/settlements"), map[string]any{
 		"fromUserId": bia.user.ID, "toUserId": ana.user.ID, "amountCents": 1000, "date": "2026-10-06",
@@ -39,10 +39,10 @@ func TestSummaryScenario(t *testing.T) {
 		t.Errorf("totais: %+v", sum)
 	}
 	if sum.Previous.ExpenseCents != 2000 || sum.Previous.IncomeCents != 0 {
-		t.Errorf("mês anterior: %+v", sum.Previous)
+		t.Errorf("previous month: %+v", sum.Previous)
 	}
 	if sum.DailyAverageCents != 13001/15 {
-		t.Errorf("média diária: %d, want %d", sum.DailyAverageCents, 13001/15)
+		t.Errorf("daily average: %d, want %d", sum.DailyAverageCents, 13001/15)
 	}
 	if len(sum.ByCategory) != 2 || sum.ByCategory[0].CategoryID != inc || sum.ByCategory[0].Cents != 500000 {
 		t.Fatalf("por categoria: %+v", sum.ByCategory)
@@ -54,7 +54,7 @@ func TestSummaryScenario(t *testing.T) {
 		t.Errorf("por essencialidade: %+v", sum.ByEssentiality)
 	}
 
-	// Ana pagou 10000 e deve 5000+1501; Bia pagou 3001 e deve 5000+1500; Bia já acertou 1000.
+	// Ana paid 10000 and owes 5000+1501; Bia paid 3001 and owes 5000+1500; Bia already settled 1000.
 	balances, _ := sum.MemberBalances.([]any)
 	if len(balances) != 2 {
 		t.Fatalf("saldos: %+v", sum.MemberBalances)
@@ -83,10 +83,10 @@ func TestSummaryWithoutSplittingOmitsBalances(t *testing.T) {
 	var raw map[string]any
 	ana.do("GET", ana.wpath("/summary?month=2026-10"), nil, 200, &raw)
 	if _, ok := raw["memberBalances"]; ok {
-		t.Errorf("não deveria ter memberBalances: %+v", raw)
+		t.Errorf("should not have memberBalances: %+v", raw)
 	}
 	if raw["byCategory"] == nil {
-		t.Error("byCategory deveria ser [] e não null")
+		t.Error("byCategory should be [] and not null")
 	}
 }
 
@@ -107,11 +107,11 @@ func TestSummaryDailyAverageForPastAndFutureMonths(t *testing.T) {
 	}, 201, nil)
 	var sum summaryDTO
 	ana.do("GET", ana.wpath("/summary?month=2026-08"), nil, 200, &sum)
-	if sum.DailyAverageCents != 100 { // 3100 / 31 dias
-		t.Errorf("mês passado: %d, want 100", sum.DailyAverageCents)
+	if sum.DailyAverageCents != 100 { // 3100 / 31 days
+		t.Errorf("past month: %d, want 100", sum.DailyAverageCents)
 	}
 	ana.do("GET", ana.wpath("/summary?month=2026-12"), nil, 200, &sum)
 	if sum.DailyAverageCents != 0 {
-		t.Errorf("mês futuro: %d, want 0", sum.DailyAverageCents)
+		t.Errorf("future month: %d, want 0", sum.DailyAverageCents)
 	}
 }

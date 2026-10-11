@@ -1,4 +1,4 @@
-// Datas civis ("YYYY-MM-DD") e meses ("YYYY-MM") como strings, sempre no calendário local.
+// Calendar dates ("YYYY-MM-DD") and months ("YYYY-MM") as strings, always in the local calendar.
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -6,7 +6,7 @@ export const toISODate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1
 export const today = () => toISODate(new Date());
 export const monthOf = (isoDate: string) => isoDate.slice(0, 7);
 
-// meio-dia evita que mudanças de horário de verão desloquem o dia
+// noon keeps daylight-saving changes from shifting the day
 const parse = (isoDate: string) => new Date(`${isoDate}T12:00:00`);
 
 export function monthRange(month: string) {
@@ -29,7 +29,7 @@ export function addMonths(month: string, delta: number) {
 export const monthLabel = (month: string) =>
   parse(`${month}-01`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
-/** "Hoje, 11 de outubro", "Ontem, 10 de outubro", "Sexta, 9 de outubro". */
+/** "Hoje, 11 de outubro", "Ontem, 10 de outubro", "Sexta, 9 de outubro" (pt-BR copy shown in the UI). */
 export function dayLabel(isoDate: string, todayISO = today()) {
   const d = parse(isoDate);
   const rest = d.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });

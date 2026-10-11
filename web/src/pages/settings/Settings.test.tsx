@@ -16,8 +16,8 @@ const lastWrite = (fetch: ReturnType<typeof mockFetch>) => {
 };
 const ok = (extra: Record<string, unknown> = {}) => mockFetch((_u, init) => (init.method && init.method !== "GET" ? { body: extra } : { body: [] }));
 
-describe("Ajustes: membros", () => {
-  it("convida por e-mail com a permissão escolhida", async () => {
+describe("Settings: members", () => {
+  it("invites by email with the chosen permission", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<MembersSection />);
@@ -28,7 +28,7 @@ describe("Ajustes: membros", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/members", method: "POST", body: { email: "caio@example.com", role: "reader" } });
   });
 
-  it("mostra o erro quando o e-mail não tem conta", async () => {
+  it("shows the error when the email has no account", async () => {
     mockFetch({ status: 404, body: { error: { code: "not_found", message: "Usuário não encontrado" } } });
     const user = userEvent.setup();
     renderApp(<MembersSection />);
@@ -37,7 +37,7 @@ describe("Ajustes: membros", () => {
     expect(await screen.findByText("Usuário não encontrado")).toBeTruthy();
   });
 
-  it("a dona muda a permissão de outro membro, mas não a própria", async () => {
+  it("the owner changes another member's permission, but not their own", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<MembersSection />);
@@ -47,7 +47,7 @@ describe("Ajustes: membros", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/members/2", method: "PATCH", body: { role: "reader" } });
   });
 
-  it("quem não é dona não convida nem remove ninguém, mas pode sair", () => {
+  it("a non-owner cannot invite or remove anyone, but can leave", () => {
     const bia = { ...wallet, role: "editor" as const };
     renderApp(<MembersSection />, appCtx({ user: { id: 2, name: "Bia Lima", email: "bia@example.com" }, wallet: bia }));
     expect(screen.queryByRole("button", { name: "Convidar" })).toBeNull();
@@ -56,8 +56,8 @@ describe("Ajustes: membros", () => {
   });
 });
 
-describe("Ajustes: categorias", () => {
-  it("cria uma categoria de gasto com tipo de gasto", async () => {
+describe("Settings: categories", () => {
+  it("creates an expense category with an expense type", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<CategoriesSection />);
@@ -70,7 +70,7 @@ describe("Ajustes: categorias", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/categories", method: "POST", body: { kind: "expense", name: "Pets", icon: "🐶", essentiality: "nonessential" } });
   });
 
-  it("entradas não têm tipo de gasto", async () => {
+  it("income categories have no expense type", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<CategoriesSection />);
@@ -86,7 +86,7 @@ describe("Ajustes: categorias", () => {
     expect(lastWrite(fetch).body).not.toHaveProperty("essentiality");
   });
 
-  it("mostra o erro da API, como nome repetido", async () => {
+  it("shows the API error, such as a duplicate name", async () => {
     mockFetch({ status: 409, body: { error: { code: "conflict", message: "Já existe uma categoria com esse nome" } } });
     const user = userEvent.setup();
     renderApp(<CategoriesSection />);
@@ -97,18 +97,18 @@ describe("Ajustes: categorias", () => {
     expect(await screen.findByText("Já existe uma categoria com esse nome")).toBeTruthy();
   });
 
-  it("explica quando a exclusão virou arquivamento", async () => {
+  it("explains when a deletion became an archive", async () => {
     const archived: Category = { ...categories[0], archived: true };
     mockFetch({ status: 200, body: archived });
     const user = userEvent.setup();
     renderApp(<CategoriesSection />);
     const row = screen.getByText("Mercado").closest(".item") as HTMLElement;
-    await user.click(row.querySelectorAll("button")[1]); // Excluir
+    await user.click(row.querySelectorAll("button")[1]); // Excluir button
     await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
     expect(await screen.findByText("Arquivada, porque já tem lançamentos.")).toBeTruthy();
   });
 
-  it("restaura uma categoria arquivada", async () => {
+  it("restores an archived category", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     const old = { ...categories[1], archived: true };
@@ -120,8 +120,8 @@ describe("Ajustes: categorias", () => {
   });
 });
 
-describe("Ajustes: formas de pagamento", () => {
-  it("cria uma forma de pagamento", async () => {
+describe("Settings: payment methods", () => {
+  it("creates a payment method", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<PaymentsSection />);
@@ -134,10 +134,10 @@ describe("Ajustes: formas de pagamento", () => {
   });
 });
 
-describe("Ajustes: orçamentos", () => {
+describe("Settings: budgets", () => {
   const withBudget = () => mockFetch((_u, init) => (init.method && init.method !== "GET" ? { body: {} } : { body: [{ categoryId: 1, limitCents: 150000 }] }));
 
-  it("mostra o limite atual e salva um novo em centavos", async () => {
+  it("shows the current limit and saves a new one in cents", async () => {
     const fetch = withBudget();
     const user = userEvent.setup();
     renderApp(<BudgetsSection />);
@@ -150,7 +150,7 @@ describe("Ajustes: orçamentos", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/budgets/1", method: "PUT", body: { limitCents: 180050 } });
   });
 
-  it("recusa valor inválido sem chamar a API", async () => {
+  it("rejects an invalid value without calling the API", async () => {
     const fetch = withBudget();
     const user = userEvent.setup();
     renderApp(<BudgetsSection />);
@@ -161,7 +161,7 @@ describe("Ajustes: orçamentos", () => {
     expect(writes(fetch)).toHaveLength(0);
   });
 
-  it("remove o limite", async () => {
+  it("removes the limit", async () => {
     const fetch = withBudget();
     const user = userEvent.setup();
     renderApp(<BudgetsSection />);
@@ -171,7 +171,7 @@ describe("Ajustes: orçamentos", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/budgets/1", method: "DELETE" });
   });
 
-  it("só lista categorias de gasto ativas", async () => {
+  it("lists only active expense categories", async () => {
     withBudget();
     renderApp(<BudgetsSection />);
     await screen.findByLabelText("Limite mensal de Mercado");
@@ -179,8 +179,8 @@ describe("Ajustes: orçamentos", () => {
   });
 });
 
-describe("Ajustes: carteira", () => {
-  it("liga a divisão de gastos", async () => {
+describe("Settings: wallet", () => {
+  it("turns expense splitting on", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<WalletSection />);
@@ -189,7 +189,7 @@ describe("Ajustes: carteira", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1", method: "PATCH", body: { splittingEnabled: true } });
   });
 
-  it("cria uma nova carteira e passa a usá-la", async () => {
+  it("creates a new wallet and starts using it", async () => {
     const created = { ...wallet, id: 9, name: "Viagem" };
     const ctx = appCtx();
     const fetch = mockFetch((_u, init) => (init.method === "POST" ? { status: 201, body: created } : { body: [] }));
@@ -201,7 +201,7 @@ describe("Ajustes: carteira", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets", method: "POST", body: { name: "Viagem", splittingEnabled: false } });
   });
 
-  it("exclui a carteira só depois de confirmar", async () => {
+  it("deletes the wallet only after confirming", async () => {
     const fetch = ok();
     const user = userEvent.setup();
     renderApp(<WalletSection />);
@@ -212,7 +212,7 @@ describe("Ajustes: carteira", () => {
     expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1", method: "DELETE" });
   });
 
-  it("quem não é dona não edita a carteira", () => {
+  it("a non-owner cannot edit the wallet", () => {
     renderApp(<WalletSection />, appCtx({ wallet: { ...wallet, role: "editor" } }));
     expect(screen.queryByRole("button", { name: "Excluir" })).toBeNull();
     expect((screen.getByLabelText("Nome da carteira") as HTMLInputElement).disabled).toBe(true);

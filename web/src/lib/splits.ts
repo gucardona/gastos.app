@@ -1,4 +1,4 @@
-/** "33,33" → 3333 basis points; null se não for um número válido. */
+/** "33,33" → 3333 basis points; null if it is not a valid number. */
 const toBp = (s: string) => {
   const v = s.trim().replace(",", ".");
   if (v === "") return 0;
@@ -6,7 +6,7 @@ const toBp = (s: string) => {
   return Math.round(Number(v) * 100);
 };
 
-/** Porcentagens digitadas por membro → partes da API. Null se algo é inválido ou a soma não fecha 100%. */
+/** Percentages typed per member → API shares. Null if anything is invalid or the total is not 100%. */
 export function sharesFromPercents(percents: Record<number, string>) {
   const out: { userId: number; shareBp: number }[] = [];
   let total = 0;
@@ -19,7 +19,7 @@ export function sharesFromPercents(percents: Record<number, string>) {
   return total === 10000 ? out : null;
 }
 
-/** Divisão igual em texto de porcentagem; o resto de centésimos vai para o primeiro. */
+/** Equal split as percentage text; the leftover hundredths go to the first member. */
 export function equalPercents(userIds: number[]) {
   const base = Math.floor(10000 / userIds.length);
   const rest = 10000 - base * userIds.length;

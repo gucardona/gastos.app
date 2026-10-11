@@ -2,11 +2,11 @@ package money
 
 import "sort"
 
-// FullShare é 100% em basis points.
+// FullShare is 100% in basis points.
 const FullShare = 10000
 
-// Allocate divide total centavos proporcionalmente a shares (maior resto).
-// A soma do resultado é sempre total; empates de resto favorecem o menor índice.
+// Allocate splits total cents proportionally to shares (largest remainder).
+// The result always sums to total; remainder ties favor the lowest index.
 func Allocate(total int64, shares []int64) []int64 {
 	out := make([]int64, len(shares))
 	var sum int64
@@ -35,7 +35,7 @@ func Allocate(total int64, shares []int64) []int64 {
 	return out
 }
 
-// EqualShares divide 100% em n partes; o resto vai para a primeira.
+// EqualShares divides 100% into n parts; the remainder goes to the first.
 func EqualShares(n int) []int64 {
 	if n <= 0 {
 		return nil

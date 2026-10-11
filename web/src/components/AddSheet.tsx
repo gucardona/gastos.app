@@ -7,7 +7,7 @@ import { toISODate, today } from "../lib/dates";
 import { formatBRL, parseCents } from "../lib/money";
 import { equalPercents, sharesFromPercents } from "../lib/splits";
 
-/** Sheet do lançamento rápido, em <dialog> nativo (foco preso e Esc de graça). */
+/** Quick-add sheet, built on a native <dialog> (focus trap and Esc for free). */
 export function AddSheet({ state, onClose }: { state: { tx?: Transaction } | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const open = state !== null;

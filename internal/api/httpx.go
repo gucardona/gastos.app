@@ -43,7 +43,7 @@ func errNotFoundMsg(msg string) *apiError {
 	return &apiError{Status: 404, Code: "not_found", Message: msg}
 }
 
-// fieldErrors acumula erros de validação por campo (o primeiro erro de cada campo vence).
+// fieldErrors collects validation errors per field (the first error of each field wins).
 type fieldErrors map[string]string
 
 func (f fieldErrors) add(field, msg string) {
@@ -89,7 +89,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// decode exige JSON (barreira de CSRF junto com SameSite=Lax), limita a 1 MB e recusa campos desconhecidos.
+// decode requires JSON (a CSRF barrier together with SameSite=Lax), caps the body at 1 MB and rejects unknown fields.
 func decode(w http.ResponseWriter, r *http.Request, dst any) error {
 	mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if mt != "application/json" {
@@ -103,14 +103,14 @@ func decode(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-// querier é satisfeito por *sql.DB e *sql.Tx.
+// querier is satisfied by *sql.DB and *sql.Tx.
 type querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// inTx executa fn numa transação (BEGIN IMMEDIATE pelo DSN).
+// inTx runs fn in a transaction (BEGIN IMMEDIATE through the DSN).
 func (s *Server) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

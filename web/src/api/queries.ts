@@ -4,7 +4,7 @@ import { addDays, monthRange, today } from "../lib/dates";
 import { api } from "./client";
 import type { Budget, Category, Me, Member, PaymentMethod, Recurrence, Settlement, Summary, Transaction } from "./types";
 
-// Toda chave de dados de uma carteira começa com ["wallet", id], então uma invalidação só renova tudo.
+// Every data key of a wallet starts with ["wallet", id], so a single invalidation refreshes everything.
 const w = (id: number, ...rest: unknown[]) => ["wallet", id, ...rest] as const;
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/me"), staleTime: 60_000 });
@@ -24,7 +24,7 @@ export const useRecurrences = (id: number) =>
 export const useBudgets = (id: number) =>
   useQuery({ queryKey: w(id, "budgets"), queryFn: () => api.get<Budget[]>(`/wallets/${id}/budgets`) });
 
-/** Acertos dos últimos ~10 meses (a API limita o intervalo a 366 dias) e os próximos 2. */
+/** Settlements from the last ~10 months (the API caps the range at 366 days) and the next 2. */
 export const useSettlements = (id: number) => {
   const from = addDays(today(), -300);
   const to = addDays(today(), 60);
@@ -42,7 +42,7 @@ export const useTransactions = (id: number, month: string) => {
   });
 };
 
-/** Renova os dados da carteira ativa (e `me`, que traz nome e papel das carteiras). */
+/** Refreshes the active wallet's data (and `me`, which carries the wallets' name and role). */
 export function useRefresh() {
   const qc = useQueryClient();
   return (walletId: number) => {
@@ -51,7 +51,7 @@ export function useRefresh() {
   };
 }
 
-/** Atualiza a tela quando outro membro altera a carteira. O navegador reconecta o SSE sozinho. */
+/** Updates the screen when another member changes the wallet. The browser reconnects the SSE by itself. */
 export function useWalletEvents(walletId: number) {
   const refresh = useRefresh();
   useEffect(() => {

@@ -11,7 +11,7 @@ func TestSettlementCRUD(t *testing.T) {
 		return map[string]any{"fromUserId": bia.user.ID, "toUserId": ana.user.ID, "amountCents": amount, "date": "2026-10-05", "note": "Pix"}
 	}
 
-	ana.do("POST", ana.wpath("/settlements"), body(5000), 400, nil) // divisão desligada
+	ana.do("POST", ana.wpath("/settlements"), body(5000), 400, nil) // splitting disabled
 	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
 
 	var s settlementDTO
@@ -45,9 +45,9 @@ func TestSettlementValidation(t *testing.T) {
 			"fromUserId": from, "toUserId": to, "amountCents": amount, "date": "2026-10-05",
 		}, want, nil)
 	}
-	post(ana.user.ID, ana.user.ID, 100, 400) // mesma pessoa
-	post(ana.user.ID, bia.user.ID, 100, 400) // Bia não é membro
+	post(ana.user.ID, ana.user.ID, 100, 400) // same person
+	post(ana.user.ID, bia.user.ID, 100, 400) // Bia is not a member
 	shareWallet(ana, bia, "reader")
-	post(bia.user.ID, ana.user.ID, 0, 400) // valor zero
+	post(bia.user.ID, ana.user.ID, 0, 400) // zero amount
 	post(bia.user.ID, ana.user.ID, 100, 201)
 }

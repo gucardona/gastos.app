@@ -5,7 +5,7 @@ import { appCtx, renderApp, wallet } from "../test/fixtures";
 import { MonthSwitcher, PageBar } from "./PageBar";
 
 describe("PageBar", () => {
-  it("mostra a carteira ativa, com quem ela é compartilhada, e a inicial do usuário", () => {
+  it("shows the active wallet, who it is shared with, and the user's initial", () => {
     renderApp(<PageBar />);
     expect((screen.getByLabelText("Carteira") as HTMLSelectElement).value).toBe("1");
     expect(screen.getByText("com Bia")).toBeTruthy();
@@ -14,12 +14,12 @@ describe("PageBar", () => {
     expect(avatar.getAttribute("href")).toBe("/ajustes");
   });
 
-  it("carteira só sua não mostra 'com ninguém'", () => {
+  it("a wallet that is only yours shows no 'com ...' label", () => {
     renderApp(<PageBar />, appCtx({ members: [appCtx().members[0]] }));
     expect(screen.queryByText(/^com /)).toBeNull();
   });
 
-  it("troca de carteira pelo seletor", async () => {
+  it("switches wallet through the selector", async () => {
     const ctx = appCtx({ wallets: [wallet, { ...wallet, id: 7, name: "Viagem" }] });
     renderApp(<PageBar />, ctx);
     await userEvent.selectOptions(screen.getByLabelText("Carteira"), "7");
@@ -28,13 +28,13 @@ describe("PageBar", () => {
 });
 
 describe("MonthSwitcher", () => {
-  it("mostra o mês por extenso e navega para os vizinhos", async () => {
+  it("shows the month spelled out and navigates to the neighbours", async () => {
     const ctx = appCtx({ month: "2026-01" });
     const user = userEvent.setup();
     renderApp(<MonthSwitcher />, ctx);
     expect(screen.getByText("janeiro de 2026")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Mês anterior" }));
-    expect(ctx.setMonth).toHaveBeenLastCalledWith("2025-12"); // vira o ano
+    expect(ctx.setMonth).toHaveBeenLastCalledWith("2025-12"); // crosses the year boundary
     await user.click(screen.getByRole("button", { name: "Próximo mês" }));
     expect(ctx.setMonth).toHaveBeenLastCalledWith("2026-02");
   });

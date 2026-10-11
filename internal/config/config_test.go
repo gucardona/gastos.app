@@ -29,7 +29,7 @@ func TestLoadInvalid(t *testing.T) {
 		{"GASTOS_DEV": "sim"},
 	} {
 		if _, err := Load(env(m)); err == nil {
-			t.Errorf("Load(%v) deveria falhar", m)
+			t.Errorf("Load(%v) should fail", m)
 		}
 	}
 }

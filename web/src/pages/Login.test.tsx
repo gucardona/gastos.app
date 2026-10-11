@@ -21,7 +21,7 @@ function renderLogin() {
 }
 
 describe("Login", () => {
-  it("entra e vai para a visão geral", async () => {
+  it("signs in and goes to the overview", async () => {
     const fetch = mockFetch({ body: { id: 1 } });
     const user = renderLogin();
     await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
@@ -32,7 +32,7 @@ describe("Login", () => {
     expect(bodyOf(fetch)).toEqual({ email: "ana@example.com", password: "senha-segura" });
   });
 
-  it("mostra a mensagem quando a senha está errada", async () => {
+  it("shows the message when the password is wrong", async () => {
     mockFetch({ status: 401, body: { error: { code: "unauthenticated", message: "E-mail ou senha incorretos" } } });
     const user = renderLogin();
     await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
@@ -42,7 +42,7 @@ describe("Login", () => {
     expect(screen.queryByText("Visão geral")).toBeNull();
   });
 
-  it("cria a conta e mostra os erros de campo", async () => {
+  it("creates the account and shows field errors", async () => {
     const fetch = mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { password: "mínimo de 8 caracteres" } } } });
     const user = renderLogin();
     await user.click(screen.getByRole("button", { name: "Criar uma conta" }));

@@ -12,7 +12,7 @@ const yesterday = () => {
 };
 
 describe("TransactionList", () => {
-  it("agrupa por dia com o total do dia e sinais corretos", () => {
+  it("groups by day with the day total and correct signs", () => {
     renderApp(
       <TransactionList
         items={[
@@ -23,19 +23,19 @@ describe("TransactionList", () => {
       />,
     );
     const hoje = screen.getByText(/^Hoje,/).closest("section")!;
-    expect(within(hoje).getByText(/\+R\$\s950,00/)).toBeTruthy(); // 1000 − 50 no cabeçalho do dia
+    expect(within(hoje).getByText(/\+R\$\s950,00/)).toBeTruthy(); // 1000 − 50 in the day header
     expect(within(hoje).getByText(/−R\$\s50,00/)).toBeTruthy();
     expect(within(hoje).getByText(/\+R\$\s1\.000,00/)).toBeTruthy();
     expect(screen.getByText(/^Ontem,/)).toBeTruthy();
   });
 
-  it("mostra categoria, pagamento e o selo de recorrente", () => {
+  it("shows category, payment method and the recurring badge", () => {
     renderApp(<TransactionList items={[tx({ recurrenceId: 7 })]} />);
     expect(screen.getByText(/Mercado, Pix/)).toBeTruthy();
     expect(screen.getByText("recorrente")).toBeTruthy();
   });
 
-  it("explica quem pagou e com quem foi dividido", () => {
+  it("explains who paid and who it was split with", () => {
     renderApp(
       <TransactionList
         items={[tx({ paidByUserId: 2, splits: [{ userId: 1, shareBp: 5000, amountCents: 2445 }, { userId: 2, shareBp: 5000, amountCents: 2445 }] })]}
@@ -44,7 +44,7 @@ describe("TransactionList", () => {
     expect(screen.getByText(/Bia pagou, dividido com Ana/)).toBeTruthy();
   });
 
-  it("abre a edição ao tocar na linha", async () => {
+  it("opens editing when the row is tapped", async () => {
     const ctx = appCtx();
     const t = tx();
     renderApp(<TransactionList items={[t]} />, ctx);
@@ -52,7 +52,7 @@ describe("TransactionList", () => {
     expect(ctx.openAdd).toHaveBeenCalledWith(t);
   });
 
-  it("leitores não editam: a linha fica desabilitada", async () => {
+  it("readers cannot edit: the row is disabled", async () => {
     const ctx = appCtx({ canEdit: false });
     renderApp(<TransactionList items={[tx()]} />, ctx);
     const row = screen.getByRole("button", { name: /Mercado do bairro/ }) as HTMLButtonElement;

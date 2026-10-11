@@ -15,13 +15,13 @@ func TestBusNotifyExcludesActor(t *testing.T) {
 
 	select {
 	case <-actorCh:
-		t.Error("quem fez a mudança não deve ser avisado")
+		t.Error("whoever made the change must not be notified")
 	default:
 	}
 	select {
 	case <-otherCh:
 	default:
-		t.Error("os outros inscritos devem ser avisados")
+		t.Error("the other subscribers must be notified")
 	}
 }
 
@@ -32,7 +32,7 @@ func TestBusSystemActorNotifiesEveryone(t *testing.T) {
 	select {
 	case <-ch:
 	default:
-		t.Error("notificação do sistema deve chegar a todos")
+		t.Error("a system notification must reach everyone")
 	}
 }
 
@@ -43,7 +43,7 @@ func TestBusUnsubscribe(t *testing.T) {
 	b.Notify(10, 99)
 	select {
 	case <-ch:
-		t.Error("canal removido não deve receber")
+		t.Error("a removed channel must not receive")
 	default:
 	}
 }

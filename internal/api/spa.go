@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// spaHandler serve arquivos de fsys; caminhos sem arquivo correspondente recebem index.html.
+// spaHandler serves files from fsys; paths with no matching file get index.html.
 func spaHandler(fsys fs.FS) http.Handler {
 	files := http.FileServerFS(fsys)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func spaHandler(fsys fs.FS) http.Handler {
 				return
 			}
 		}
-		if strings.HasPrefix(p, "assets/") { // arquivos com hash do Vite
+		if strings.HasPrefix(p, "assets/") { // Vite's hashed files
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		files.ServeHTTP(w, r)

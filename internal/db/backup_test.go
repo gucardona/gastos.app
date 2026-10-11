@@ -26,7 +26,7 @@ func TestBackupRotation(t *testing.T) {
 		t.Fatalf("sobraram %d backups, want 2: %v", len(files), files)
 	}
 	if _, err := os.Stat(last); err != nil {
-		t.Fatalf("o mais novo deveria existir: %v", err)
+		t.Fatalf("the newest should exist: %v", err)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestBackupIsOpenable(t *testing.T) {
 	var n int
 	b.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
 	if n != 1 {
-		t.Fatalf("backup com %d usuários, want 1", n)
+		t.Fatalf("backup has %d users, want 1", n)
 	}
 }
 
@@ -57,21 +57,21 @@ func TestBackupNeverOverwrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := Backup(context.Background(), d, dir, 5, now); err == nil {
-		t.Fatal("segundo backup no mesmo instante deveria falhar")
+		t.Fatal("a second backup at the same instant should fail")
 	}
 }
 
 func TestLastBackupAge(t *testing.T) {
 	dir := testutil.TempDir(t)
 	if LastBackupAge(dir, time.Now()) < 1000*time.Hour {
-		t.Fatal("sem backups deveria devolver idade enorme")
+		t.Fatal("with no backups it should return a huge age")
 	}
 	d := openTemp(t)
 	if _, err := Backup(context.Background(), d, dir, 5, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if age := LastBackupAge(dir, time.Now()); age > time.Minute {
-		t.Fatalf("idade %v, esperava ~0", age)
+		t.Fatalf("age %v, expected ~0", age)
 	}
 }
 
@@ -82,7 +82,7 @@ func TestBackupFailsWhenDirectoryCannotBeCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := Backup(context.Background(), d, filepath.Join(file, "backups"), 3, time.Now()); err == nil {
-		t.Fatal("deveria falhar quando o diretório de backup não pode ser criado")
+		t.Fatal("should fail when the backup directory cannot be created")
 	}
 }
 
@@ -91,6 +91,6 @@ func TestBackupHonoursCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := Backup(ctx, d, testutil.TempDir(t), 3, time.Now()); err == nil {
-		t.Fatal("contexto cancelado deveria interromper o backup")
+		t.Fatal("a cancelled context should interrupt the backup")
 	}
 }

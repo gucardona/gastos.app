@@ -8,8 +8,8 @@ type transfer struct {
 	AmountCents int64 `json:"amountCents"`
 }
 
-// suggestSettlements casa o maior devedor com o maior credor até zerar.
-// net: positivo = tem a receber; negativo = deve. A soma de net deve ser 0.
+// suggestSettlements matches the largest debtor with the largest creditor until everything is settled.
+// net: positive = is owed money; negative = owes. The sum of net must be 0.
 func suggestSettlements(net map[int64]int64) []transfer {
 	type bal struct{ id, v int64 }
 	var debtors, creditors []bal

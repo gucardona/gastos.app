@@ -11,8 +11,8 @@ import (
 
 const backupGlob = "gastos-*.db"
 
-// Backup grava uma cópia consistente em dir com timestamp e mantém só as keep mais recentes.
-// Nunca sobrescreve: VACUUM INTO falha se o destino já existe.
+// Backup writes a consistent, timestamped copy into dir and keeps only the newest `keep`.
+// It never overwrites: VACUUM INTO fails if the destination already exists.
 func Backup(ctx context.Context, d *sql.DB, dir string, keep int, now time.Time) (string, error) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
@@ -25,7 +25,7 @@ func Backup(ctx context.Context, d *sql.DB, dir string, keep int, now time.Time)
 	if err != nil {
 		return path, err
 	}
-	sort.Strings(matches) // timestamp no nome: ordem lexicográfica = cronológica
+	sort.Strings(matches) // timestamp in the name: lexicographic order = chronological order
 	for len(matches) > keep {
 		os.Remove(matches[0])
 		matches = matches[1:]
@@ -33,7 +33,7 @@ func Backup(ctx context.Context, d *sql.DB, dir string, keep int, now time.Time)
 	return path, nil
 }
 
-// LastBackupAge devolve há quanto tempo foi o último backup, ou um valor enorme se não há nenhum.
+// LastBackupAge returns how long ago the last backup was made, or a huge value if there is none.
 func LastBackupAge(dir string, now time.Time) time.Duration {
 	matches, _ := filepath.Glob(filepath.Join(dir, backupGlob))
 	if len(matches) == 0 {

@@ -13,8 +13,8 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-// migrations[i] leva o banco da versão i+1 para i+2. O schema.sql é sempre a versão 1.
-// Para mudar o schema: acrescente um item aqui; nunca edite itens antigos.
+// migrations[i] takes the database from version i+1 to i+2. schema.sql is always version 1.
+// To change the schema: append an item here; never edit old items.
 var migrations = []string{}
 
 const pragmas = "?_pragma=foreign_keys(1)" +
@@ -23,7 +23,7 @@ const pragmas = "?_pragma=foreign_keys(1)" +
 	"&_pragma=synchronous(NORMAL)" +
 	"&_txlock=immediate"
 
-// Open abre o SQLite com pragmas aplicados em toda conexão do pool e aplica o schema.
+// Open opens SQLite with pragmas applied on every pooled connection, and applies the schema.
 func Open(path string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func migrate(d *sql.DB) error {
 	}
 	steps := append([]string{schemaSQL}, migrations...)
 	if version > len(steps) {
-		return fmt.Errorf("banco na versão %d, este binário conhece até %d", version, len(steps))
+		return fmt.Errorf("database is at version %d, this binary only knows up to %d", version, len(steps))
 	}
 	for i := version; i < len(steps); i++ {
 		tx, err := d.Begin()

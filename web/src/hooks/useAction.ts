@@ -5,7 +5,7 @@ import { useApp } from "../context";
 
 const message = (e: ApiError) => Object.values(e.fields)[0] ?? e.message;
 
-/** Executa uma escrita na API: controla "ocupado", mostra o erro e renova os dados da carteira. */
+/** Runs a write against the API: tracks "busy", surfaces the error and refreshes the wallet's data. */
 export function useAction() {
   const { wallet } = useApp();
   const refresh = useRefresh();

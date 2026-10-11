@@ -47,14 +47,14 @@ func run(log *slog.Logger) error {
 	mat := recurrence.NewMaterializer(d, bus, cfg.Location, log)
 	srv := api.New(d, cfg, bus, mat, log)
 
-	go mat.Loop(ctx, time.Hour) // roda uma vez já no início
+	go mat.Loop(ctx, time.Hour) // runs once right away
 	go srv.Housekeeping(ctx, time.Hour)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Routes(web.Dist()),
 		ReadHeaderTimeout: 10 * time.Second,
-		// sem WriteTimeout: as conexões SSE ficam abertas por tempo indeterminado
+		// no WriteTimeout: SSE connections stay open indefinitely
 	}
 	go func() {
 		<-ctx.Done()
