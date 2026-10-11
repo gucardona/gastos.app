@@ -2,7 +2,9 @@
 
 Faça uma vez, como root, na VDI. Depois disso o GitHub Actions cuida dos deploys (`.github/workflows/ci.yml`).
 
-Convenções: `production` na porta 8000, `staging` na 8001. Layout em `/opt/gastos/<env>/{releases,current}`, dados em `/var/lib/gastos/<env>`, config em `/etc/gastos/<env>.env`.
+**O deploy roda somente em push na `master`.** Branches e pull requests só executam os testes e o build; nunca publicam.
+
+Layout: binários em `/opt/gastos/production/{releases,current}`, dados em `/var/lib/gastos/production`, configuração em `/etc/gastos/production.env`. O app escuta em `127.0.0.1:8000`.
 
 ## 1. Usuários e diretórios
 
@@ -10,16 +12,14 @@ Convenções: `production` na porta 8000, `staging` na 8001. Layout em `/opt/gas
 useradd --system --home /var/lib/gastos --shell /usr/sbin/nologin gastos
 useradd --create-home --shell /bin/bash deploy
 
-for env in production staging; do
-  install -d -o deploy -g deploy /opt/gastos/$env/releases
-  install -d -o gastos -g gastos -m 750 /var/lib/gastos/$env
-done
+install -d -o deploy -g deploy /opt/gastos/production/releases
+install -d -o gastos -g gastos -m 750 /var/lib/gastos/production
 install -d /etc/gastos
 ```
 
-## 2. Configuração de cada ambiente
+## 2. Configuração
 
-`/etc/gastos/production.env` (no staging: `GASTOS_ADDR=127.0.0.1:8001` e `GASTOS_DB_PATH=/var/lib/gastos/staging/gastos.db`):
+`/etc/gastos/production.env`:
 
 ```
 GASTOS_ADDR=127.0.0.1:8000
@@ -34,34 +34,24 @@ GASTOS_BACKUP_DIR=/var/lib/gastos/production/backups
 ```bash
 install -m 644 deploy/gastos@.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable gastos@production gastos@staging   # só inicia depois do primeiro deploy
+systemctl enable gastos@production   # só inicia depois do primeiro deploy
 ```
 
-Permissão mínima para o usuário de deploy reiniciar só esses dois serviços, em `/etc/sudoers.d/gastos-deploy` (valide com `visudo -c`):
+Permissão mínima para o usuário de deploy reiniciar só esse serviço, em `/etc/sudoers.d/gastos-deploy` (valide com `visudo -c`):
 
 ```
-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart gastos@production, /usr/bin/systemctl restart gastos@staging
+deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart gastos@production
 ```
 
 ## 4. HTTPS (Caddy)
 
-O bloco de produção que já existe na VDI não muda: o Caddy já repassa `text/event-stream` sem buffer, então o SSE funciona.
+O bloco que já existe na VDI não muda: o Caddy repassa `text/event-stream` sem buffer, então o SSE funciona.
 
 ```
 gastos.gupa.dev {
 	reverse_proxy 127.0.0.1:8000
 }
 ```
-
-Para o staging, crie o registro DNS `staging.gastos.gupa.dev` apontando para o IP da VDI e acrescente:
-
-```
-staging.gastos.gupa.dev {
-	reverse_proxy 127.0.0.1:8001
-}
-```
-
-Depois `systemctl reload caddy`. Sem o DNS do staging, acesse por túnel (`ssh -L 8001:127.0.0.1:8001 deploy@<ip>`) e use `GASTOS_COOKIE_SECURE=false` no `staging.env`.
 
 ## 5. Chave SSH do CI
 
@@ -80,11 +70,11 @@ No GitHub, em Settings → Secrets and variables → Actions, crie:
 | `DEPLOY_SSH_KEY` | conteúdo de `ci_deploy` (privada) |
 | `DEPLOY_KNOWN_HOSTS` | saída do `ssh-keyscan` |
 
-Apague `ci_deploy` do servidor depois. Sem `DEPLOY_HOST` o job de deploy não faz nada.
+Apague `ci_deploy` do servidor depois. Sem `DEPLOY_HOST` o job de deploy não faz nada. Para exigir aprovação manual antes de cada deploy, configure revisores obrigatórios no ambiente `production` (Settings → Environments).
 
 ## 6. Aposentar o app antigo
 
-O serviço antigo se chama `gastos`, roda `gastos-app` na porta 8000 e usa o banco antigo, que **não é compatível** com o schema novo. Antes do primeiro deploy de produção:
+O serviço antigo se chama `gastos`, roda `gastos-app` na porta 8000 e usa o banco antigo, que **não é compatível** com o schema novo. Antes do primeiro deploy:
 
 ```bash
 systemctl disable --now gastos
@@ -95,4 +85,4 @@ Depois remova `/etc/systemd/system/gastos.service` e o clone antigo.
 
 ## Primeiro deploy
 
-Faça push de uma branch qualquer: ela vai para o staging. O merge em `master` vai para produção. O script `scripts/remote-deploy.sh` volta sozinho para a release anterior se o `/healthz` não responder em 10 segundos.
+Faça merge na `master`. O script `scripts/remote-deploy.sh` ativa a release nova e volta sozinho para a anterior se o `/healthz` não responder em 10 segundos.

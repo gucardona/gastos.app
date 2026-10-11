@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { monthRange } from "../lib/dates";
 import { api } from "./client";
-import type { Category, Me, Member, PaymentMethod, Summary, Transaction } from "./types";
+import type { Budget, Category, Me, Member, PaymentMethod, Recurrence, Summary, Transaction } from "./types";
 
 // Toda chave de dados de uma carteira começa com ["wallet", id], então uma invalidação só renova tudo.
 const w = (id: number, ...rest: unknown[]) => ["wallet", id, ...rest] as const;
@@ -17,6 +17,12 @@ export const usePaymentMethods = (id: number) =>
 
 export const useMembers = (id: number) =>
   useQuery({ queryKey: w(id, "members"), queryFn: () => api.get<Member[]>(`/wallets/${id}/members`), staleTime: 60_000, enabled: id > 0 });
+
+export const useRecurrences = (id: number) =>
+  useQuery({ queryKey: w(id, "recurrences"), queryFn: () => api.get<Recurrence[]>(`/wallets/${id}/recurrences`) });
+
+export const useBudgets = (id: number) =>
+  useQuery({ queryKey: w(id, "budgets"), queryFn: () => api.get<Budget[]>(`/wallets/${id}/budgets`) });
 
 export const useSummary = (id: number, month: string) =>
   useQuery({ queryKey: w(id, "summary", month), queryFn: () => api.get<Summary>(`/wallets/${id}/summary?month=${month}`) });

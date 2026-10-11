@@ -97,3 +97,44 @@ async function newPage(browser: Browser) {
   const context = await browser.newContext();
   return context.newPage();
 }
+
+test("ajustes e recorrentes: categoria, orçamento estourado e recorrência pausada", async ({ page }) => {
+  await signUp(page, "Dani");
+
+  // categoria nova
+  await page.getByRole("link", { name: "Ajustes" }).first().click();
+  await page.getByRole("button", { name: "Categorias" }).click();
+  await page.getByRole("button", { name: "Nova categoria" }).click();
+  await page.getByLabel("Nome da categoria").fill("Pets");
+  await page.getByLabel("Ícone da categoria").fill("🐶");
+  await page.getByRole("button", { name: "Criar categoria" }).click();
+  await expect(page.locator(".item", { hasText: "Pets" })).toBeVisible();
+
+  // orçamento de R$ 100,00 em Restaurante
+  await page.getByRole("button", { name: "Orçamentos" }).click();
+  const limit = page.getByLabel("Limite mensal de Restaurante");
+  await limit.fill("100,00");
+  await limit.locator("xpath=ancestor::form").getByRole("button", { name: "Definir" }).click();
+  await expect(limit.locator("xpath=ancestor::form").getByRole("button", { name: "Remover" })).toBeVisible();
+
+  // gasto de R$ 130,00 estoura o orçamento na Visão geral
+  await page.getByRole("link", { name: /Visão/ }).first().click();
+  await addExpense(page, "130,00", "Jantar", "Restaurante");
+  await expect(page.getByText("R$ 30,00 acima do orçamento")).toBeVisible();
+
+  // recorrência criada pelo lançamento rápido e pausada em Recorrentes
+  await page.getByRole("button", { name: "Novo lançamento" }).first().click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("textbox", { name: "Valor" }).fill("55,90");
+  await sheet.getByLabel("Descrição").fill("Netflix");
+  await sheet.getByRole("button", { name: /Lazer/ }).click();
+  await sheet.getByRole("switch", { name: "Repetir todo mês" }).click();
+  await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(sheet).toBeHidden();
+
+  await page.getByRole("link", { name: /Recorrentes/ }).first().click();
+  await expect(page.getByText("Netflix")).toBeVisible();
+  await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
+  await page.getByRole("switch", { name: "Pausar Netflix" }).click();
+  await expect(page.getByText(/pausada/).first()).toBeVisible();
+});

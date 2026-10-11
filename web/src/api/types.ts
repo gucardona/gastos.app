@@ -98,3 +98,25 @@ export interface Summary {
   memberBalances?: { userId: number; netCents: number }[];
   suggestedSettlements?: Transfer[];
 }
+
+export interface Recurrence {
+  id: number;
+  kind: Kind | "settlement";
+  amountCents: number;
+  description: string;
+  categoryId: number | null;
+  paymentMethodId: number | null;
+  paidByUserId: number;
+  toUserId: number | null;
+  dayOfMonth: number;
+  startDate: string;
+  endDate: string | null;
+  enabled: boolean;
+  nextDate: string | null;
+  splits: Split[];
+}
+
+export interface Budget {
+  categoryId: number;
+  limitCents: number;
+}
