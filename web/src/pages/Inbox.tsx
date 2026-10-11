@@ -22,13 +22,13 @@ export function Inbox() {
       <h1 style={{ font: "700 28px var(--display)", margin: "8px 0 4px" }}>Caixa de entrada</h1>
       <p className="muted" style={{ margin: "0 0 12px" }}>Linhas dos extratos importados. Aceite para criar o lançamento, ou ignore o que não interessa.</p>
       {canEdit && safe > 0 && (
-        <button className="btn" disabled={busy} onClick={() => void run(() => api.post(`/wallets/${wallet.id}/inbox/accept-suggested`))}>
+        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => api.post(`/wallets/${wallet.id}/inbox/accept-suggested`))}>
           Aceitar {safe} {safe === 1 ? "sugerida" : "sugeridas"}
         </button>
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {inbox.error ? (
-        <div className="empty"><p>Não foi possível carregar a caixa de entrada.</p><button className="btn" onClick={() => void inbox.refetch()}>Tentar de novo</button></div>
+        <div className="empty"><p>Não foi possível carregar a caixa de entrada.</p><button type="button" className="btn" onClick={() => void inbox.refetch()}>Tentar de novo</button></div>
       ) : !inbox.data ? (
         <><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>
       ) : inbox.data.length === 0 ? (
@@ -93,11 +93,11 @@ function Line({ item }: { item: InboxItem }) {
             </>
           )}
           <div className="item-actions">
-            <button className="btn" disabled={busy || categoryId === 0} onClick={() => void accept()}>Aceitar</button>
+            <button type="button" className="btn" disabled={busy || categoryId === 0} onClick={() => void accept()}>Aceitar</button>
             {item.suggestedMatch && (
-              <button className="chip" disabled={busy} onClick={() => void run(() => api.post(`${base}/match`, { transactionId: item.suggestedMatch!.id }))}>É este lançamento</button>
+              <button type="button" className="chip" disabled={busy} onClick={() => void run(() => api.post(`${base}/match`, { transactionId: item.suggestedMatch!.id }))}>É este lançamento</button>
             )}
-            <button className="chip" disabled={busy} onClick={() => void run(() => api.post(`${base}/ignore`))}>Ignorar</button>
+            <button type="button" className="chip" disabled={busy} onClick={() => void run(() => api.post(`${base}/ignore`))}>Ignorar</button>
           </div>
         </div>
       )}

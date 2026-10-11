@@ -24,12 +24,12 @@ function AddAccount() {
   const { run, busy, error } = useAction();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  if (!open) return <button className="btn ghost" style={{ justifySelf: "start", marginTop: 12 }} onClick={() => setOpen(true)}>Nova conta bancária</button>;
+  if (!open) return <button type="button" className="btn ghost" style={{ justifySelf: "start", marginTop: 12 }} onClick={() => setOpen(true)}>Nova conta bancária</button>;
   return (
     <form className="item inline-form" onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post(`/wallets/${wallet.id}/bank-accounts`, { name }))) { setOpen(false); setName(""); } }}>
       <label>Nome<input className="text" aria-label="Nome da conta bancária" value={name} onChange={(e) => setName(e.target.value)} /></label>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="item-actions"><button className="btn" disabled={busy}>Criar</button><button type="button" className="btn ghost" onClick={() => setOpen(false)}>Cancelar</button></div>
+      <div className="item-actions"><button type="submit" className="btn" disabled={busy}>Criar</button><button type="button" className="btn ghost" onClick={() => setOpen(false)}>Cancelar</button></div>
     </form>
   );
 }
@@ -59,11 +59,11 @@ function Account({ a }: { a: BankAccount }) {
             </label>
           </div>
           <div className="item-actions">
-            {a.enabled && <button className="chip" aria-expanded={importing} onClick={() => setImporting(!importing)}>Importar extrato</button>}
-            <button className="chip" disabled={busy} onClick={() => void run(() => save({ enabled: !a.enabled }))}>{a.enabled ? "Desativar" : "Reativar"}</button>
+            {a.enabled && <button type="button" className="chip" aria-expanded={importing} onClick={() => setImporting(!importing)}>Importar extrato</button>}
+            <button type="button" className="chip" disabled={busy} onClick={() => void run(() => save({ enabled: !a.enabled }))}>{a.enabled ? "Desativar" : "Reativar"}</button>
             {confirm
-              ? <button className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>Confirmar exclusão</button>
-              : <button className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
+              ? <button type="button" className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>Confirmar exclusão</button>
+              : <button type="button" className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
           </div>
           {importing && <ImportForm a={a} />}
         </>
@@ -90,7 +90,7 @@ function ImportForm({ a }: { a: BankAccount }) {
     form.set("format", format);
     form.set("file", file);
     if (format === "csv") {
-      Object.entries(cols).forEach(([k, v]) => form.set(k, v));
+      for (const [k, v] of Object.entries(cols)) form.set(k, v);
       form.set("hasHeader", String(hasHeader));
       form.set("invertSign", String(invertSign));
     }
@@ -121,7 +121,7 @@ function ImportForm({ a }: { a: BankAccount }) {
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {result && <p role="status">{result}</p>}
-      <div className="item-actions"><button className="btn" disabled={busy || !file}>Importar</button></div>
+      <div className="item-actions"><button type="submit" className="btn" disabled={busy || !file}>Importar</button></div>
     </form>
   );
 }
@@ -139,7 +139,7 @@ function Rules() {
         return (
           <div className="line" key={r.id}>
             <div>“{r.pattern}”<small>{c ? `${c.icon} ${c.name}` : "categoria removida"}{r.renameTo ? `, renomeia para ${r.renameTo}` : ""}</small></div>
-            {canEdit && <button className="chip" disabled={busy} aria-label={`Excluir regra ${r.pattern}`} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/rules/${r.id}`))}>Excluir</button>}
+            {canEdit && <button type="button" className="chip" disabled={busy} aria-label={`Excluir regra ${r.pattern}`} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/rules/${r.id}`))}>Excluir</button>}
           </div>
         );
       })}
