@@ -74,7 +74,7 @@ npm test            # unidade e componentes
 npm run build && npm run e2e   # navegador contra o binário Go real, em desktop e celular
 ```
 
-O CI roda tudo isso, além de `gofmt`, `staticcheck`, `govulncheck` e `npm audit`.
+O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
 
 ## Banco de dados
 
