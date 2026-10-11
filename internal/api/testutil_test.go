@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
@@ -22,6 +21,7 @@ import (
 	"gastos/internal/db"
 	"gastos/internal/events"
 	"gastos/internal/recurrence"
+	"gastos/internal/testutil"
 )
 
 func init() { bcryptCost = bcrypt.MinCost }
@@ -32,14 +32,20 @@ type testApp struct {
 	s   *Server
 }
 
-func newTestApp(t *testing.T) *testApp {
+func newTestApp(t *testing.T) *testApp { return newTestAppWith(t, nil) }
+
+// newTestAppWith permite ajustar a configuração (modo dev, diretório de backup...) antes de subir o servidor.
+func newTestAppWith(t *testing.T, tweak func(*config.Config)) *testApp {
 	t.Helper()
-	d, err := db.Open(filepath.Join(tempDir(t), "t.db"))
+	d, err := db.Open(filepath.Join(testutil.TempDir(t), "t.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	loc, _ := time.LoadLocation("America/Sao_Paulo")
-	cfg := config.Config{Location: loc, CookieSecure: false}
+	cfg := config.Config{Location: loc, CookieSecure: false, BackupDir: filepath.Join(testutil.TempDir(t), "backups"), BackupKeep: 3}
+	if tweak != nil {
+		tweak(&cfg)
+	}
 	bus := events.New()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	s := New(d, cfg, bus, recurrence.NewMaterializer(d, bus, loc, log), log)
@@ -114,22 +120,3 @@ func (c *client) wpath(format string, args ...any) string {
 }
 
 func itoa(n int64) string { return fmt.Sprint(n) }
-
-// tempDir is a t.TempDir that retries removal: on Windows the SQLite WAL files
-// sometimes take a moment to be released after Close.
-func tempDir(t *testing.T) string {
-	t.Helper()
-	dir, err := os.MkdirTemp("", "gastos-test-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		for i := 0; i < 20; i++ {
-			if os.RemoveAll(dir) == nil {
-				return
-			}
-			time.Sleep(25 * time.Millisecond)
-		}
-	})
-	return dir
-}

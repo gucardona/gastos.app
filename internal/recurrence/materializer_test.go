@@ -3,6 +3,7 @@ package recurrence
 import (
 	"context"
 	"database/sql"
+	"gastos/internal/testutil"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -17,7 +18,7 @@ import (
 
 func setup(t *testing.T, now time.Time) (*Materializer, *sql.DB) {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "t.db"))
+	d, err := db.Open(filepath.Join(testutil.TempDir(t), "t.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,5 +176,64 @@ func TestRunNotifiesWallet(t *testing.T) {
 	case <-ch:
 	case <-time.After(time.Second):
 		t.Fatal("esperava notificação")
+	}
+}
+
+func TestLoopRunsImmediatelyThenStopsOnCancel(t *testing.T) {
+	m, d := setup(t, time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC))
+	addExpenseRecurrence(t, d, 5, "2026-10-01")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { m.Loop(ctx, time.Hour); close(done) }()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for count(t, d, `SELECT COUNT(*) FROM transactions`) == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 1 {
+		t.Fatalf("o Loop deveria materializar na hora: %d transações", n)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("o Loop não parou ao cancelar o contexto")
+	}
+}
+
+func TestLoopRunsAgainOnTick(t *testing.T) {
+	m, d := setup(t, time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go m.Loop(ctx, 50*time.Millisecond)
+
+	time.Sleep(150 * time.Millisecond) // o primeiro Run já passou, sem recorrência nenhuma
+	addExpenseRecurrence(t, d, 5, "2026-10-01")
+	deadline := time.Now().Add(3 * time.Second)
+	for count(t, d, `SELECT COUNT(*) FROM transactions`) == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 1 {
+		t.Fatalf("o tick deveria materializar a recorrência nova: %d transações", n)
+	}
+}
+
+func TestRunSkipsInvalidTemplateAndKeepsGoing(t *testing.T) {
+	m, d := setup(t, time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC))
+	// a recorrência com data inicial inválida é ignorada; a outra continua sendo gerada
+	if _, err := d.Exec(`PRAGMA ignore_check_constraints = ON`); err != nil {
+		t.Skip("não consegui desligar os checks para plantar dado inválido")
+	}
+	if _, err := d.Exec(`INSERT INTO recurrences (wallet_id, kind, amount_cents, description, category_id, paid_by_user_id, day_of_month, start_date, created_by)
+		VALUES (1, 'expense', 100, 'quebrada', 1, 1, 5, 'não-é-data', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	addExpenseRecurrence(t, d, 5, "2026-10-01")
+	if err := m.Run(context.Background(), 0); err != nil {
+		t.Fatalf("uma recorrência inválida não pode derrubar as outras: %v", err)
+	}
+	if n := count(t, d, `SELECT COUNT(*) FROM transactions`); n != 1 {
+		t.Fatalf("%d transações, want 1", n)
 	}
 }

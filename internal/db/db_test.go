@@ -3,13 +3,15 @@ package db
 import (
 	"context"
 	"database/sql"
+	"gastos/internal/testutil"
+	"os"
 	"path/filepath"
 	"testing"
 )
 
 func openTemp(t *testing.T) *sql.DB {
 	t.Helper()
-	d, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	d, err := Open(filepath.Join(testutil.TempDir(t), "t.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +38,7 @@ func TestOpenSetsUserVersion(t *testing.T) {
 }
 
 func TestOpenIsIdempotent(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "t.db")
+	path := filepath.Join(testutil.TempDir(t), "t.db")
 	for i := 0; i < 2; i++ {
 		d, err := Open(path)
 		if err != nil {
@@ -96,5 +98,38 @@ func TestOneOwnerPerWallet(t *testing.T) {
 	mustExec(t, d, `INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 1, 'owner')`)
 	if _, err := d.Exec(`INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 2, 'owner')`); err == nil {
 		t.Fatal("segundo owner deveria violar o índice único")
+	}
+}
+
+func TestOpenFailsWhenParentIsAFile(t *testing.T) {
+	file := filepath.Join(testutil.TempDir(t), "arquivo")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(filepath.Join(file, "sub", "g.db")); err == nil {
+		t.Fatal("deveria falhar quando o diretório pai é um arquivo")
+	}
+}
+
+func TestOpenRefusesDatabaseFromTheFuture(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, d, `PRAGMA user_version = 99`)
+	d.Close()
+	if _, err := Open(path); err == nil {
+		t.Fatal("um banco mais novo que o binário não pode ser aberto (evita rodar código velho em schema novo)")
+	}
+}
+
+func TestOpenFailsOnACorruptFile(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	if err := os.WriteFile(path, []byte("isto não é um banco sqlite, é só lixo de texto com mais de cem bytes para passar do cabeçalho..........."), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(path); err == nil {
+		t.Fatal("arquivo corrompido deveria falhar na abertura")
 	}
 }

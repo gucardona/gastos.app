@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"gastos/internal/testutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,7 +11,7 @@ import (
 
 func TestBackupRotation(t *testing.T) {
 	d := openTemp(t)
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	base := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	var last string
 	for i := 0; i < 3; i++ {
@@ -32,7 +33,7 @@ func TestBackupRotation(t *testing.T) {
 func TestBackupIsOpenable(t *testing.T) {
 	d := openTemp(t)
 	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
-	p, err := Backup(context.Background(), d, t.TempDir(), 5, time.Now())
+	p, err := Backup(context.Background(), d, testutil.TempDir(t), 5, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestBackupIsOpenable(t *testing.T) {
 
 func TestBackupNeverOverwrites(t *testing.T) {
 	d := openTemp(t)
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	if _, err := Backup(context.Background(), d, dir, 5, now); err != nil {
 		t.Fatal(err)
@@ -61,7 +62,7 @@ func TestBackupNeverOverwrites(t *testing.T) {
 }
 
 func TestLastBackupAge(t *testing.T) {
-	dir := t.TempDir()
+	dir := testutil.TempDir(t)
 	if LastBackupAge(dir, time.Now()) < 1000*time.Hour {
 		t.Fatal("sem backups deveria devolver idade enorme")
 	}
@@ -71,5 +72,25 @@ func TestLastBackupAge(t *testing.T) {
 	}
 	if age := LastBackupAge(dir, time.Now()); age > time.Minute {
 		t.Fatalf("idade %v, esperava ~0", age)
+	}
+}
+
+func TestBackupFailsWhenDirectoryCannotBeCreated(t *testing.T) {
+	d := openTemp(t)
+	file := filepath.Join(testutil.TempDir(t), "arquivo")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Backup(context.Background(), d, filepath.Join(file, "backups"), 3, time.Now()); err == nil {
+		t.Fatal("deveria falhar quando o diretório de backup não pode ser criado")
+	}
+}
+
+func TestBackupHonoursCancelledContext(t *testing.T) {
+	d := openTemp(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := Backup(ctx, d, testutil.TempDir(t), 3, time.Now()); err == nil {
+		t.Fatal("contexto cancelado deveria interromper o backup")
 	}
 }

@@ -41,11 +41,11 @@ export function appCtx(over: Partial<AppCtx> = {}): AppCtx {
 }
 
 /** Renderiza dentro do contexto do app, do React Query e de um roteador em memória. */
-export function renderApp(ui: ReactElement, ctx: AppCtx = appCtx()) {
+export function renderApp(ui: ReactElement, ctx: AppCtx = appCtx(), route = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>
         <Ctx.Provider value={ctx}>{ui}</Ctx.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
