@@ -59,6 +59,7 @@ O servidor sobe em `:8000`. Teste com `curl localhost:8000/healthz`.
 | `GASTOS_TZ` | `America/Sao_Paulo` | fuso de "hoje" para recorrências |
 | `GASTOS_COOKIE_SECURE` | `true` | `false` só em desenvolvimento local (http) |
 | `GASTOS_DEV` | `false` | libera CORS para `localhost:5173` |
+| `GASTOS_INVITE_CODE` | vazio | código exigido no cadastro depois da primeira conta (mínimo de 8 caracteres). Sem ele, o cadastro fecha depois do primeiro usuário |
 
 ## Testes
 

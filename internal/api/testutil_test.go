@@ -42,7 +42,7 @@ func newTestAppWith(t *testing.T, tweak func(*config.Config)) *testApp {
 		t.Fatal(err)
 	}
 	loc, _ := time.LoadLocation("America/Sao_Paulo")
-	cfg := config.Config{Location: loc, CookieSecure: false, BackupDir: filepath.Join(testutil.TempDir(t), "backups"), BackupKeep: 3}
+	cfg := config.Config{Location: loc, CookieSecure: false, BackupDir: filepath.Join(testutil.TempDir(t), "backups"), BackupKeep: 3, InviteCode: testInvite}
 	if tweak != nil {
 		tweak(&cfg)
 	}
@@ -75,7 +75,7 @@ func (a *testApp) anon() *client {
 func (a *testApp) register(name, email string) *client {
 	a.t.Helper()
 	c := a.anon()
-	c.do("POST", "/api/auth/register", map[string]string{"name": name, "email": email, "password": "senha-segura"}, 201, &c.user)
+	c.do("POST", "/api/auth/register", map[string]string{"name": name, "email": email, "password": "senha-segura", "inviteCode": testInvite}, 201, &c.user)
 	var me struct {
 		Wallets []struct {
 			ID int64 `json:"id"`
@@ -86,8 +86,8 @@ func (a *testApp) register(name, email string) *client {
 	return c
 }
 
-// do makes the request, checks the status and decodes the response into out (if not nil).
-func (c *client) do(method, path string, body any, wantStatus int, out any) {
+// doRaw makes the request and returns the status without asserting it; out (if not nil) receives the JSON body.
+func (c *client) doRaw(method, path string, body any, out any) int {
 	c.app.t.Helper()
 	var rd io.Reader
 	if body != nil {
@@ -104,8 +104,19 @@ func (c *client) do(method, path string, body any, wantStatus int, out any) {
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
-	if res.StatusCode != wantStatus {
-		c.app.t.Fatalf("%s %s: status %d, want %d; body: %s", method, path, res.StatusCode, wantStatus, raw)
+	if out != nil && len(raw) > 0 {
+		_ = json.Unmarshal(raw, out)
+	}
+	return res.StatusCode
+}
+
+// do makes the request, checks the status and decodes the response into out (if not nil).
+func (c *client) do(method, path string, body any, wantStatus int, out any) {
+	c.app.t.Helper()
+	var raw json.RawMessage
+	status := c.doRaw(method, path, body, &raw)
+	if status != wantStatus {
+		c.app.t.Fatalf("%s %s: status %d, want %d; body: %s", method, path, status, wantStatus, raw)
 	}
 	if out != nil {
 		if err := json.Unmarshal(raw, out); err != nil {

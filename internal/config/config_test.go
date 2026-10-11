@@ -33,3 +33,26 @@ func TestLoadInvalid(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadInviteCode(t *testing.T) {
+	c, err := Load(env(nil))
+	if err != nil || c.InviteCode != "" {
+		t.Fatalf("no invite code by default: %+v, %v", c, err)
+	}
+	c, err = Load(env(map[string]string{"GASTOS_INVITE_CODE": "  open-sesame-42  "}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.InviteCode != "open-sesame-42" {
+		t.Fatalf("the code should be trimmed, got %q", c.InviteCode)
+	}
+}
+
+func TestLoadRejectsAShortInviteCode(t *testing.T) {
+	// a short code is a guessable one: refuse to start rather than run with a weak secret
+	for _, code := range []string{"abc", "1234567", "  short  "} {
+		if _, err := Load(env(map[string]string{"GASTOS_INVITE_CODE": code})); err == nil {
+			t.Errorf("GASTOS_INVITE_CODE=%q should be rejected", code)
+		}
+	}
+}

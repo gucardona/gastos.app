@@ -27,6 +27,14 @@ GASTOS_DB_PATH=/var/lib/gastos/production/gastos.db
 GASTOS_BACKUP_DIR=/var/lib/gastos/production/backups
 ```
 
+**Cadastro.** O site é público, então o cadastro é fechado por padrão: só a **primeira conta** é criada sem código; depois disso ninguém consegue se cadastrar. Para convidar outra pessoa (a Bia, por exemplo), acrescente uma linha ao arquivo, reinicie o serviço e passe o código a ela por onde preferir:
+
+```
+GASTOS_INVITE_CODE=<um segredo de pelo menos 8 caracteres>
+```
+
+Quando todo mundo já tiver conta, **remova a linha** e reinicie para fechar o cadastro de novo. Quem já tem conta não é afetado.
+
 `GASTOS_COOKIE_SECURE` fica no padrão (`true`), então o acesso precisa ser por HTTPS (passo 4).
 
 ## 3. systemd

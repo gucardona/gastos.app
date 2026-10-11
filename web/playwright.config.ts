@@ -27,6 +27,7 @@ export default defineConfig({
       GASTOS_DB_PATH: "web/e2e-data/gastos.db",
       GASTOS_BACKUP_DIR: "web/e2e-data/backups",
       GASTOS_COOKIE_SECURE: "false",
+      GASTOS_INVITE_CODE: "e2e-invite-code",
     },
   },
 });
