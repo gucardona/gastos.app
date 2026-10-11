@@ -33,7 +33,7 @@ export function Division() {
     );
   }
   if (summary.error || history.error) {
-    return <><PageBar /><Title /><div className="empty"><p>Não foi possível carregar a divisão.</p><button className="btn" onClick={() => { void summary.refetch(); void history.refetch(); }}>Tentar de novo</button></div></>;
+    return <><PageBar /><Title /><div className="empty"><p>Não foi possível carregar a divisão.</p><button type="button" className="btn" onClick={() => { void summary.refetch(); void history.refetch(); }}>Tentar de novo</button></div></>;
   }
   if (!summary.data || !history.data) return <><PageBar /><Title /><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>;
 
@@ -70,7 +70,7 @@ export function Division() {
                 <p><span className="big num">{formatBRL(t.amountCents)}</span></p>
                 <p>{who(t.fromUserId)} deve esse valor {t.toUserId === user.id ? "a você" : `para ${who(t.toUserId)}`}.</p>
                 {canEdit && (
-                  <button className="btn full" disabled={register.busy}
+                  <button type="button" className="btn full" disabled={register.busy}
                     onClick={() => void register.run(() => api.post(`/wallets/${wallet.id}/settlements`, { fromUserId: t.fromUserId, toUserId: t.toUserId, amountCents: t.amountCents, date: today() }))}>
                     Registrar acerto
                   </button>
@@ -80,7 +80,7 @@ export function Division() {
             {register.error && <p className="error" role="alert">{register.error}</p>}
           </>
         )}
-        {canEdit && !adding && <button className="btn ghost" onClick={() => setAdding(true)}>Registrar outro acerto</button>}
+        {canEdit && !adding && <button type="button" className="btn ghost" onClick={() => setAdding(true)}>Registrar outro acerto</button>}
         {adding && <SettlementForm submit="Registrar" onDone={() => setAdding(false)} />}
       </section>
 
@@ -111,10 +111,10 @@ function HistoryItem({ s }: { s: Settlement }) {
       </div>
       {canEdit && (
         <div className="item-actions">
-          <button className="chip" onClick={() => setEditing(true)}>Editar</button>
+          <button type="button" className="chip" onClick={() => setEditing(true)}>Editar</button>
           {confirm
-            ? <button className="chip danger" disabled={busy} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/settlements/${s.id}`))}>Confirmar exclusão</button>
-            : <button className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
+            ? <button type="button" className="chip danger" disabled={busy} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/settlements/${s.id}`))}>Confirmar exclusão</button>
+            : <button type="button" className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
@@ -161,7 +161,7 @@ function SettlementForm({ initial, submit, onDone }: { initial?: Settlement; sub
       <label>Observação (opcional)<input className="text" aria-label="Observação do acerto" value={note} onChange={(e) => setNote(e.target.value)} /></label>
       {(problem || error) && <p className="error" role="alert">{problem || error}</p>}
       <div className="item-actions">
-        <button className="btn" disabled={busy}>{submit}</button>
+        <button type="submit" className="btn" disabled={busy}>{submit}</button>
         <button type="button" className="btn ghost" onClick={onDone}>Cancelar</button>
       </div>
     </form>

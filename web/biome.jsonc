@@ -1,0 +1,21 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "files": { "includes": ["src/**", "e2e/**", "*.ts", "*.json"] },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "css": { "linter": { "enabled": false } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // `!` is idiomatic in tests and on values already checked (getElementById("root"), a budget known to exist)
+        "noNonNullAssertion": "off"
+      },
+      "a11y": {
+        // role="group" with an aria-label and role="switch" on a <button> are deliberate ARIA patterns here
+        "useSemanticElements": "off"
+      }
+    }
+  }
+}

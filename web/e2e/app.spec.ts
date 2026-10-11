@@ -124,8 +124,9 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
   await expect(ana.getByText("Você deve esse valor para Bia.")).toBeVisible();
 });
 
+// browser.newContext() does not inherit the project's device settings, so pass them along (otherwise the mobile project would run these on a desktop viewport)
 async function newPage(browser: Browser) {
-  const context = await browser.newContext();
+  const context = await browser.newContext(test.info().project.use);
   return context.newPage();
 }
 
@@ -168,4 +169,17 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
   await page.getByRole("switch", { name: "Pausar Netflix" }).click();
   await expect(page.getByText(/pausada/).first()).toBeVisible();
+});
+
+test("layout follows the viewport: bottom nav on a phone, sidebar on a desktop", async ({ page, isMobile }) => {
+  await signUp(page, "Lia");
+  const bottomNav = page.locator("nav.bottom");
+  const sidebar = page.locator("aside.side");
+  if (isMobile) {
+    await expect(bottomNav).toBeVisible();
+    await expect(sidebar).toBeHidden();
+  } else {
+    await expect(sidebar).toBeVisible();
+    await expect(bottomNav).toBeHidden();
+  }
 });

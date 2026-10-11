@@ -32,7 +32,7 @@ export function MembersSection() {
             </select>
           </label>
           {invite.error && <p className="error" role="alert">{invite.error}</p>}
-          <div className="item-actions"><button className="btn" disabled={invite.busy || !email.trim()}>Convidar</button></div>
+          <div className="item-actions"><button type="submit" className="btn" disabled={invite.busy || !email.trim()}>Convidar</button></div>
         </form>
       )}
     </div>
@@ -59,16 +59,16 @@ function MemberRow({ m, isMe }: { m: Member; isMe: boolean }) {
         ) : <span className="muted">{ROLE_LABEL[m.role]}</span>}
       </div>
       {owner && wallet.splittingEnabled && (
-        <label className="inline" style={{ marginTop: 8 }}>
+        <div className="inline" style={{ marginTop: 8 }}>
           <Switch checked={m.splitsByDefault} disabled={busy} label={`Dividir gastos com ${m.name} por padrão`} onChange={(v) => void run(() => api.patch(path, { splitsByDefault: v }))} />
           <span className="muted">Entra na divisão por padrão</span>
-        </label>
+        </div>
       )}
       {canRemove && (
         <div className="item-actions">
           {confirm
-            ? <button className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
-            : <button className="chip" onClick={() => setConfirm(true)}>{isMe ? "Sair da carteira" : "Remover"}</button>}
+            ? <button type="button" className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
+            : <button type="button" className="chip" onClick={() => setConfirm(true)}>{isMe ? "Sair da carteira" : "Remover"}</button>}
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}

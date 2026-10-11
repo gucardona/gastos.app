@@ -70,7 +70,9 @@ No GitHub, em Settings → Secrets and variables → Actions, crie:
 | `DEPLOY_SSH_KEY` | conteúdo de `ci_deploy` (privada) |
 | `DEPLOY_KNOWN_HOSTS` | saída do `ssh-keyscan` |
 
-Apague `ci_deploy` do servidor depois. Sem `DEPLOY_HOST` o job de deploy não faz nada. Para exigir aprovação manual antes de cada deploy, configure revisores obrigatórios no ambiente `production` (Settings → Environments).
+Apague `ci_deploy` do servidor depois.
+
+Opcional, mas recomendado: crie a **variável** de repositório (não segredo) `PUBLIC_URL` com o endereço público, por exemplo `https://gastos.gupa.dev`. Depois de cada deploy o CI chama `$PUBLIC_URL/healthz` pelo mesmo caminho dos usuários (DNS, TLS e Caddy), e o job falha se não responder. Sem `DEPLOY_HOST` o job de deploy não faz nada. Para exigir aprovação manual antes de cada deploy, configure revisores obrigatórios no ambiente `production` (Settings → Environments).
 
 ## 6. Aposentar o app antigo
 

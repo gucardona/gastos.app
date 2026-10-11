@@ -15,7 +15,7 @@ export function PaymentsSection() {
       {canEdit && <Add />}
       {archived.length > 0 && (
         <>
-          <button className="chip" style={{ justifySelf: "start", marginTop: 12 }} aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
+          <button type="button" className="chip" style={{ justifySelf: "start", marginTop: 12 }} aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
             {showArchived ? "Ocultar" : "Mostrar"} arquivadas ({archived.length})
           </button>
           {showArchived && archived.map((p) => <Row key={p.id} p={p} />)}
@@ -42,12 +42,12 @@ function Row({ p }: { p: PaymentMethod }) {
       <div className="line" style={{ borderTop: 0, padding: 0 }}><div><span aria-hidden>{p.icon}</span> {p.name}{p.archived && <small>arquivada</small>}</div></div>
       {canEdit && (
         <div className="item-actions">
-          {p.archived ? <button className="chip" disabled={busy} onClick={() => void run(() => put(p.name, p.icon, false))}>Restaurar</button> : (
+          {p.archived ? <button type="button" className="chip" disabled={busy} onClick={() => void run(() => put(p.name, p.icon, false))}>Restaurar</button> : (
             <>
-              <button className="chip" onClick={() => setEditing(true)}>Editar</button>
+              <button type="button" className="chip" onClick={() => setEditing(true)}>Editar</button>
               {confirm
-                ? <button className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>Confirmar exclusão</button>
-                : <button className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
+                ? <button type="button" className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>Confirmar exclusão</button>
+                : <button type="button" className="chip" onClick={() => setConfirm(true)}>Excluir</button>}
             </>
           )}
         </div>
@@ -61,7 +61,7 @@ function Add() {
   const { wallet } = useApp();
   const { run, busy, error } = useAction();
   const [open, setOpen] = useState(false);
-  if (!open) return <button className="btn ghost" style={{ justifySelf: "start", marginTop: 12 }} onClick={() => setOpen(true)}>Nova forma de pagamento</button>;
+  if (!open) return <button type="button" className="btn ghost" style={{ justifySelf: "start", marginTop: 12 }} onClick={() => setOpen(true)}>Nova forma de pagamento</button>;
   return <Form initial={{ name: "", icon: "" }} submit="Criar" error={error} busy={busy} onCancel={() => setOpen(false)}
     onSubmit={async (d) => { if (await run(() => api.post(`/wallets/${wallet.id}/payment-methods`, d))) setOpen(false); }} />;
 }
@@ -75,7 +75,7 @@ function Form({ initial, submit, onSubmit, onCancel, error, busy }: {
       <label>Nome<input className="text" aria-label="Nome da forma de pagamento" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></label>
       <label>Ícone (um emoji)<input className="text" aria-label="Ícone da forma de pagamento" value={d.icon} onChange={(e) => setD({ ...d, icon: e.target.value })} /></label>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="item-actions"><button className="btn" disabled={busy}>{submit}</button><button type="button" className="btn ghost" onClick={onCancel}>Cancelar</button></div>
+      <div className="item-actions"><button type="submit" className="btn" disabled={busy}>{submit}</button><button type="button" className="btn ghost" onClick={onCancel}>Cancelar</button></div>
     </form>
   );
 }

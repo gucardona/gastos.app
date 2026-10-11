@@ -57,7 +57,7 @@ export function Login() {
           {field("password")}
         </div>
         {general && <p className="error" role="alert">{general}</p>}
-        <button className="btn" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
+        <button type="submit" className="btn" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
         <button type="button" className="switch-mode" onClick={() => { setRegister(!register); setErrors({}); setGeneral(""); }}>
           {register ? "Já tenho conta" : "Criar uma conta"}
         </button>

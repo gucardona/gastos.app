@@ -75,8 +75,7 @@ export function Shell() {
       canEdit,
       openAdd: (tx) => setAdding({ tx }),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me.data, wallet, categories.data, paymentMethods.data, members.data, month, canEdit]);
+  }, [me.data, wallet, wallets, categories.data, paymentMethods.data, members.data, month, canEdit, setParams]);
 
   if (isUnauthenticated(me.error)) return <Navigate to="/login" replace />;
   if (me.error) return <Failed onRetry={() => me.refetch()} />;
@@ -95,7 +94,7 @@ export function Shell() {
             <NavLink key={n.to} to={n.to} end={n.end}><span aria-hidden>{n.icon}</span>{n.long}</NavLink>
           ))}
           <div className="grow" />
-          {canEdit && <button className="btn add" onClick={() => setAdding({})}>Novo lançamento</button>}
+          {canEdit && <button type="button" className="btn add" onClick={() => setAdding({})}>Novo lançamento</button>}
           <NavLink to="/ajustes"><span aria-hidden>⚙</span>Ajustes</NavLink>
         </aside>
         <main className="main"><Outlet /></main>
@@ -103,7 +102,7 @@ export function Shell() {
       <nav className="bottom" aria-label="Navegação">
         <NavLink to="/" end><span aria-hidden>◔</span>Visão</NavLink>
         <NavLink to="/lancamentos"><span aria-hidden>≡</span>Lançamentos</NavLink>
-        {canEdit ? <button className="fab" onClick={() => setAdding({})} aria-label="Novo lançamento">+</button> : <span />}
+        {canEdit ? <button type="button" className="fab" onClick={() => setAdding({})} aria-label="Novo lançamento">+</button> : <span />}
         <NavLink to="/recorrentes"><span aria-hidden>↻</span>Recorrentes</NavLink>
         <NavLink to="/divisao"><span aria-hidden>⇄</span>Divisão</NavLink>
       </nav>
@@ -116,7 +115,7 @@ function Failed({ message, onRetry }: { message?: string; onRetry?: () => void }
   return (
     <div className="main empty">
       <p>{message ?? "Não foi possível carregar seus dados. Confira a conexão e tente de novo."}</p>
-      {onRetry && <button className="btn" onClick={onRetry}>Tentar de novo</button>}
+      {onRetry && <button type="button" className="btn" onClick={onRetry}>Tentar de novo</button>}
     </div>
   );
 }
