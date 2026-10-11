@@ -15,7 +15,11 @@ var schemaSQL string
 
 // migrations[i] takes the database from version i+1 to i+2. schema.sql is always version 1.
 // To change the schema: append an item here; never edit old items.
-var migrations = []string{}
+//
+//go:embed migrations/0002_bank_import.sql
+var migrationBankImport string
+
+var migrations = []string{migrationBankImport}
 
 const pragmas = "?_pragma=foreign_keys(1)" +
 	"&_pragma=journal_mode(WAL)" +
