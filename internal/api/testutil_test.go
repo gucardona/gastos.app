@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -131,3 +132,50 @@ func (c *client) wpath(format string, args ...any) string {
 }
 
 func itoa(n int64) string { return fmt.Sprint(n) }
+
+// upload sends a multipart form with a single file field named "file" and returns the status and raw body.
+func (c *client) upload(path string, fields map[string]string, filename string, content []byte) (int, []byte) {
+	c.app.t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := mw.WriteField(k, v); err != nil {
+			c.app.t.Fatal(err)
+		}
+	}
+	fw, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		c.app.t.Fatal(err)
+	}
+	fw.Write(content)
+	mw.Close()
+	req, _ := http.NewRequest("POST", c.app.srv.URL+path, &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	res, err := c.http.Do(req)
+	if err != nil {
+		c.app.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	return res.StatusCode, raw
+}
+
+// status makes a JSON request and returns only the status code.
+func (c *client) status(method, path string, body any) int {
+	c.app.t.Helper()
+	var rd io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rd = bytes.NewReader(b)
+	}
+	req, _ := http.NewRequest(method, c.app.srv.URL+path, rd)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	res, err := c.http.Do(req)
+	if err != nil {
+		c.app.t.Fatal(err)
+	}
+	res.Body.Close()
+	return res.StatusCode
+}

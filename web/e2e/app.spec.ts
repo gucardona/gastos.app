@@ -215,3 +215,38 @@ test("invite code: a wrong code is refused, the right one creates the account", 
   await page.getByRole("button", { name: "Criar conta" }).click();
   await expect(page.getByText("Saldo do mês")).toBeVisible();
 });
+
+test("import an OFX statement, accept a line and ignore another", async ({ page }) => {
+  await signUpAndEnter(page, "Dora");
+  const d = new Date();
+  const day = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const ofx = `OFXHEADER:100\n\n<OFX><BANKTRANLIST>
+<STMTTRN><TRNTYPE>X<DTPOSTED>${day}<TRNAMT>-48.90<FITID>A1<MEMO>COMPRA MERCADO DO BAIRRO</STMTTRN>
+<STMTTRN><TRNTYPE>X<DTPOSTED>${day}<TRNAMT>-9.50<FITID>A2<MEMO>TARIFA BANCARIA</STMTTRN>
+</BANKTRANLIST></OFX>`;
+
+  await page.getByRole("link", { name: "Ajustes" }).first().click();
+  await page.getByRole("button", { name: "Contas bancárias" }).click();
+  await page.getByRole("button", { name: "Nova conta bancária" }).click();
+  await page.getByLabel("Nome da conta bancária").fill("Conta corrente");
+  await page.getByRole("button", { name: "Criar", exact: true }).click();
+  await page.getByRole("button", { name: "Importar extrato" }).click();
+  await page.getByLabel("Arquivo do extrato").setInputFiles({ name: "extrato.ofx", mimeType: "application/x-ofx", buffer: Buffer.from(ofx) });
+  await page.getByRole("button", { name: "Importar", exact: true }).click();
+  await expect(page.getByText("2 linhas novas, 0 já importadas antes.")).toBeVisible();
+
+  // sending the same file again brings nothing new
+  await page.getByLabel("Arquivo do extrato").setInputFiles({ name: "extrato.ofx", mimeType: "application/x-ofx", buffer: Buffer.from(ofx) });
+  await page.getByRole("button", { name: "Importar", exact: true }).click();
+  await expect(page.getByText("0 linhas novas, 2 já importadas antes.")).toBeVisible();
+
+  await page.getByRole("link", { name: /Caixa/ }).first().click();
+  await page.getByLabel("Categoria de COMPRA MERCADO DO BAIRRO").selectOption({ label: "🛒 Mercado" });
+  await page.locator(".item", { hasText: "COMPRA MERCADO" }).getByRole("button", { name: "Aceitar" }).click();
+  await page.locator(".item", { hasText: "TARIFA" }).getByRole("button", { name: "Ignorar" }).click();
+  await expect(page.getByText(/Nada para revisar/)).toBeVisible();
+
+  await page.getByRole("link", { name: /Lançamentos/ }).first().click();
+  await expect(page.getByText("COMPRA MERCADO DO BAIRRO")).toBeVisible();
+  await expect(page.getByText("TARIFA BANCARIA")).toHaveCount(0);
+});

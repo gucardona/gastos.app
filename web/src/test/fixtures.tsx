@@ -29,7 +29,7 @@ export const members: Member[] = [
 export function tx(over: Partial<Transaction> = {}): Transaction {
   return {
     id: 10, kind: "expense", amountCents: 4890, description: "Mercado do bairro", categoryId: 1, paymentMethodId: 1,
-    date: today(), paidByUserId: 1, createdBy: 1, recurrenceId: null, splits: [], ...over,
+    date: today(), paidByUserId: 1, createdBy: 1, recurrenceId: null, source: "manual", splits: [], ...over,
   };
 }
 

@@ -37,6 +37,7 @@ type transaction struct {
 	PaidByUserID    int64   `json:"paidByUserId"`
 	CreatedBy       int64   `json:"createdBy"`
 	RecurrenceID    *int64  `json:"recurrenceId"`
+	Source          string  `json:"source"` // manual, recurring or bank
 	Splits          []split `json:"splits"`
 }
 
@@ -239,7 +240,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id
+	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id, source
 	          FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ?`
 	args := []any{walletID, from, to}
 	if k := qs.Get("kind"); k != "" {
@@ -266,7 +267,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	for rows.Next() {
 		var t transaction
 		if err := rows.Scan(&t.ID, &t.Kind, &t.AmountCents, &t.Description, &t.CategoryID, &t.PaymentMethodID,
-			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID); err != nil {
+			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID, &t.Source); err != nil {
 			return err
 		}
 		t.Splits = []split{}
@@ -319,6 +320,24 @@ func (s *Server) attachSplits(ctx context.Context, list []transaction, index map
 	return nil
 }
 
+// saveTransaction validates in and inserts it, with its splits, inside tx. source says where it came from:
+// "manual" (typed by a person) or "bank" (accepted from an imported statement).
+func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in *transactionInput, source string) (int64, error) {
+	if err := in.validate(ctx, tx, walletID, userID, 0); err != nil {
+		return 0, err
+	}
+	var id int64
+	err := tx.QueryRowContext(ctx, `
+		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source,
+	).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, replaceTransactionSplits(ctx, tx, id, in.Splits)
+}
+
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	var in transactionInput
@@ -326,24 +345,14 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	var id int64
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := in.validate(ctx, tx, walletID, userID, 0); err != nil {
-			return err
-		}
-		err := tx.QueryRowContext(ctx, `
-			INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-			walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID,
-		).Scan(&id)
-		if err != nil {
-			return err
-		}
-		return replaceTransactionSplits(ctx, tx, id, in.Splits)
+	err := s.inTx(ctx, func(tx *sql.Tx) (err error) {
+		id, err = saveTransaction(ctx, tx, walletID, userID, &in, "manual")
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	out := transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
+	out := transaction{ID: id, Source: "manual", Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date,
 		PaidByUserID: in.PaidByUserID, CreatedBy: userID, Splits: withAmounts(in.AmountCents, in.Splits)}
 	s.mutated(r)
@@ -363,11 +372,12 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	var createdBy int64
 	var recurrenceID *int64
+	var source string
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var currentCat int64
 		if err := tx.QueryRowContext(ctx,
-			`SELECT category_id, created_by, recurrence_id FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
-		).Scan(&currentCat, &createdBy, &recurrenceID); err != nil {
+			`SELECT category_id, created_by, recurrence_id, source FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
+		).Scan(&currentCat, &createdBy, &recurrenceID, &source); err != nil {
 			return err // sql.ErrNoRows → 404 through writeError
 		}
 		if err := in.validate(ctx, tx, walletID, userID, currentCat); err != nil {
@@ -388,7 +398,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	out := transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID,
-		CreatedBy: createdBy, RecurrenceID: recurrenceID, Splits: withAmounts(in.AmountCents, in.Splits)}
+		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, Splits: withAmounts(in.AmountCents, in.Splits)}
 	s.mutated(r)
 	writeJSON(w, http.StatusOK, out)
 	return nil

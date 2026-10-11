@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, Outlet, useSearchParams } from "react-router";
 import { isUnauthenticated } from "./api/client";
-import { useCategories, useMe, useMembers, usePaymentMethods, useWalletEvents } from "./api/queries";
+import { useCategories, useInbox, useMe, useMembers, usePaymentMethods, useWalletEvents } from "./api/queries";
 import type { Transaction } from "./api/types";
 import { AddSheet } from "./components/AddSheet";
 import { Ctx, type AppCtx } from "./context";
@@ -12,6 +12,7 @@ const NAV = [
   { to: "/lancamentos", label: "Lançamentos", long: "Lançamentos", icon: "≡" },
   { to: "/recorrentes", label: "Recorrentes", long: "Recorrentes", icon: "↻" },
   { to: "/divisao", label: "Divisão", long: "Divisão", icon: "⇄" },
+  { to: "/caixa", label: "Caixa", long: "Caixa de entrada", icon: "⤓" },
 ];
 
 function readWalletId() {
@@ -36,6 +37,7 @@ export function Shell() {
   const paymentMethods = usePaymentMethods(walletId);
   const members = useMembers(walletId);
   useWalletEvents(walletId);
+  const pending = useInbox(walletId).data?.length ?? 0;
 
   const month = params.get("m") ?? monthOf(today());
   const canEdit = wallet?.role !== "reader";
@@ -91,7 +93,7 @@ export function Shell() {
         <aside className="side" aria-label="Navegação">
           <div className="brand">gastos</div>
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end}><span aria-hidden>{n.icon}</span>{n.long}</NavLink>
+            <NavLink key={n.to} to={n.to} end={n.end}><span aria-hidden>{n.icon}</span>{n.long}{n.to === "/caixa" && pending > 0 && <b className="badge">{pending}</b>}</NavLink>
           ))}
           <div className="grow" />
           {canEdit && <button type="button" className="btn add" onClick={() => setAdding({})}>Novo lançamento</button>}
@@ -105,6 +107,7 @@ export function Shell() {
         {canEdit ? <button type="button" className="fab" onClick={() => setAdding({})} aria-label="Novo lançamento">+</button> : <span />}
         <NavLink to="/recorrentes"><span aria-hidden>↻</span>Recorrentes</NavLink>
         <NavLink to="/divisao"><span aria-hidden>⇄</span>Divisão</NavLink>
+        <NavLink to="/caixa"><span aria-hidden>⤓</span>Caixa{pending > 0 && <b className="badge">{pending}</b>}</NavLink>
       </nav>
       <AddSheet state={adding} onClose={() => setAdding(null)} />
     </Ctx.Provider>

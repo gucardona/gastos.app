@@ -85,6 +85,8 @@ O `internal/db/schema.sql` é a versão 1 do schema. Mudanças futuras entram co
 
 Todas as rotas ficam sob `/api`. Autenticação e carteira ativa vêm do cookie de sessão e do path (`/api/wallets/{walletID}/...`). A referência completa está na [spec do backend](docs/superpowers/specs/2026-10-09-backend-foundation-design.md).
 
+Para importar extratos do banco (OFX/CSV), veja [Importar o extrato do banco](docs/bank-import.md).
+
 ## Licença
 
 Apache-2.0.

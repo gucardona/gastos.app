@@ -143,8 +143,8 @@ func (m *Materializer) insert(ctx context.Context, t template, o Occurrence) (bo
 	var id int64
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date,
-		                          paid_by_user_id, created_by, recurrence_id, occurrence)
-		VALUES (?, ?, ?, COALESCE(NULLIF(?, ''), (SELECT name FROM categories WHERE id = ?)), ?, ?, ?, ?, ?, ?, ?)
+		                          paid_by_user_id, created_by, recurrence_id, occurrence, source)
+		VALUES (?, ?, ?, COALESCE(NULLIF(?, ''), (SELECT name FROM categories WHERE id = ?)), ?, ?, ?, ?, ?, ?, ?, 'recurring')
 		ON CONFLICT (recurrence_id, occurrence) WHERE recurrence_id IS NOT NULL DO NOTHING
 		RETURNING id`,
 		t.walletID, t.kind, t.amount, t.description, t.categoryID, t.categoryID, t.paymentMethodID, o.Date,

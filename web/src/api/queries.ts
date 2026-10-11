@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import { addDays, monthRange, today } from "../lib/dates";
 import { api } from "./client";
-import type { Budget, Category, Me, Member, PaymentMethod, Recurrence, Settlement, Summary, Transaction } from "./types";
+import type { BankAccount, Budget, Category, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
 
 // Every data key of a wallet starts with ["wallet", id], so a single invalidation refreshes everything.
 const w = (id: number, ...rest: unknown[]) => ["wallet", id, ...rest] as const;
@@ -64,3 +64,13 @@ export function useWalletEvents(walletId: number) {
     return () => es.close();
   }, [walletId, refresh]);
 }
+
+export const useBankAccounts = (id: number) =>
+  useQuery({ queryKey: w(id, "bank-accounts"), queryFn: () => api.get<BankAccount[]>(`/wallets/${id}/bank-accounts`) });
+
+/** Statement lines waiting for a decision. */
+export const useInbox = (id: number) =>
+  useQuery({ queryKey: w(id, "inbox"), queryFn: () => api.get<InboxItem[]>(`/wallets/${id}/inbox`), enabled: id > 0 });
+
+export const useRules = (id: number) =>
+  useQuery({ queryKey: w(id, "rules"), queryFn: () => api.get<Rule[]>(`/wallets/${id}/rules`) });
