@@ -78,7 +78,7 @@ Regras:
 
 Cinco PRs pequenos, cada um revisável, com CI verde antes do merge. Cada PR reescreve os testes das telas que toca; a API e os dados não mudam.
 
-1. **Base:** tokens, fonte, componentes e a navegação nova (barra flutuante, barra lateral, avatar para Ajustes). As telas antigas continuam funcionando dentro do shell novo.
+1. **Base:** tokens, fonte e a navegação nova (barra flutuante, barra lateral, avatar para Ajustes). Os componentes de tela (folha, segmentado, lista agrupada, seletores) chegam junto da primeira tela que os usa. As telas antigas continuam funcionando dentro do shell novo.
 2. **Visão e Novo lançamento** (folha, seletores visuais).
 3. **Lançamentos** (com a seção Repetem todo mês) e **Caixa**.
 4. **Ajustes inteiro:** Pessoas, Categorias (cor e emojis), Formas de pagamento, Orçamentos, Contas bancárias, Aparência.
