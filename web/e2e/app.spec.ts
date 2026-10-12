@@ -99,9 +99,9 @@ async function pairUp(browser: Browser) {
   await bia.reload();
   const biaWallets = await (await bia.request.get("/api/me")).json();
   const shared = biaWallets.wallets.find((w: { ownerName: string }) => w.ownerName.startsWith("Ana"));
-  await bia.getByLabel("Carteira").selectOption(String(shared.id));
+  await bia.locator("select[aria-label=Carteira]:visible").selectOption(String(shared.id)); // the other layout's selector is in the DOM but hidden
   await ana.reload();
-  await expect(ana.getByText(/com Bia/)).toBeVisible();
+  await expect(ana.locator("small:visible", { hasText: /com Bia/ })).toHaveCount(1); // the wallet label also exists, hidden, in the other layout
   return { ana, bia };
 }
 
@@ -180,7 +180,8 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(sheet).toBeHidden();
 
-  await page.getByRole("link", { name: /Recorrentes/ }).first().click();
+  await page.getByRole("link", { name: /Lançamentos/ }).first().click();
+  await page.getByRole("link", { name: /Repetem todo mês/ }).click();
   await expect(page.getByText("Netflix")).toBeVisible();
   await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
   await page.getByRole("switch", { name: "Pausar Netflix" }).click();
@@ -189,8 +190,8 @@ test("settings and recurring: category, overspent budget and paused recurrence",
 
 test("layout follows the viewport: bottom nav on a phone, sidebar on a desktop", async ({ page, isMobile }) => {
   await signUpAndEnter(page, "Lia");
-  const bottomNav = page.locator("nav.bottom");
-  const sidebar = page.locator("aside.side");
+  const bottomNav = page.locator("nav.tabbar");
+  const sidebar = page.locator("aside.sidebar");
   if (isMobile) {
     await expect(bottomNav).toBeVisible();
     await expect(sidebar).toBeHidden();
@@ -249,4 +250,19 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
   await expect(page.getByText("COMPRA MERCADO DO BAIRRO")).toBeVisible();
   await expect(page.getByText("TARIFA BANCARIA")).toHaveCount(0);
+});
+
+test("navigation: three destinations, one way to Ajustes, and the + button", async ({ page }) => {
+  await signUpAndEnter(page, "Nina");
+  const nav = page.getByRole("navigation", { name: "Navegação" });
+  await expect(nav.getByRole("link")).toHaveText([/Visão/, /Lançamentos/, /Caixa/]); // no Divisão without splitting, no Recorrentes
+  await expect(page.locator("select[aria-label=Carteira]:visible")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Ajustes" })).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Novo lançamento" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("link", { name: "Ajustes" }).click();
+  await expect(page).toHaveURL(/\/ajustes/);
 });
