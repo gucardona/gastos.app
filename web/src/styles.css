@@ -1,15 +1,4 @@
-:root {
-  --paper: #f4f6f5; --surface: #ffffff; --ink: #0e2a33; --muted: #5b6f75; --line: #dce3e2;
-  --accent: #0f6579; --on-accent: #ffffff; --income: #1c7c54; --over: #b8264e;
-  --tick: #a9bec2; --tick-future: #cbd8d9; --scrim: rgba(14, 42, 51, 0.38);
-  --ui: "Instrument Sans Variable", system-ui, sans-serif;
-  --display: "Bricolage Grotesque Variable", "Instrument Sans Variable", sans-serif;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { color-scheme: dark; --paper: #0d1315; --surface: #151d20; --ink: #e4ecea; --muted: #8da0a5; --line: #243034; --accent: #52b5cb; --on-accent: #08242b; --income: #4cc38a; --over: #ff7a96; --tick: #5e7479; --tick-future: #2b3a3e; --scrim: rgba(0, 0, 0, 0.55); }
-}
-:root[data-theme="dark"] { color-scheme: dark; --paper: #0d1315; --surface: #151d20; --ink: #e4ecea; --muted: #8da0a5; --line: #243034; --accent: #52b5cb; --on-accent: #08242b; --income: #4cc38a; --over: #ff7a96; --tick: #5e7479; --tick-future: #2b3a3e; --scrim: rgba(0, 0, 0, 0.55); }
+@import "./styles/tokens.css";
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.45 var(--ui); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }

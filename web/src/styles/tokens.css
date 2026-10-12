@@ -1,0 +1,55 @@
+/* Design tokens. Roles keep the names the screens already use; only the values changed. */
+:root {
+  --paper: #F2F3F4;
+  --surface: #FFFFFF;
+  --ink: #14181B;
+  --muted: #7B858B;
+  --line: #ECEEEF;
+  --accent: #0E6577;
+  --on-accent: #FFFFFF;
+  --income: #1E8E5A;
+  --over: #C2412D;
+  --scrim: rgba(20, 24, 27, 0.28);
+  --tick: #B9C0C4;
+  --tick-future: #D9DDE0;
+  --font: "Geist Variable", system-ui, sans-serif;
+  --ui: var(--font);
+  --display: var(--font);
+  --radius-group: 22px;
+  --radius-control: 12px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F1113;
+    --surface: #191C1F;
+    --ink: #F3F4F5;
+    --muted: #8A949A;
+    --line: #23272A;
+    --accent: #6CC4D6;
+    --on-accent: #0F1113;
+    --income: #5BD08D;
+    --over: #FF8A78;
+    --scrim: rgba(0, 0, 0, 0.55);
+    --tick: #5A646A;
+    --tick-future: #2A2F33;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0F1113;
+  --surface: #191C1F;
+  --ink: #F3F4F5;
+  --muted: #8A949A;
+  --line: #23272A;
+  --accent: #6CC4D6;
+  --on-accent: #0F1113;
+  --income: #5BD08D;
+  --over: #FF8A78;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --tick: #5A646A;
+  --tick-future: #2A2F33;
+  color-scheme: dark;
+}
