@@ -86,9 +86,18 @@ describe("Shell: session and loading", () => {
     expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0);
     expect(await screen.findByText("carteira Casa")).toBeTruthy();
     expect(container.querySelector(".skeleton")).toBeNull();
-    for (const name of ["Visão geral", "Lançamentos", "Recorrentes", "Divisão", "Ajustes"]) {
+    for (const name of ["Visão", "Lançamentos", "Caixa", "Ajustes"]) {
       expect(screen.getAllByRole("link", { name: new RegExp(name) }).length).toBeGreaterThan(0);
     }
+    // Recorrentes lives inside Lançamentos, and Divisão only exists for wallets that split expenses
+    expect(screen.queryByRole("link", { name: /Recorrentes|Divisão/ })).toBeNull();
+  });
+
+  it("offers Divisão when the active wallet splits expenses", async () => {
+    serve({ user: ana, wallets: [{ ...wallet, splittingEnabled: true }] });
+    renderShell();
+    await screen.findByText("carteira Casa");
+    expect(screen.getAllByRole("link", { name: "Divisão" }).length).toBeGreaterThan(0);
   });
 
   it("the current page's link is marked as current", async () => {
