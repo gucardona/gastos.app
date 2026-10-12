@@ -9,7 +9,7 @@ button { cursor: pointer; }
 .muted { color: var(--muted); }
 
 /* ---------- shell ---------- */
-.side { display: none; }
+.sidebar { display: none; }
 .main { padding: 20px 16px 112px; max-width: 980px; margin: 0 auto; }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .wallet { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 15px; }
@@ -22,8 +22,6 @@ button { cursor: pointer; }
 .month button { background: none; border: 0; width: 36px; height: 36px; border-radius: 999px; color: var(--muted); font-size: 18px; }
 .month span { font-weight: 500; color: var(--ink); min-width: 9.5ch; text-align: center; }
 
-.side a { color: var(--muted); text-decoration: none; display: grid; justify-items: center; gap: 2px; font-size: 12px; padding: 6px 0; border-radius: 10px; }
-.side a[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 /* ---------- overview ---------- */
 .hero { padding: 8px 0 4px; }
@@ -144,13 +142,20 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 
 /* ---------- desktop ---------- */
 @media (min-width: 900px) {
-  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
-  .side { display: flex; flex-direction: column; gap: 4px; padding: 24px 16px; border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; }
-  .brand { font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: -0.02em; padding: 0 12px 20px; }
-  .side a { grid-auto-flow: column; justify-content: start; gap: 12px; font-size: 15px; padding: 10px 12px; }
-  .side a[aria-current="page"] { background: var(--surface); }
-  .side .grow { flex: 1; }
-  .side .add { margin: 8px 0 0; }
+  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+  .sidebar { display: flex; flex-direction: column; gap: 4px; padding: 22px 14px; width: 248px; position: sticky; top: 0; height: 100vh; background: color-mix(in srgb, var(--ink) 5%, var(--paper)); }
+  .sidebar nav { display: grid; gap: 2px; }
+  .sidebar .wallet { display: grid; padding: 6px 10px 18px; }
+  .sidebar nav a { position: relative; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--radius-control); color: var(--muted); font-weight: 500; text-decoration: none; }
+  .sidebar nav a[aria-current="page"] { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 2px rgba(20, 24, 27, 0.06); }
+  .sidebar nav .badge { margin-left: auto; }
+  .sidebar .grow { flex: 1; }
+  .sidebar .add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; margin: 0 4px 10px; padding: 0; border-radius: var(--radius-control); }
+  .sidebar .add .icon { width: 18px; height: 18px; stroke-width: 2.2; }
+  .profile { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-control); color: var(--ink); text-decoration: none; }
+  .profile:hover, .profile[aria-current="page"] { background: var(--surface); }
+  .profile small { display: block; color: var(--muted); font-size: 12px; }
+  .bar { display: none; }
   .main { padding: 36px 40px 64px; width: 100%; }
   .tabbar { display: none; }
   .cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 56px; align-items: start; }

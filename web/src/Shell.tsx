@@ -1,19 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, NavLink, Outlet, useSearchParams } from "react-router";
+import { Navigate, Outlet, useSearchParams } from "react-router";
 import { isUnauthenticated } from "./api/client";
 import { useCategories, useInbox, useMe, useMembers, usePaymentMethods, useWalletEvents } from "./api/queries";
 import type { Transaction } from "./api/types";
 import { AddSheet } from "./components/AddSheet";
+import { Sidebar } from "./components/Sidebar";
+import { TabBar } from "./components/TabBar";
 import { Ctx, type AppCtx } from "./context";
 import { monthOf, today } from "./lib/dates";
-
-const NAV = [
-  { to: "/", label: "Visão", long: "Visão geral", icon: "◔", end: true },
-  { to: "/lancamentos", label: "Lançamentos", long: "Lançamentos", icon: "≡" },
-  { to: "/recorrentes", label: "Recorrentes", long: "Recorrentes", icon: "↻" },
-  { to: "/divisao", label: "Divisão", long: "Divisão", icon: "⇄" },
-  { to: "/caixa", label: "Caixa", long: "Caixa de entrada", icon: "⤓" },
-];
 
 function readWalletId() {
   try {
@@ -90,25 +84,10 @@ export function Shell() {
   return (
     <Ctx.Provider value={ctx}>
       <div className="app">
-        <aside className="side" aria-label="Navegação">
-          <div className="brand">gastos</div>
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end}><span aria-hidden>{n.icon}</span>{n.long}{n.to === "/caixa" && pending > 0 && <b className="badge">{pending}</b>}</NavLink>
-          ))}
-          <div className="grow" />
-          {canEdit && <button type="button" className="btn add" onClick={() => setAdding({})}>Novo lançamento</button>}
-          <NavLink to="/ajustes"><span aria-hidden>⚙</span>Ajustes</NavLink>
-        </aside>
+        <Sidebar pending={pending} onAdd={() => setAdding({})} />
         <main className="main"><Outlet /></main>
       </div>
-      <nav className="bottom" aria-label="Navegação">
-        <NavLink to="/" end><span aria-hidden>◔</span>Visão</NavLink>
-        <NavLink to="/lancamentos"><span aria-hidden>≡</span>Lançamentos</NavLink>
-        {canEdit ? <button type="button" className="fab" onClick={() => setAdding({})} aria-label="Novo lançamento">+</button> : <span />}
-        <NavLink to="/recorrentes"><span aria-hidden>↻</span>Recorrentes</NavLink>
-        <NavLink to="/divisao"><span aria-hidden>⇄</span>Divisão</NavLink>
-        <NavLink to="/caixa"><span aria-hidden>⤓</span>Caixa{pending > 0 && <b className="badge">{pending}</b>}</NavLink>
-      </nav>
+      <TabBar pending={pending} onAdd={() => setAdding({})} />
       <AddSheet state={adding} onClose={() => setAdding(null)} />
     </Ctx.Provider>
   );
