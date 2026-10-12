@@ -62,9 +62,10 @@ describe("Login: sign-up by registration mode", () => {
     const user = renderLogin();
     await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
     expect(screen.queryByLabelText("Código de convite")).toBeNull();
-    await user.type(screen.getByLabelText("Nome"), "Ana");
+    await user.type(screen.getByLabelText("Como você gostaria de ser chamado?"), "Ana");
     await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
     await user.type(screen.getByLabelText("Senha"), "senha-segura");
+    await user.type(screen.getByLabelText("Repita a senha"), "senha-segura");
     await user.click(screen.getByRole("button", { name: "Criar conta" }));
     expect(await screen.findByText("Visão geral")).toBeTruthy();
     expect(bodyTo(fetch, "/api/auth/register")).toEqual({ name: "Ana", email: "ana@example.com", password: "senha-segura" });
@@ -74,9 +75,10 @@ describe("Login: sign-up by registration mode", () => {
     const fetch = serve("code");
     const user = renderLogin();
     await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
-    await user.type(screen.getByLabelText("Nome"), "Bia");
+    await user.type(screen.getByLabelText("Como você gostaria de ser chamado?"), "Bia");
     await user.type(screen.getByLabelText("E-mail"), "bia@example.com");
     await user.type(screen.getByLabelText("Senha"), "senha-segura");
+    await user.type(screen.getByLabelText("Repita a senha"), "senha-segura");
     await user.type(screen.getByLabelText("Código de convite"), "open-sesame-42");
     await user.click(screen.getByRole("button", { name: "Criar conta" }));
     expect(await screen.findByText("Visão geral")).toBeTruthy();
@@ -94,9 +96,10 @@ describe("Login: sign-up by registration mode", () => {
     serve("code", { status: 403, body: { error: { code: "forbidden", message: "O cadastro está fechado. Peça um convite." } } });
     const user = renderLogin();
     await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
-    await user.type(screen.getByLabelText("Nome"), "Bia");
+    await user.type(screen.getByLabelText("Como você gostaria de ser chamado?"), "Bia");
     await user.type(screen.getByLabelText("E-mail"), "bia@example.com");
     await user.type(screen.getByLabelText("Senha"), "senha-segura");
+    await user.type(screen.getByLabelText("Repita a senha"), "senha-segura");
     await user.type(screen.getByLabelText("Código de convite"), "wrong-code-123");
     await user.click(screen.getByRole("button", { name: "Criar conta" }));
     expect(await screen.findByText("O cadastro está fechado. Peça um convite.")).toBeTruthy();
@@ -129,11 +132,32 @@ describe("Login: sign-up by registration mode", () => {
     const fetch = serve("open", { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { password: "mínimo de 8 caracteres" } } } });
     const user = renderLogin();
     await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
-    await user.type(screen.getByLabelText("Nome"), "Ana");
+    await user.type(screen.getByLabelText("Como você gostaria de ser chamado?"), "Ana");
     await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
     await user.type(screen.getByLabelText("Senha"), "123");
+    await user.type(screen.getByLabelText("Repita a senha"), "123");
     await user.click(screen.getByRole("button", { name: "Criar conta" }));
     expect(await screen.findByText("mínimo de 8 caracteres")).toBeTruthy();
     await waitFor(() => expect(calls(fetch, "/api/auth/register")).toHaveLength(1));
+  });
+
+  it("refuses mismatched passwords without calling the server", async () => {
+    const fetch = serve("open");
+    const user = renderLogin();
+    await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
+    await user.type(screen.getByLabelText("Como você gostaria de ser chamado?"), "Ana");
+    await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura");
+    await user.type(screen.getByLabelText("Repita a senha"), "senha-segurA");
+    await user.click(screen.getByRole("button", { name: "Criar conta" }));
+    expect(await screen.findByText("As senhas não são iguais.")).toBeTruthy();
+    expect(calls(fetch, "/api/auth/register")).toHaveLength(0);
+  });
+
+  it("does not ask to repeat the password when signing in", async () => {
+    serve("open");
+    renderLogin();
+    await screen.findByRole("button", { name: "Criar uma conta" });
+    expect(screen.queryByLabelText("Repita a senha")).toBeNull();
   });
 });

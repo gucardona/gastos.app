@@ -12,7 +12,7 @@ Layout: binários em `/opt/gastos/production/{releases,current}`, dados em `/var
 useradd --system --home /var/lib/gastos --shell /usr/sbin/nologin gastos
 useradd --create-home --shell /bin/bash deploy
 
-install -d -o deploy -g deploy /opt/gastos/production/releases
+install -d -o deploy -g deploy /opt/gastos/production /opt/gastos/production/releases # o deploy cria o link current dentro de production
 install -d -o gastos -g gastos -m 750 /var/lib/gastos/production
 install -d /etc/gastos
 ```
