@@ -108,3 +108,14 @@ describe("Transactions", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
 });
+
+describe("Transactions: recurrences", () => {
+  it("links to the monthly repeats, for editors and readers alike", async () => {
+    serve();
+    const { unmount } = renderApp(<Transactions />);
+    expect((await screen.findByRole("link", { name: /Repetem todo mês/ })).getAttribute("href")).toBe("/recorrentes");
+    unmount();
+    renderApp(<Transactions />, appCtx({ canEdit: false }));
+    expect((await screen.findByRole("link", { name: /Repetem todo mês/ })).getAttribute("href")).toBe("/recorrentes");
+  });
+});

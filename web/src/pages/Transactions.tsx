@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { useTransactions } from "../api/queries";
 import { MonthSwitcher, PageBar } from "../components/PageBar";
 import { TransactionList } from "../components/TransactionList";
@@ -26,6 +27,7 @@ export function Transactions() {
     <>
       <PageBar />
       <MonthSwitcher />
+      <Link className="link" to="/recorrentes">Repetem todo mês ›</Link>
       {txs.error ? (
         <div className="empty">
           <p>Não foi possível carregar os lançamentos.</p>

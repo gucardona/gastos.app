@@ -191,3 +191,4 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .fab { flex: none; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 35%, transparent); }
 .icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .fab .icon { width: 26px; height: 26px; stroke-width: 2; }
+.month + .link { display: inline-block; margin: 2px 0 14px; }
