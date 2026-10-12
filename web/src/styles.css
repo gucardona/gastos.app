@@ -10,7 +10,7 @@ button { cursor: pointer; }
 
 /* ---------- shell ---------- */
 .sidebar { display: none; }
-.main { padding: 20px 16px 112px; max-width: 980px; margin: 0 auto; }
+.main { padding: 20px 16px calc(112px + env(safe-area-inset-bottom)); max-width: 980px; margin: 0 auto; }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .wallet { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 15px; }
 .wallet select { appearance: none; background: none; border: 0; font-weight: 600; padding: 4px 0; cursor: pointer; max-width: 40vw; text-overflow: ellipsis; }
@@ -146,15 +146,15 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
   .sidebar { display: flex; flex-direction: column; gap: 4px; padding: 22px 14px; width: 248px; position: sticky; top: 0; height: 100vh; background: color-mix(in srgb, var(--ink) 5%, var(--paper)); }
   .sidebar nav { display: grid; gap: 2px; }
   .sidebar .wallet { flex-wrap: wrap; padding: 6px 10px 18px; }
-  .sidebar .wallet small { flex-basis: 100%; }
+  .sidebar .wallet small { flex-basis: 100%; order: 3; }
   .sidebar nav a { position: relative; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--radius-control); color: var(--muted); font-weight: 500; text-decoration: none; }
-  .sidebar nav a[aria-current="page"] { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 2px rgba(20, 24, 27, 0.06); }
+  .sidebar nav a[aria-current="page"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--accent); font-weight: 600; }
   .sidebar nav .badge { margin-left: auto; }
   .sidebar .grow { flex: 1; }
-  .sidebar .add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; margin: 0 4px 10px; padding: 0; border-radius: var(--radius-control); }
+  .sidebar .add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; margin: 0 4px 10px; padding: 0; border-radius: var(--radius-control); }
   .sidebar .add .icon { width: 18px; height: 18px; stroke-width: 2.2; }
   .profile { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--radius-control); color: var(--ink); text-decoration: none; }
-  .profile:hover, .profile[aria-current="page"] { background: var(--surface); }
+  .profile:hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
   .profile small { display: block; color: var(--muted); font-size: 12px; }
   .bar { display: none; }
   .main { padding: 36px 40px 64px; width: 100%; }
@@ -185,12 +185,12 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .tabbar { position: fixed; left: 14px; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; z-index: 5; }
 .tabbar-pill { flex: 1; min-width: 0; height: 58px; padding: 0 4px; border-radius: 999px; display: flex; justify-content: space-around; align-items: center;
   background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(14px); box-shadow: 0 8px 28px rgba(20, 24, 27, 0.12), 0 0 0 1px rgba(20, 24, 27, 0.05); }
-.tabbar-pill a { position: relative; flex: 1; min-width: 44px; display: grid; justify-items: center; gap: 2px; padding: 6px 0; border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 500; text-decoration: none; }
+.tabbar-pill a { position: relative; flex: 1; min-width: 44px; display: grid; justify-items: center; gap: 2px; padding: 6px 0; border-radius: 999px; color: var(--muted); font-size: 11px; font-weight: 500; text-decoration: none; }
 .tabbar-pill a[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .tabbar .badge { position: absolute; top: 0; left: 50%; margin: 0; transform: translateX(6px); }
 .fab { flex: none; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 35%, transparent); }
 .icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .fab .icon { width: 26px; height: 26px; stroke-width: 2; }
-.month + .link { display: inline-block; margin: 2px 0 14px; }
+.month + .link { display: inline-block; padding: 12px 0; margin: 0 0 2px; }
 
 @media (min-width: 900px) { .tabbar { display: none; } }
