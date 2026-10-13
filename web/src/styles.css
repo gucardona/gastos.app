@@ -252,3 +252,12 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .flows + .search { margin-top: 14px; }
 .search + .segmented { margin-bottom: 6px; }
 .sheet-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* ---------- recurrences section ---------- */
+.rec-row { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); }
+.list-group > .rec-row:first-child { border-top: 0; }
+.rec-row > .list-row { border-top: 0; }
+.rec-open { flex: 1; min-width: 0; cursor: pointer; }
+.rec-open .lr-label, .rec-row > .lr-label { display: grid; }
+.rec-open .meta, .rec-row .meta { color: var(--muted); font-size: 13px; }
+.sec-note { margin: 24px 0 0; }

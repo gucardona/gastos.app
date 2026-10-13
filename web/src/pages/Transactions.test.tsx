@@ -12,7 +12,7 @@ const items: Transaction[] = [
   tx({ id: 3, kind: "income", categoryId: 3, description: "Salário", amountCents: 850000 }),
 ];
 
-const serve = (list: Transaction[] = items) => mockFetch({ body: list });
+const serve = (list: Transaction[] = items) => mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : list }));
 const rows = () => screen.queryAllByRole("button", { name: /Padaria|Feira|Salário/ });
 
 describe("Transactions", () => {
@@ -82,7 +82,7 @@ describe("Transactions", () => {
     const fetch = serve([]);
     renderApp(<Transactions />, appCtx({ month: "2026-02" }));
     await screen.findByText("Nenhum lançamento neste mês.");
-    expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/transactions?from=2026-02-01&to=2026-02-28");
+    expect(fetch.mock.calls.map((c) => c[0])).toContain("/api/wallets/1/transactions?from=2026-02-01&to=2026-02-28");
   });
 
   it("groups by day, with today identified", async () => {
@@ -106,6 +106,15 @@ describe("Transactions", () => {
     const { container } = renderApp(<Transactions />);
     expect(container.querySelectorAll(".skeleton").length).toBeGreaterThan(0);
     expect(screen.queryByRole("searchbox")).toBeNull();
+  });
+});
+
+describe("Transactions: recurrences section", () => {
+  it("shows 'Repetem todo mês' under the list, even in a month with no transactions", async () => {
+    serve([]);
+    renderApp(<Transactions />);
+    expect(await screen.findByText("Nenhum lançamento neste mês.")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Repetem todo mês" })).toBeTruthy();
   });
 });
 

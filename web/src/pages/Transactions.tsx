@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTransactions } from "../api/queries";
 import { MonthSwitcher, PageBar } from "../components/PageBar";
+import { RecurringSection } from "../components/RecurringSection";
 import { Segmented } from "../components/Segmented";
 import { TransactionList } from "../components/TransactionList";
 import { useApp } from "../context";
@@ -54,6 +55,7 @@ export function Transactions() {
           )}
         </>
       )}
+      <RecurringSection />
     </>
   );
 }
