@@ -107,17 +107,14 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .seg button { border: 0; background: none; padding: 7px 18px; border-radius: 9px; color: var(--muted); font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 .icon-btn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; width: 36px; height: 36px; display: grid; place-items: center; }
-.amount { display: flex; align-items: baseline; gap: 8px; padding: 6px 0 14px; border-bottom: 1px solid var(--line); }
-.amount .cur { font-family: var(--display); font-size: 26px; color: var(--muted); font-weight: 500; }
-.amount input { border: 0; background: none; font-family: var(--display); font-weight: 700; font-size: 52px; letter-spacing: -0.02em; width: 100%; min-width: 0; padding: 0; outline: none; }
-.amount input::placeholder { color: var(--line); }
+.amount { display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 18px 0 20px; }
+.amount .cur { font-size: 24px; color: var(--muted); font-weight: 600; }
+.amount input { border: 0; background: none; font-weight: 700; font-size: 52px; letter-spacing: -0.04em; width: 7ch; min-width: 0; padding: 0; outline: none; text-align: left; color: var(--ink); }
+.amount input::placeholder { color: color-mix(in srgb, var(--ink) 22%, transparent); }
 .field { margin-top: 16px; }
 .field > label, .field > .lbl { display: block; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
 .text { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 8px 0; font-size: 17px; outline: none; border-radius: 0; }
 .text:focus { border-bottom-color: var(--accent); }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chips .chip { color: var(--ink); }
-.chips .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
 .line small { color: var(--muted); display: block; }
 .split-edit { display: grid; gap: 8px; padding: 0 0 12px; }
@@ -222,3 +219,13 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .list-row .lr-check { color: var(--accent); font-weight: 700; }
 .date-other { margin-top: 12px; }
 .date-input { border: 0; background: none; color: var(--muted); font: inherit; }
+
+
+/* ---------- quick-add details ---------- */
+.desc-input { flex: 1.4; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: right; outline: none; }
+.desc-input::placeholder { color: var(--muted); }
+.list-row .chip { min-height: 36px; }
+.split-group { margin-top: 12px; }
+.split-group .split-edit { padding: 4px 0 12px; }
+.sheet .actions { margin-top: 18px; }
+.sheet .list-group + .error, .sheet .amount + .error { margin: 8px 4px 0; }

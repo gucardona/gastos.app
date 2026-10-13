@@ -1,11 +1,15 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { appCtx, bodyOf, mockFetch, renderApp, tx, wallet } from "../test/fixtures";
-import { today } from "../lib/dates";
+import type { Category } from "../api/types";
+import { today, yesterday } from "../lib/dates";
+import { appCtx, bodyOf, categories, mockFetch, renderApp, tx, wallet } from "../test/fixtures";
 import { AddSheet } from "./AddSheet";
 
+type User = ReturnType<typeof userEvent.setup>;
+
 const save = () => screen.getByRole("button", { name: "Salvar" });
+const row = (label: string) => screen.getByRole("button", { name: new RegExp(`^${label}`) });
 
 function open(state: { tx?: ReturnType<typeof tx> } = {}, ctx = appCtx()) {
   const onClose = vi.fn();
@@ -13,9 +17,15 @@ function open(state: { tx?: ReturnType<typeof tx> } = {}, ctx = appCtx()) {
   return { onClose, user: userEvent.setup() };
 }
 
-async function fill(user: ReturnType<typeof userEvent.setup>, amount = "48,90", description = "Mercado do bairro") {
+async function fill(user: User, amount = "48,90", description = "Mercado do bairro") {
   await user.type(screen.getByRole("textbox", { name: "Valor" }), amount);
   await user.type(screen.getByRole("textbox", { name: "Descrição" }), description);
+}
+
+/** Opens the Categoria row and taps a category: the picker closes by itself. */
+async function pickCategory(user: User, name: RegExp) {
+  await user.click(row("Categoria"));
+  await user.click(screen.getByRole("button", { name }));
 }
 
 describe("AddSheet: new transaction", () => {
@@ -32,7 +42,7 @@ describe("AddSheet: new transaction", () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user, onClose } = open();
     await fill(user);
-    await user.click(screen.getByRole("button", { name: /Restaurante/ }));
+    await pickCategory(user, /Restaurante/);
     await user.click(save());
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -49,7 +59,10 @@ describe("AddSheet: new transaction", () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open();
     await user.click(screen.getByRole("button", { name: "Entrada" }));
+    expect(row("Categoria").textContent).toContain("Salário");
+    await user.click(row("Categoria"));
     expect(screen.queryByRole("button", { name: /Mercado/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Voltar" }));
     await fill(user, "8500", "Salário de outubro");
     await user.click(save());
     await waitFor(() => expect(fetch).toHaveBeenCalled());
@@ -76,6 +89,15 @@ describe("AddSheet: new transaction", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("a description the API refuses (too long) shows its error and keeps the sheet open", async () => {
+    mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { description: "obrigatória, até 200 caracteres" } } } });
+    const { user, onClose } = open();
+    await fill(user, "10", "x".repeat(201));
+    await user.click(save());
+    expect(await screen.findByText("obrigatória, até 200 caracteres")).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("shows the general message when the API fails without fields", async () => {
     mockFetch({ status: 403, body: { error: { code: "forbidden", message: "Sem permissão para esta ação" } } });
     const { user } = open();
@@ -96,12 +118,98 @@ describe("AddSheet: new transaction", () => {
   });
 });
 
+describe("AddSheet: amount formats", () => {
+  it.each([
+    ["48,90", 4890],
+    ["1.234,56", 123456],
+    ["10", 1000],
+  ])("%s is sent as %i cents", async (typed, cents) => {
+    const fetch = mockFetch({ status: 201, body: tx() });
+    const { user } = open();
+    await fill(user, typed);
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(bodyOf(fetch).amountCents).toBe(cents);
+  });
+
+  it.each(["0", "abc"])("%s is refused before anything is sent", async (typed) => {
+    const fetch = mockFetch();
+    const { user } = open();
+    await fill(user, typed);
+    await user.click(save());
+    expect(await screen.findByText("Informe um valor maior que zero.")).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddSheet: pickers", () => {
+  it("the Categoria row opens the grid, and choosing returns with the row updated", async () => {
+    const { user } = open();
+    expect(row("Categoria").textContent).toContain("Mercado");
+    await user.click(row("Categoria"));
+    expect(screen.getByRole("heading", { name: "Categoria" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /Restaurante/ }));
+    expect(screen.queryByRole("heading", { name: "Categoria" })).toBeNull();
+    expect(row("Categoria").textContent).toContain("Restaurante");
+  });
+
+  it("Voltar returns to the form keeping what was typed, with the focus on the row that opened the picker", async () => {
+    const { user } = open();
+    await fill(user, "12", "Café");
+    await user.click(row("Categoria"));
+    await user.click(screen.getByRole("button", { name: "Voltar" }));
+    expect((screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement).value).toBe("12");
+    expect((screen.getByRole("textbox", { name: "Descrição" }) as HTMLInputElement).value).toBe("Café");
+    expect(document.activeElement).toBe(row("Categoria"));
+  });
+
+  it("Quando: Ontem sends yesterday, and another day typed in the field is sent as is", async () => {
+    const fetch = mockFetch({ status: 201, body: tx() });
+    const { user } = open();
+    expect(row("Quando").textContent).toContain("Hoje");
+    await fill(user);
+    await user.click(row("Quando"));
+    await user.click(screen.getByRole("button", { name: "Ontem" }));
+    expect(row("Quando").textContent).toContain("Ontem");
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(bodyOf(fetch).date).toBe(yesterday());
+
+    await user.click(row("Quando"));
+    fireEvent.change(screen.getByLabelText("Data do lançamento"), { target: { value: "2026-01-15" } });
+    await user.click(screen.getByRole("button", { name: "Voltar" }));
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(bodyOf(fetch, 1).date).toBe("2026-01-15");
+  });
+
+  it("Pago com: picks another payment method", async () => {
+    const fetch = mockFetch({ status: 201, body: tx() });
+    const { user } = open();
+    expect(row("Pago com").textContent).toContain("Pix");
+    await fill(user);
+    await user.click(row("Pago com"));
+    await user.click(screen.getByRole("button", { name: "Crédito" }));
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(bodyOf(fetch).paymentMethodId).toBe(2);
+  });
+
+  it("lists all 25 categories when there are that many", async () => {
+    const many: Category[] = Array.from({ length: 25 }, (_, i) => ({ ...categories[0], id: 100 + i, name: `Categoria ${i}`, sortOrder: i }));
+    const { user } = open({}, appCtx({ categories: many }));
+    await user.click(row("Categoria"));
+    expect(document.querySelectorAll(".cat-tile")).toHaveLength(25);
+  });
+});
+
 describe("AddSheet: splitting", () => {
   const splitting = () => appCtx({ wallet: { ...wallet, splittingEnabled: true } });
 
   it("shows no splitting on a wallet without splitting", () => {
     open();
     expect(screen.queryByRole("button", { name: "Ajustar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Quem pagou/ })).toBeNull();
   });
 
   it("rejects percentages that do not add up to 100% and submits when they do", async () => {
@@ -140,6 +248,8 @@ describe("AddSheet: splitting", () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open({}, splitting());
     await fill(user);
+    expect(row("Quem pagou").textContent).toContain("Ana");
+    await user.click(row("Quem pagou"));
     await user.click(screen.getByRole("button", { name: "Bia" }));
     await user.click(save());
     await waitFor(() => expect(fetch).toHaveBeenCalled());
@@ -176,5 +286,15 @@ describe("AddSheet: editing", () => {
     open({ tx: tx() });
     expect(screen.queryByRole("switch", { name: "Repetir todo mês" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Salvar e lançar outro" })).toBeNull();
+  });
+
+  it("keeps the transaction's archived category selectable, and offers no other archived one", async () => {
+    const archived = (id: number, name: string): Category => ({ ...categories[0], id, name, archived: true });
+    const ctx = appCtx({ categories: [...categories, archived(8, "Antiga"), archived(9, "Outra antiga")] });
+    const { user } = open({ tx: tx({ categoryId: 8 }) }, ctx);
+    expect(row("Categoria").textContent).toContain("Antiga");
+    await user.click(row("Categoria"));
+    expect(screen.getByRole("button", { name: /^Antiga$/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Outra antiga/ })).toBeNull();
   });
 });

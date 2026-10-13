@@ -9,7 +9,8 @@ export function ListGroup({ children, className = "" }: { children: ReactNode; c
  * One row. With `onClick` the whole row is a button (label and value form its name); without it, a plain row that can hold
  * `trailing` controls such as a Switch.
  */
-export function ListRow({ label, value, icon, onClick, chevron, trailing, disabled }: {
+export function ListRow({ id, label, value, icon, onClick, chevron, trailing, disabled }: {
+  id?: string;
   label: ReactNode;
   value?: ReactNode;
   icon?: ReactNode;
@@ -29,7 +30,7 @@ export function ListRow({ label, value, icon, onClick, chevron, trailing, disabl
   );
   if (!onClick) return <div className="list-row">{content}</div>;
   return (
-    <button type="button" className="list-row" onClick={onClick} disabled={disabled}>
+    <button type="button" id={id} className="list-row" onClick={onClick} disabled={disabled}>
       {content}
     </button>
   );
