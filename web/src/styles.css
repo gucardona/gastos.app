@@ -78,8 +78,6 @@ button { cursor: pointer; }
 .filters .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .search { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 11px 14px; margin: 4px 0 14px; }
 .search::placeholder { color: var(--muted); }
-.totals { display: flex; gap: 24px; padding: 6px 0 4px; color: var(--muted); font-size: 14px; }
-.totals b { color: var(--ink); }
 .day { margin-top: 22px; }
 .day-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px; color: var(--muted); font-size: 13px; }
 .day-head strong { color: var(--ink); font-weight: 600; font-size: 14px; }
@@ -248,3 +246,8 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 }
 .switch::before { content: ""; position: absolute; inset: -8px -4px; } /* hit area of 47px without growing the switch */
 .split-edit input { min-height: 44px; }
+
+/* ---------- Lançamentos ---------- */
+.search { min-height: 44px; margin: 14px 0 10px; border-radius: var(--radius-control); }
+.flows + .search { margin-top: 14px; }
+.search + .segmented { margin-bottom: 6px; }

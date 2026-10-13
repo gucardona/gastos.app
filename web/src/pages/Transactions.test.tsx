@@ -109,13 +109,21 @@ describe("Transactions", () => {
   });
 });
 
-describe("Transactions: recurrences", () => {
-  it("links to the monthly repeats, for editors and readers alike", async () => {
+describe("Transactions: new look", () => {
+  it("the filter is a segmented control with Tudo, Gastos and Entradas", async () => {
     serve();
-    const { unmount } = renderApp(<Transactions />);
-    expect((await screen.findByRole("link", { name: /Repetem todo mês/ })).getAttribute("href")).toBe("/recorrentes");
-    unmount();
-    renderApp(<Transactions />, appCtx({ canEdit: false }));
-    expect((await screen.findByRole("link", { name: /Repetem todo mês/ })).getAttribute("href")).toBe("/recorrentes");
+    const { container } = renderApp(<Transactions />);
+    await screen.findByText("Padaria");
+    const group = container.querySelector('.segmented[aria-label="Filtros"]')!;
+    expect([...group.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Tudo", "Gastos", "Entradas"]);
+    expect([...group.querySelectorAll("button")].filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => b.textContent)).toEqual(["Tudo"]);
+  });
+
+  it("the totals use the same marked-up line as the overview", async () => {
+    serve();
+    const { container } = renderApp(<Transactions />);
+    await screen.findByText("Padaria");
+    expect(container.querySelector(".flows .in")?.textContent).toMatch(/Entrou.*8.500,00/);
+    expect(container.querySelectorAll(".flows span")).toHaveLength(2);
   });
 });
