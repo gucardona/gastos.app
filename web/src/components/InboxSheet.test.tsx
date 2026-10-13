@@ -133,3 +133,48 @@ describe("InboxSheet", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe("InboxSheet: the rule step", () => {
+  const rulesFail = () =>
+    mockFetch((url, init) => {
+      if (init.method === "POST" && url.endsWith("/rules")) return { status: 409, body: { error: { code: "conflict", message: "Já existe uma regra com esse texto" } } };
+      return { body: {} };
+    });
+
+  it("when the rule is refused after the line was accepted, it says so and offers only to close", async () => {
+    rulesFail();
+    const { user, onClose } = open();
+    await pickCategory(user, /Mercado/);
+    await user.click(screen.getByRole("switch", { name: "Usar nas próximas importações" }));
+    await user.click(screen.getByRole("button", { name: "Aceitar" }));
+    expect(await screen.findByText("Lançamento criado, mas a regra não foi salva.")).toBeTruthy();
+    expect(screen.getByText("Já existe uma regra com esse texto")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Aceitar" })).toBeNull(); // accepting again would only give a 409
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("a rule text over 60 characters is refused before the line is accepted", async () => {
+    const fetch = serve();
+    const { user } = open();
+    await pickCategory(user, /Mercado/);
+    await user.click(screen.getByRole("switch", { name: "Usar nas próximas importações" }));
+    fireEvent.change(screen.getByLabelText("Texto da regra"), { target: { value: "x".repeat(61) } });
+    await user.click(screen.getByRole("button", { name: "Aceitar" }));
+    expect(await screen.findByText("Use no máximo 60 caracteres na regra.")).toBeTruthy();
+    expect(writes(fetch)).toHaveLength(0);
+  });
+
+  it("the rule message goes away as soon as the text is edited", async () => {
+    serve();
+    const { user } = open();
+    await pickCategory(user, /Mercado/);
+    await user.click(screen.getByRole("switch", { name: "Usar nas próximas importações" }));
+    fireEvent.change(screen.getByLabelText("Texto da regra"), { target: { value: "a" } });
+    await user.click(screen.getByRole("button", { name: "Aceitar" }));
+    expect(await screen.findByText("Use ao menos 2 caracteres na regra.")).toBeTruthy();
+    await user.type(screen.getByLabelText("Texto da regra"), "bc");
+    expect(screen.queryByText("Use ao menos 2 caracteres na regra.")).toBeNull();
+  });
+});

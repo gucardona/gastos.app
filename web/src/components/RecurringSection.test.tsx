@@ -97,3 +97,18 @@ describe("RecurringSection", () => {
     expect(await screen.findByText("Não foi possível carregar as recorrências.")).toBeTruthy();
   });
 });
+
+describe("RecurringSection: status line", () => {
+  it("says until when a recurrence runs, when it has an end date", async () => {
+    serve([{ ...netflix, endDate: "2027-01-05" }]);
+    renderApp(<RecurringSection />);
+    expect(await screen.findByText(/Todo dia 5, próxima em 5 de novembro, até 5 de janeiro/)).toBeTruthy();
+  });
+
+  it("a paused row is told by its text and its switch, not dimmed (dimming breaks the contrast)", async () => {
+    serve([{ ...netflix, enabled: false }]);
+    const { container } = renderApp(<RecurringSection />);
+    await screen.findByText(/pausada/);
+    expect(container.querySelector(".rec-row")?.getAttribute("style") ?? "").not.toContain("opacity");
+  });
+});

@@ -35,6 +35,7 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
   const [pattern, setPattern] = useState(() => item.description.toLowerCase().split(/\s+/).slice(0, 2).join(" "));
   const [problem, setProblem] = useState("");
   const [picking, setPicking] = useState(false);
+  const [ruleFailed, setRuleFailed] = useState(false); // the line was accepted but the rule was refused
   const cameFromPicker = useRef(false);
 
   // coming back from the category grid, focus goes to the row that opened it
@@ -56,15 +57,17 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
   }
 
   async function accept() {
-    if (offerRule && remember && pattern.trim().length < 2) return setProblem("Use ao menos 2 caracteres na regra.");
+    const length = [...pattern.trim()].length;
+    if (offerRule && remember && length < 2) return setProblem("Use ao menos 2 caracteres na regra.");
+    if (offerRule && remember && length > 60) return setProblem("Use no máximo 60 caracteres na regra.");
     setProblem("");
-    await decide(async () => {
-      const body: { categoryId: number; description?: string } = { categoryId };
-      const text = description.trim();
-      if (text && text !== defaultDescription) body.description = text;
-      await api.post(`${base}/accept`, body);
-      if (offerRule && remember) await api.post(`/wallets/${wallet.id}/rules`, { pattern: pattern.trim(), categoryId });
-    });
+    const body: { categoryId: number; description?: string } = { categoryId };
+    const text = description.trim();
+    if (text && text !== defaultDescription) body.description = text;
+    if (!(await run(() => api.post(`${base}/accept`, body)))) return refresh(wallet.id); // maybe someone else decided first: the list is stale
+    // the rule is a second step: if it fails the line is already a transaction, and accepting again would only give a 409
+    if (offerRule && remember && !(await run(() => api.post(`/wallets/${wallet.id}/rules`, { pattern: pattern.trim(), categoryId })))) return setRuleFailed(true);
+    onClose();
   }
 
   if (picking) {
@@ -72,6 +75,16 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
       <PickerView title="Categoria" onBack={() => setPicking(false)}>
         <CategoryGrid categories={options} value={categoryId || null} onPick={(id) => { setCategoryId(id); setPicking(false); }} />
       </PickerView>
+    );
+  }
+
+  if (ruleFailed) {
+    return (
+      <div>
+        <h2 className="sheet-title">Lançamento criado, mas a regra não foi salva.</h2>
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="actions"><button type="button" className="btn full" onClick={onClose}>Fechar</button></div>
+      </div>
     );
   }
 
@@ -93,12 +106,12 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
           <input id="inbox-desc" className="desc-input" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         {offerRule && (
-          <ListRow label="Usar nas próximas importações" trailing={<Switch checked={remember} onChange={setRemember} label="Usar nas próximas importações" />} />
+          <ListRow label="Usar nas próximas importações" trailing={<Switch checked={remember} onChange={(v) => { setRemember(v); setProblem(""); }} label="Usar nas próximas importações" />} />
         )}
         {offerRule && remember && (
           <div className="list-row">
             <label htmlFor="inbox-rule" className="lr-label">Texto da regra</label>
-            <input id="inbox-rule" className="desc-input" value={pattern} onChange={(e) => setPattern(e.target.value)} />
+            <input id="inbox-rule" className="desc-input" value={pattern} onChange={(e) => { setPattern(e.target.value); setProblem(""); }} />
           </div>
         )}
       </ListGroup>

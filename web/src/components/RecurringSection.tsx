@@ -42,24 +42,25 @@ function Row({ r, onOpen }: { r: Recurrence; onOpen: () => void }) {
   const cat = categories.find((c) => c.id === r.categoryId);
   const person = (id: number | null) => firstName(members.find((m) => m.userId === id)?.name ?? "Alguém");
   const title = r.description || (r.kind === "settlement" ? `Acerto de ${person(r.paidByUserId)} para ${person(r.toUserId)}` : cat?.name ?? "Recorrência");
-  const status = r.enabled ? (r.nextDate ? `, próxima em ${longDate(r.nextDate)}` : ", encerrada") : ", pausada";
+  const until = r.enabled && r.nextDate && r.endDate ? `, até ${longDate(r.endDate)}` : "";
+  const status = (r.enabled ? (r.nextDate ? `, próxima em ${longDate(r.nextDate)}` : ", encerrada") : ", pausada") + until;
   const method = paymentMethods.find((p) => p.id === r.paymentMethodId)?.name;
   const content = (
     <>
       <span className="lr-icon" aria-hidden="true">{r.kind === "settlement" ? "⇄" : cat?.icon}</span>
       <span className="lr-label">
         <span className="desc">{title}</span>
-        <span className="meta">{[cat?.name, method].filter(Boolean).join(", ")}</span>
+        {(cat || method) && <span className="meta">{[cat?.name, method].filter(Boolean).join(", ")}</span>}
         <span className="meta">Todo dia {r.dayOfMonth}{status}</span>
       </span>
       <span className={`val num ${r.kind === "income" ? "in" : ""}`}>{r.kind === "income" ? "+" : "−"}{formatBRL(r.amountCents)}</span>
     </>
   );
 
-  if (!canEdit) return <div className="list-row rec-row" style={r.enabled ? undefined : { opacity: 0.6 }}>{content}</div>;
+  if (!canEdit) return <div className="list-row rec-row">{content}</div>;
   return (
     <>
-      <div className="rec-row" style={r.enabled ? undefined : { opacity: 0.6 }}>
+      <div className="rec-row">
         <button type="button" className="list-row rec-open" onClick={onOpen}>{content}</button>
         <Switch checked={r.enabled} disabled={busy} label={`${r.enabled ? "Pausar" : "Retomar"} ${title}`} onChange={(v) => void run(() => api.put(`/wallets/${wallet.id}/recurrences/${r.id}`, recurrenceBody(r, { enabled: v }, wallet.splittingEnabled)))} />
       </div>

@@ -272,3 +272,8 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .lead { margin: 0 0 14px; }
 .inbox-list { margin-top: 14px; }
 .sheet .meta { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+
+/* long unbroken text (statement memos, names) must wrap instead of widening the page */
+.desc, .meta, .sheet-title, .lr-label { overflow-wrap: anywhere; }
+.row > *, .list-row > * { min-width: 0; }
+.list-row .val { flex: none; }
