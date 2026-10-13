@@ -96,7 +96,7 @@ button { cursor: pointer; }
 .skeleton { height: 14px; border-radius: 7px; background: var(--line); margin: 12px 0; width: 60%; }
 
 /* ---------- quick add (native dialog) ---------- */
-dialog.sheet { border: 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); background: var(--surface); color: var(--ink); position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none; max-height: 92vh; border-radius: 22px 22px 0 0; overflow: auto; }
+dialog.sheet { border: 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); background: var(--paper); color: var(--ink); position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none; max-height: 92vh; border-radius: 28px 28px 0 0; overflow: auto; }
 dialog.sheet::backdrop { background: var(--scrim); }
 dialog.sheet[open] { animation: rise 0.18s ease-out; }
 @keyframes rise { from { transform: translateY(24px); opacity: 0.6; } }

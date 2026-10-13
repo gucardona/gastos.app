@@ -1,35 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ApiError, api } from "../api/client";
 import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
+import { Sheet } from "./Sheet";
 import { toISODate, today } from "../lib/dates";
 import { formatBRL, parseCents } from "../lib/money";
 import { equalPercents, sharesFromPercents } from "../lib/splits";
 
-/** Quick-add sheet, built on a native <dialog> (focus trap and Esc for free). */
+/** Quick-add sheet: new transaction, or editing one when `state.tx` is set. */
 export function AddSheet({ state, onClose }: { state: { tx?: Transaction } | null; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const open = state !== null;
-
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
-
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: a click on the backdrop is a pointer shortcut; keyboard users close with Esc (native dialog)
-    <dialog
-      ref={ref}
-      className="sheet"
-      aria-label={state?.tx ? "Editar lançamento" : "Novo lançamento"}
-      onClose={onClose}
-      onClick={(e) => e.target === ref.current && onClose()}
-    >
-      {open && <AddForm key={state?.tx?.id ?? "new"} tx={state?.tx} onClose={onClose} />}
-    </dialog>
+    <Sheet open={state !== null} onClose={onClose} label={state?.tx ? "Editar lançamento" : "Novo lançamento"}>
+      <AddForm key={state?.tx?.id ?? "new"} tx={state?.tx} onClose={onClose} />
+    </Sheet>
   );
 }
 
@@ -132,7 +116,6 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); void save(false); }}>
-      <div className="grab" />
       <div className="sheet-head">
         <div className="seg" role="group" aria-label="Tipo">
           <button type="button" aria-pressed={kind === "expense"} onClick={() => setKind("expense")}>Gasto</button>
