@@ -258,6 +258,13 @@ describe("Overview: suggested settlement", () => {
 });
 
 describe("Overview: blocks", () => {
+  it("a month with only income shows no empty 'Para onde foi' block", async () => {
+    serve(summary({ byCategory: [{ categoryId: 3, kind: "income", cents: 850000, budgetCents: null }], expenseCents: 0 }), [tx({ kind: "income", categoryId: 3 })]);
+    renderApp(<Overview />);
+    await screen.findByRole("heading", { name: "Recentes" });
+    expect(screen.queryByRole("heading", { name: "Para onde foi" })).toBeNull();
+  });
+
   it("'Para onde foi' groups the expense categories in one block", async () => {
     serve(summary(), [tx()]);
     const { container } = renderApp(<Overview />);

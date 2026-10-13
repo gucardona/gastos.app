@@ -1,17 +1,19 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import type { Category } from "../api/types";
 import { today, yesterday } from "../lib/dates";
 import { ListGroup, ListRow } from "./ListGroup";
 
 /** A choice that takes over the sheet: a back button and a title above the options. */
 export function PickerView({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), []); // the previous control is gone: land on the title, so the change is announced
   return (
     <div className="picker">
       <div className="picker-head">
         <button type="button" className="picker-back" onClick={onBack}>
           <span aria-hidden="true">‹</span> Voltar
         </button>
-        <h2>{title}</h2>
+        <h2 ref={heading} tabIndex={-1}>{title}</h2>
       </div>
       {children}
     </div>

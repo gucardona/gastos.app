@@ -160,8 +160,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
 
       <div className="amount">
         <span className="cur">R$</span>
-        {/* biome-ignore lint/a11y/noAutofocus: quick add exists to type an amount, so the sheet opens with it focused */}
-        <input ref={amountRef} autoFocus inputMode="decimal" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <input ref={amountRef} data-autofocus inputMode="decimal" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} />
       </div>
       {err("amountCents")}
 

@@ -62,6 +62,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
         <>
           <Ruler month={month} txs={txs} summary={summary} />
           <div className="cols">
+            {summary.byCategory.some((c) => c.kind === "expense") && (
             <section className="sec">
               <h2>Para onde foi</h2>
               <p className="sub">A linha vertical marca o orçamento do mês.</p>
@@ -87,6 +88,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
               })}
               </div>
             </section>
+            )}
             <div>
               <Settle summary={summary} />
               <section className="sec">

@@ -297,3 +297,21 @@ test("quick add: pickers for category and day, and Esc leaves without saving", a
   await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByText("Padaria de ontem")).toHaveCount(1);
 });
+
+test("the overview does not scroll sideways at the narrowest desktop width, even with large amounts", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop layout only");
+  await page.setViewportSize({ width: 900, height: 800 });
+  await signUpAndEnter(page, "Vera");
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    const cats = await j(`/api/wallets/${w}/categories`);
+    const iso = new Date().toISOString().slice(0, 10);
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "income", amountCents: 1820000, description: "Salário", categoryId: cats.find((c: { kind: string }) => c.kind === "income").id, date: iso, paymentMethodId: null });
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 585433, description: "Aluguel", categoryId: cats.find((c: { kind: string }) => c.kind === "expense").id, date: iso, paymentMethodId: null });
+  });
+  await page.reload();
+  await expect(page.getByText("Para onde foi")).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});

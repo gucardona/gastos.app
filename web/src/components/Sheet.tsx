@@ -7,7 +7,10 @@ export function Sheet({ open, onClose, label, children }: { open: boolean; onClo
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      d.querySelector<HTMLElement>("[data-autofocus]")?.focus(); // the browser would pick the first control; the sheet says which one it wants
+    }
     if (!open && d.open) d.close();
   }, [open]);
 

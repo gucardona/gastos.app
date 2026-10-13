@@ -142,6 +142,26 @@ describe("AddSheet: amount formats", () => {
   });
 });
 
+describe("AddSheet: focus", () => {
+  it("opens with the amount field focused", () => {
+    open();
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Valor" }));
+  });
+
+  it("opening a picker moves focus to its title, so the change is announced and Tab starts inside it", async () => {
+    const { user } = open();
+    await user.click(row("Categoria"));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Categoria" }));
+  });
+
+  it("coming back from a picker puts focus on the row, not on the amount field", async () => {
+    const { user } = open();
+    await user.click(row("Pago com"));
+    await user.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(document.activeElement).toBe(row("Pago com"));
+  });
+});
+
 describe("AddSheet: pickers", () => {
   it("the Categoria row opens the grid, and choosing returns with the row updated", async () => {
     const { user } = open();

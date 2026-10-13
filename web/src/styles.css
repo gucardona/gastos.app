@@ -107,7 +107,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .seg { display: inline-flex; background: var(--paper); border-radius: 12px; padding: 3px; }
 .seg button { border: 0; background: none; padding: 7px 18px; border-radius: 9px; color: var(--muted); font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
-.icon-btn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; width: 36px; height: 36px; display: grid; place-items: center; }
+.icon-btn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; width: 44px; height: 44px; display: grid; place-items: center; }
 .amount { display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 18px 0 20px; }
 .amount .cur { font-size: 24px; color: var(--muted); font-weight: 600; }
 .amount input { border: 0; background: none; font-weight: 700; font-size: 52px; letter-spacing: -0.04em; width: 7ch; min-width: 0; padding: 0; outline: none; text-align: left; color: var(--ink); }
@@ -196,7 +196,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 
 /* ---------- segmented control ---------- */
 .segmented { display: inline-flex; padding: 3px; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.segmented button { min-height: 36px; padding: 0 18px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 500; }
+.segmented button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 500; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
 
 
@@ -219,13 +219,13 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .cat-emoji { font-size: 26px; line-height: 1; }
 .list-row .lr-check { color: var(--accent); font-weight: 700; }
 .date-other { margin-top: 12px; }
-.date-input { border: 0; background: none; color: var(--muted); font: inherit; }
+.date-input { min-height: 44px; border: 0; background: none; color: var(--muted); font: inherit; }
 
 
 /* ---------- quick-add details ---------- */
 .desc-input { flex: 1.4; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: right; outline: none; }
 .desc-input::placeholder { color: var(--muted); }
-.list-row .chip { min-height: 36px; }
+.list-row .chip { min-height: 44px; }
 .split-group { margin-top: 12px; }
 .split-group .split-edit { padding: 4px 0 12px; }
 .sheet .actions { margin-top: 18px; }
@@ -239,10 +239,12 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .sec h2 { letter-spacing: -0.01em; }
 @media (min-width: 900px) {
   .balance { font-size: 54px; }
-  .hero { display: grid; grid-template-columns: 1.4fr 2fr; gap: 14px; padding: 8px 0 0; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr); gap: 14px; padding: 8px 0 0; }
   .hero-main, .flows span { background: var(--surface); border-radius: var(--radius-group); padding: 22px 24px; }
-  .flows { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0; }
+  .flows { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin: 0; }
   .flows span { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
   .flows b { font-size: 30px; letter-spacing: -0.03em; }
   .flows span::before { display: none; }
 }
+.switch::before { content: ""; position: absolute; inset: -8px -4px; } /* hit area of 47px without growing the switch */
+.split-edit input { min-height: 44px; }
