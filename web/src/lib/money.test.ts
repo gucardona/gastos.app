@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBRL, parseCents, splitBRL } from "./money";
+import { centsToInput, formatBRL, parseCents, splitBRL } from "./money";
 
 describe("parseCents", () => {
   it.each([
@@ -32,5 +32,13 @@ describe("splitBRL", () => {
     expect(splitBRL(437660)).toEqual({ reais: "4.376", cents: "60" });
     expect(splitBRL(5)).toEqual({ reais: "0", cents: "05" });
     expect(splitBRL(-100)).toEqual({ reais: "-1", cents: "00" });
+  });
+});
+
+describe("centsToInput", () => {
+  it("writes cents the way they are typed", () => {
+    expect(centsToInput(12990)).toBe("129,90");
+    expect(centsToInput(5)).toBe("0,05");
+    expect(centsToInput(100000)).toBe("1000,00");
   });
 });

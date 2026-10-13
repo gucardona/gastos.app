@@ -4,7 +4,7 @@ import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
 import { dayLabel, today, yesterday } from "../lib/dates";
-import { formatBRL, parseCents } from "../lib/money";
+import { centsToInput, formatBRL, parseCents } from "../lib/money";
 import { equalPercents, sharesFromPercents } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
 import { CategoryGrid, DatePicker, OptionList, PickerView } from "./pickers";
@@ -21,7 +21,6 @@ export function AddSheet({ state, onClose }: { state: { tx?: Transaction } | nul
   );
 }
 
-const centsToInput = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
 type Picker = "category" | "date" | "method" | "paidBy";
 
