@@ -188,11 +188,19 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   await expect(sheet).toBeHidden();
 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
-  await page.getByRole("link", { name: /Repetem todo mês/ }).click();
-  await expect(page.getByText("Netflix")).toBeVisible();
-  await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Repetem todo mês" })).toBeVisible();
+  const repeating = page.locator("section", { has: page.getByRole("heading", { name: "Repetem todo mês" }) });
+  await expect(repeating.getByText("Netflix")).toBeVisible();
+  await expect(repeating.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
   await page.getByRole("switch", { name: "Pausar Netflix" }).click();
-  await expect(page.getByText(/pausada/).first()).toBeVisible();
+  await expect(repeating.getByText(/pausada/)).toBeVisible();
+
+  // tapping the row edits it in a sheet
+  await repeating.getByRole("button", { name: /Netflix/ }).click();
+  await page.getByRole("dialog").getByLabel("Valor").fill("60,00");
+  await page.getByRole("dialog").getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(repeating.getByText(/−R\$\s*60,00/)).toBeVisible();
 });
 
 test("layout follows the viewport: bottom nav on a phone, sidebar on a desktop", async ({ page, isMobile }) => {
@@ -249,9 +257,13 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
   await expect(page.getByText("0 linhas novas, 2 já importadas antes.")).toBeVisible();
 
   await page.getByRole("link", { name: /Caixa/ }).first().click();
-  await page.getByLabel("Categoria de COMPRA MERCADO DO BAIRRO").selectOption({ label: "🛒 Mercado" });
-  await page.locator(".item", { hasText: "COMPRA MERCADO" }).getByRole("button", { name: "Aceitar" }).click();
-  await page.locator(".item", { hasText: "TARIFA" }).getByRole("button", { name: "Ignorar" }).click();
+  await page.getByRole("button", { name: /COMPRA MERCADO DO BAIRRO/ }).click();
+  const decision = page.getByRole("dialog");
+  await pickCategory(decision, "Mercado");
+  await decision.getByRole("button", { name: "Aceitar" }).click();
+  await expect(decision).toBeHidden();
+  await page.getByRole("button", { name: /TARIFA BANCARIA/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Ignorar" }).click();
   await expect(page.getByText(/Nada para revisar/)).toBeVisible();
 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
@@ -314,4 +326,22 @@ test("the overview does not scroll sideways at the narrowest desktop width, even
   await expect(page.getByText("Para onde foi")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("the old /recorrentes address lands on Lançamentos", async ({ page }) => {
+  await signUpAndEnter(page, "Olga");
+  await page.goto("/recorrentes");
+  await expect(page).toHaveURL(/lancamentos$/);
+  await expect(page.getByRole("heading", { name: "Repetem todo mês" })).toBeVisible();
+});
+
+test("Lançamentos and the Caixa do not scroll sideways at the narrowest desktop width", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop layout only");
+  await page.setViewportSize({ width: 900, height: 800 });
+  await signUpAndEnter(page, "Zeca");
+  for (const path of ["/lancamentos", "/caixa"]) {
+    await page.goto(path);
+    await expect(page.getByRole("navigation", { name: "Navegação" }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), path).toBeLessThanOrEqual(0);
+  }
 });
