@@ -194,3 +194,8 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .month + .link { display: inline-block; padding: 12px 0; margin: 0 0 2px; }
 
 @media (min-width: 900px) { .tabbar { display: none; } }
+
+/* ---------- segmented control ---------- */
+.segmented { display: inline-flex; padding: 3px; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.segmented button { min-height: 36px; padding: 0 18px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 500; }
+.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
