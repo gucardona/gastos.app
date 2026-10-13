@@ -28,6 +28,7 @@ export function TransactionList({ items }: { items: Transaction[] }) {
             <strong>{dayLabel(d.date)}</strong>
             <span className="num">{money(d.items.reduce((s, t) => s + signed(t), 0))}</span>
           </div>
+          <div className="list-group">
           {d.items.map((t) => {
             const c = cat(t.categoryId);
             const method = pm(t.paymentMethodId);
@@ -47,6 +48,7 @@ export function TransactionList({ items }: { items: Transaction[] }) {
               </button>
             );
           })}
+          </div>
         </section>
       ))}
     </>

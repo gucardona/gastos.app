@@ -59,3 +59,12 @@ describe("TransactionList", () => {
     expect(row.disabled).toBe(true);
   });
 });
+
+describe("TransactionList: grouped blocks", () => {
+  it("each day's lines sit in one block under the day header", () => {
+    const { container } = renderApp(<TransactionList items={[tx({ id: 1, description: "Padaria" }), tx({ id: 2, description: "Feira" })]} />);
+    const blocks = container.querySelectorAll(".day > .list-group");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].querySelectorAll("button.row")).toHaveLength(2);
+  });
+});

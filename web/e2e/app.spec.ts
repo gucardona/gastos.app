@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 
 // Each test creates new users: unique emails avoid depending on execution order.
 const unique = (name: string) => `${name.toLowerCase()}.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
@@ -33,12 +33,18 @@ async function signUpAndEnter(page: Page, name: string) {
   return email;
 }
 
+/** Opens the Categoria row of the quick-add sheet and taps a category; the picker closes by itself. */
+async function pickCategory(sheet: Locator, name: string) {
+  await sheet.getByRole("button", { name: /^Categoria/ }).click();
+  await sheet.getByRole("button", { name: new RegExp(name) }).click();
+}
+
 async function addExpense(page: Page, amount: string, description: string, category = "Mercado") {
   await page.getByRole("button", { name: "Novo lançamento" }).first().click();
   const sheet = page.getByRole("dialog");
   await sheet.getByRole("textbox", { name: "Valor" }).fill(amount);
   await sheet.getByLabel("Descrição").fill(description);
-  await sheet.getByRole("button", { name: new RegExp(category) }).click();
+  await pickCategory(sheet, category);
   await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(sheet).toBeHidden();
 }
@@ -176,7 +182,7 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   const sheet = page.getByRole("dialog");
   await sheet.getByRole("textbox", { name: "Valor" }).fill("55,90");
   await sheet.getByLabel("Descrição").fill("Netflix");
-  await sheet.getByRole("button", { name: /Lazer/ }).click();
+  await pickCategory(sheet, "Lazer");
   await sheet.getByRole("switch", { name: "Repetir todo mês" }).click();
   await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(sheet).toBeHidden();
@@ -266,4 +272,46 @@ test("navigation: three destinations, one way to Ajustes, and the + button", asy
 
   await page.getByRole("link", { name: "Ajustes" }).click();
   await expect(page).toHaveURL(/\/ajustes/);
+});
+
+test("quick add: pickers for category and day, and Esc leaves without saving", async ({ page }) => {
+  await signUpAndEnter(page, "Rita");
+  await page.getByRole("button", { name: "Novo lançamento" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("textbox", { name: "Valor" }).fill("48,90");
+  await sheet.getByLabel("Descrição").fill("Padaria de ontem");
+  await pickCategory(sheet, "Restaurante");
+  await sheet.getByRole("button", { name: /^Quando/ }).click();
+  await sheet.getByRole("button", { name: "Ontem" }).click();
+  await expect(sheet.getByRole("button", { name: /^Quando/ })).toContainText("Ontem");
+  await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(sheet).toBeHidden();
+
+  await page.getByRole("link", { name: /Lançamentos/ }).first().click();
+  await expect(page.getByText("Padaria de ontem")).toBeVisible();
+  await expect(page.getByText(/Ontem,/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Novo lançamento" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByText("Padaria de ontem")).toHaveCount(1);
+});
+
+test("the overview does not scroll sideways at the narrowest desktop width, even with large amounts", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop layout only");
+  await page.setViewportSize({ width: 900, height: 800 });
+  await signUpAndEnter(page, "Vera");
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    const cats = await j(`/api/wallets/${w}/categories`);
+    const iso = new Date().toISOString().slice(0, 10);
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "income", amountCents: 1820000, description: "Salário", categoryId: cats.find((c: { kind: string }) => c.kind === "income").id, date: iso, paymentMethodId: null });
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 585433, description: "Aluguel", categoryId: cats.find((c: { kind: string }) => c.kind === "expense").id, date: iso, paymentMethodId: null });
+  });
+  await page.reload();
+  await expect(page.getByText("Para onde foi")).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
 });
