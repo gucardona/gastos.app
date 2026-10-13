@@ -18,15 +18,16 @@ button { cursor: pointer; }
 .wallet::after { content: "▾"; color: var(--muted); font-size: 12px; pointer-events: none; margin-left: -4px; }
 .wallet small { color: var(--muted); font-weight: 400; }
 .avatar { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); display: grid; place-items: center; font-weight: 600; color: var(--ink); text-decoration: none; }
-.month { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--muted); }
-.month button { background: none; border: 0; width: 36px; height: 36px; border-radius: 999px; color: var(--muted); font-size: 18px; }
-.month span { font-weight: 500; color: var(--ink); min-width: 9.5ch; text-align: center; }
+.month { display: flex; align-items: center; gap: 4px; margin: 0 0 4px; color: var(--muted); }
+.month-title { margin: 0; min-width: 0; color: var(--ink); font-size: 32px; font-weight: 700; letter-spacing: -0.03em; }
+.month-title::first-letter { text-transform: uppercase; }
+.month button { background: none; border: 0; width: 44px; height: 44px; border-radius: 999px; color: var(--muted); font-size: 22px; }
 
 
 /* ---------- overview ---------- */
 .hero { padding: 8px 0 4px; }
 .hero .label { color: var(--muted); font-size: 14px; }
-.balance { font-family: var(--display); font-weight: 700; font-size: clamp(44px, 12vw, 68px); line-height: 1; letter-spacing: -0.02em; margin: 6px 0 0; }
+.balance { font-weight: 700; font-size: 44px; line-height: 1.05; letter-spacing: -0.045em; margin: 6px 0 0; }
 .balance .cur { font-size: 0.42em; font-weight: 500; margin-right: 0.18em; color: var(--muted); letter-spacing: 0; }
 .balance .cents { font-size: 0.45em; font-weight: 500; color: var(--muted); letter-spacing: 0; vertical-align: 0.72em; margin-left: 1px; }
 .balance.negative { color: var(--over); }
@@ -62,7 +63,7 @@ button { cursor: pointer; }
 .track.over .fill { background: var(--over); }
 .rail .warn { color: var(--over); font-size: 13px; margin-top: 6px; }
 
-.settle { border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+.settle { background: var(--surface); border-radius: var(--radius-group); padding: 18px 16px; display: grid; gap: 12px; }
 .settle p { margin: 0; }
 .settle .big { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; }
 .btn { border: 0; border-radius: 12px; padding: 12px 16px; font-weight: 600; background: var(--accent); color: var(--on-accent); }
@@ -229,3 +230,19 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .split-group .split-edit { padding: 4px 0 12px; }
 .sheet .actions { margin-top: 18px; }
 .sheet .list-group + .error, .sheet .amount + .error { margin: 8px 4px 0; }
+
+/* ---------- overview blocks ---------- */
+.flows span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--ink); vertical-align: 1px; }
+.flows .in::before { background: var(--income); }
+.list-group > .rail { padding: 12px 0; border-top: 1px solid var(--line); }
+.list-group > .rail:first-child, .list-group > .row:first-child { border-top: 0; }
+.sec h2 { letter-spacing: -0.01em; }
+@media (min-width: 900px) {
+  .balance { font-size: 54px; }
+  .hero { display: grid; grid-template-columns: 1.4fr 2fr; gap: 14px; padding: 8px 0 0; }
+  .hero-main, .flows span { background: var(--surface); border-radius: var(--radius-group); padding: 22px 24px; }
+  .flows { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0; }
+  .flows span { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .flows b { font-size: 30px; letter-spacing: -0.03em; }
+  .flows span::before { display: none; }
+}

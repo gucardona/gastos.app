@@ -168,7 +168,7 @@ describe("Overview: budget rails", () => {
   it("lists only expense categories, with the limit when there is one", async () => {
     serve(summary(), [tx()]);
     renderApp(<Overview />);
-    await screen.findByText("Por categoria");
+    await screen.findByText("Para onde foi");
     expect(screen.getByText("Mercado")).toBeTruthy();
     expect(screen.getByText("Restaurante")).toBeTruthy();
     expect(screen.queryByText("Salário")).toBeNull(); // income is excluded
@@ -187,7 +187,7 @@ describe("Overview: budget rails", () => {
   it("within budget: bar proportional to the limit and no alert", async () => {
     serve(summary(), [tx()]);
     const { container } = renderApp(<Overview />);
-    await screen.findByText("Por categoria");
+    await screen.findByText("Para onde foi");
     const mercado = container.querySelectorAll(".rail")[0];
     expect(mercado.querySelector(".track")!.classList.contains("over")).toBe(false);
     expect((mercado.querySelector(".fill") as HTMLElement).style.width).toMatch(/^69\.4/); // 104230 / 150000
@@ -197,7 +197,7 @@ describe("Overview: budget rails", () => {
   it("with no budget, it draws no limit mark", async () => {
     serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 5000, budgetCents: null }] }), [tx()]);
     const { container } = renderApp(<Overview />);
-    await screen.findByText("Por categoria");
+    await screen.findByText("Para onde foi");
     expect(container.querySelector(".limit")).toBeNull();
     expect((container.querySelector(".fill") as HTMLElement).style.width).toBe("100%");
   });
@@ -210,7 +210,7 @@ describe("Overview: suggested settlement", () => {
   it("does not appear when the wallet does not split expenses", async () => {
     serve(withSuggestion(), [tx()]);
     renderApp(<Overview />);
-    await screen.findByText("Por categoria");
+    await screen.findByText("Para onde foi");
     expect(screen.queryByText("Acerto entre vocês")).toBeNull();
   });
 
@@ -254,5 +254,34 @@ describe("Overview: suggested settlement", () => {
     renderApp(<Overview />, splitting());
     await user.click(await screen.findByRole("button", { name: "Registrar acerto" }));
     expect(await screen.findByText(/Acertos exigem a divisão/)).toBeTruthy();
+  });
+});
+
+describe("Overview: blocks", () => {
+  it("'Para onde foi' groups the expense categories in one block", async () => {
+    serve(summary(), [tx()]);
+    const { container } = renderApp(<Overview />);
+    const heading = await screen.findByRole("heading", { name: "Para onde foi" });
+    const block = heading.parentElement!.querySelector(".list-group")!;
+    expect(block.querySelectorAll(".rail")).toHaveLength(2); // Mercado and Restaurante; the income category is left out
+    expect(container.querySelectorAll(".list-group").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("'Recentes' lists at most the 6 latest lines, and tapping one opens it for editing", async () => {
+    const many = Array.from({ length: 8 }, (_, i) => tx({ id: i + 1, description: `Compra ${i + 1}` }));
+    serve(summary(), many);
+    const ctx = appCtx();
+    renderApp(<Overview />, ctx);
+    expect(await screen.findByRole("heading", { name: "Recentes" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Compra \d/ })).toHaveLength(6);
+    await userEvent.click(screen.getByRole("button", { name: /Compra 1/ }));
+    expect(ctx.openAdd).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+  });
+
+  it("a reader sees the recent lines but cannot open them", async () => {
+    serve(summary(), [tx({ description: "Padaria" })]);
+    renderApp(<Overview />, appCtx({ canEdit: false, wallet: { ...wallet, role: "reader" } }));
+    const row = await screen.findByRole("button", { name: /Padaria/ });
+    expect((row as HTMLButtonElement).disabled).toBe(true);
   });
 });

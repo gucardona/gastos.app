@@ -32,7 +32,7 @@ describe("MonthSwitcher", () => {
     const ctx = appCtx({ month: "2026-01" });
     const user = userEvent.setup();
     renderApp(<MonthSwitcher />, ctx);
-    expect(screen.getByText("janeiro de 2026")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "janeiro de 2026" })).toBeTruthy(); // the month is the page title
     await user.click(screen.getByRole("button", { name: "Mês anterior" }));
     expect(ctx.setMonth).toHaveBeenLastCalledWith("2025-12"); // crosses the year boundary
     await user.click(screen.getByRole("button", { name: "Próximo mês" }));

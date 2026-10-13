@@ -42,10 +42,12 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
   return (
     <>
       <section className="hero">
-        <div className="label">Saldo do mês</div>
-        <p className={`balance num ${summary.balanceCents < 0 ? "negative" : ""}`}>
-          <span className="cur">R$</span>{reais}<span className="cents">,{cents}</span>
-        </p>
+        <div className="hero-main">
+          <div className="label">Saldo do mês</div>
+          <p className={`balance num ${summary.balanceCents < 0 ? "negative" : ""}`}>
+            <span className="cur">R$</span>{reais}<span className="cents">,{cents}</span>
+          </p>
+        </div>
         <div className="flows">
           <span className="in">Entrou <b className="num">{formatBRL(summary.incomeCents)}</b></span>
           <span>Saiu <b className="num">{formatBRL(summary.expenseCents)}</b></span>
@@ -61,8 +63,9 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
           <Ruler month={month} txs={txs} summary={summary} />
           <div className="cols">
             <section className="sec">
-              <h2>Por categoria</h2>
+              <h2>Para onde foi</h2>
               <p className="sub">A linha vertical marca o orçamento do mês.</p>
+              <div className="list-group">
               {summary.byCategory.filter((c) => c.kind === "expense").map((c) => {
                 const cat = categories.find((x) => x.id === c.categoryId);
                 const over = c.budgetCents !== null && c.cents > c.budgetCents;
@@ -82,11 +85,12 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                   </div>
                 );
               })}
+              </div>
             </section>
             <div>
               <Settle summary={summary} />
               <section className="sec">
-                <h2>Últimos lançamentos</h2>
+                <h2>Recentes</h2>
                 <TransactionList items={txs.slice(0, 6)} />
                 {txs.length > 6 && <p style={{ marginTop: 14 }}><Link className="link" to={`/lancamentos?m=${month}`}>Ver todos os lançamentos</Link></p>}
               </section>
