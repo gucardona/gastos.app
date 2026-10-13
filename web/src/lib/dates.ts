@@ -20,6 +20,8 @@ export function addDays(isoDate: string, delta: number) {
   return toISODate(d);
 }
 
+export const yesterday = () => addDays(today(), -1);
+
 export function addMonths(month: string, delta: number) {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1, 12);

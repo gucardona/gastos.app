@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { addDays, addMonths, dayLabel, monthLabel, monthOf, monthRange, toISODate } from "./dates";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { addDays, addMonths, dayLabel, monthLabel, monthOf, monthRange, toISODate, yesterday } from "./dates";
 
 describe("month helpers", () => {
   it("month bounds, including leap years", () => {
@@ -33,5 +33,14 @@ describe("dayLabel", () => {
     expect(dayLabel("2026-10-11", today)).toBe("Hoje, 11 de outubro");
     expect(dayLabel("2026-10-10", today)).toBe("Ontem, 10 de outubro");
     expect(dayLabel("2026-10-09", today)).toBe("Sexta, 9 de outubro");
+  });
+});
+
+describe("yesterday", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("is the day before today, across a month boundary", () => {
+    vi.useFakeTimers({ now: new Date(2026, 2, 1, 12) }); // 1 March 2026
+    expect(yesterday()).toBe("2026-02-28");
   });
 });

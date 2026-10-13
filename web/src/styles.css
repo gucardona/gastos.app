@@ -211,3 +211,14 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .list-row .lr-label { flex: 1; min-width: 0; }
 .list-row .lr-value { color: var(--muted); text-align: right; }
 .list-row .lr-chevron { color: var(--muted); font-size: 20px; line-height: 1; }
+/* ---------- pickers inside the sheet ---------- */
+.picker-head { position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; margin-bottom: 8px; }
+.picker-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.picker-back { position: absolute; left: 0; min-height: 44px; padding: 0 8px 0 0; border: 0; background: none; color: var(--accent); font-weight: 500; }
+.category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 46vh; overflow-y: auto; }
+.cat-tile { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 84px; padding: 10px 6px; border: 0; border-radius: 16px; background: var(--surface); color: var(--ink); font-size: 12px; text-align: center; }
+.cat-tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.cat-emoji { font-size: 26px; line-height: 1; }
+.list-row .lr-check { color: var(--accent); font-weight: 700; }
+.date-other { margin-top: 12px; }
+.date-input { border: 0; background: none; color: var(--muted); font: inherit; }
