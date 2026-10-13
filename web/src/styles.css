@@ -261,3 +261,14 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .rec-open .lr-label, .rec-row > .lr-label { display: grid; }
 .rec-open .meta, .rec-row .meta { color: var(--muted); font-size: 13px; }
 .sec-note { margin: 24px 0 0; }
+
+/* ---------- list rows with a second and third line ---------- */
+.list-row .lr-label:has(.desc) { display: grid; gap: 1px; }
+.list-row .desc { font-weight: 500; }
+.list-row .meta { color: var(--muted); font-size: 13px; }
+.list-row .val { font-weight: 600; text-align: right; white-space: nowrap; }
+.list-row .val.in { color: var(--income); }
+.page-title { margin: 8px 0 4px; font-size: 32px; font-weight: 700; letter-spacing: -0.03em; }
+.lead { margin: 0 0 14px; }
+.inbox-list { margin-top: 14px; }
+.sheet .meta { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
