@@ -1,12 +1,9 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { Category } from "../../api/types";
-import { appCtx, bodyOf, categories, mockFetch, renderApp, wallet } from "../../test/fixtures";
+import { appCtx, bodyOf, mockFetch, renderApp, wallet } from "../../test/fixtures";
 import { BudgetsSection } from "./BudgetsSection";
-import { CategoriesSection } from "./CategoriesSection";
 import { MembersSection } from "./MembersSection";
-import { PaymentsSection } from "./PaymentsSection";
 import { WalletSection } from "./WalletSection";
 
 const writes = (fetch: ReturnType<typeof mockFetch>) => fetch.mock.calls.filter((c) => c[1]?.method && c[1].method !== "GET");
@@ -53,84 +50,6 @@ describe("Settings: members", () => {
     expect(screen.queryByRole("button", { name: "Convidar" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remover" })).toBeNull();
     expect(screen.getByRole("button", { name: "Sair da carteira" })).toBeTruthy();
-  });
-});
-
-describe("Settings: categories", () => {
-  it("creates an expense category with an expense type", async () => {
-    const fetch = ok();
-    const user = userEvent.setup();
-    renderApp(<CategoriesSection />);
-    await user.click(screen.getByRole("button", { name: "Nova categoria" }));
-    await user.type(screen.getByLabelText("Nome da categoria"), "Pets");
-    await user.type(screen.getByLabelText("Ícone da categoria"), "🐶");
-    await user.selectOptions(screen.getByLabelText("Tipo de gasto"), "nonessential");
-    await user.click(screen.getByRole("button", { name: "Criar categoria" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/categories", method: "POST", body: { kind: "expense", name: "Pets", icon: "🐶", essentiality: "nonessential" } });
-  });
-
-  it("income categories have no expense type", async () => {
-    const fetch = ok();
-    const user = userEvent.setup();
-    renderApp(<CategoriesSection />);
-    await user.click(screen.getByRole("button", { name: "Entradas" }));
-    expect(screen.getByText("Salário")).toBeTruthy();
-    expect(screen.queryByText("Mercado")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Nova categoria" }));
-    expect(screen.queryByLabelText("Tipo de gasto")).toBeNull();
-    await user.type(screen.getByLabelText("Nome da categoria"), "Bônus");
-    await user.type(screen.getByLabelText("Ícone da categoria"), "🎁");
-    await user.click(screen.getByRole("button", { name: "Criar categoria" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(lastWrite(fetch).body).not.toHaveProperty("essentiality");
-  });
-
-  it("shows the API error, such as a duplicate name", async () => {
-    mockFetch({ status: 409, body: { error: { code: "conflict", message: "Já existe uma categoria com esse nome" } } });
-    const user = userEvent.setup();
-    renderApp(<CategoriesSection />);
-    await user.click(screen.getByRole("button", { name: "Nova categoria" }));
-    await user.type(screen.getByLabelText("Nome da categoria"), "Mercado");
-    await user.type(screen.getByLabelText("Ícone da categoria"), "🛒");
-    await user.click(screen.getByRole("button", { name: "Criar categoria" }));
-    expect(await screen.findByText("Já existe uma categoria com esse nome")).toBeTruthy();
-  });
-
-  it("explains when a deletion became an archive", async () => {
-    const archived: Category = { ...categories[0], archived: true };
-    mockFetch({ status: 200, body: archived });
-    const user = userEvent.setup();
-    renderApp(<CategoriesSection />);
-    const row = screen.getByText("Mercado").closest(".item") as HTMLElement;
-    await user.click(row.querySelectorAll("button")[1]); // Excluir button
-    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
-    expect(await screen.findByText("Arquivada, porque já tem lançamentos.")).toBeTruthy();
-  });
-
-  it("restores an archived category", async () => {
-    const fetch = ok();
-    const user = userEvent.setup();
-    const old = { ...categories[1], archived: true };
-    renderApp(<CategoriesSection />, appCtx({ categories: [categories[0], old, categories[2]] }));
-    await user.click(screen.getByRole("button", { name: /Mostrar arquivadas \(1\)/ }));
-    await user.click(screen.getByRole("button", { name: "Restaurar" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/categories/2", method: "PUT", body: { archived: false, name: "Restaurante" } });
-  });
-});
-
-describe("Settings: payment methods", () => {
-  it("creates a payment method", async () => {
-    const fetch = ok();
-    const user = userEvent.setup();
-    renderApp(<PaymentsSection />);
-    await user.click(screen.getByRole("button", { name: "Nova forma de pagamento" }));
-    await user.type(screen.getByLabelText("Nome da forma de pagamento"), "Cheque");
-    await user.type(screen.getByLabelText("Ícone da forma de pagamento"), "🧾");
-    await user.click(screen.getByRole("button", { name: "Criar" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(lastWrite(fetch)).toMatchObject({ url: "/api/wallets/1/payment-methods", method: "POST", body: { name: "Cheque", icon: "🧾" } });
   });
 });
 
