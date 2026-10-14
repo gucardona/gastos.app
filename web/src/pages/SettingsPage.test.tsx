@@ -156,3 +156,27 @@ describe("Settings: the way back", () => {
     expect(screen.getByRole("link", { name: "Voltar para Ajustes" }).getAttribute("href")).toBe("/ajustes");
   });
 });
+
+describe("Settings: headings and the default panel", () => {
+  it("with no subject open, a wide screen shows the profile on the right instead of an empty pane", () => {
+    mockFetch();
+    renderSettings("/ajustes");
+    const panel = document.querySelector(".settings-detail.default") as HTMLElement;
+    expect(within(panel).getByRole("heading", { name: "Perfil" })).toBeTruthy();
+    expect(within(panel).getByText("ana@example.com")).toBeTruthy();
+    expect(within(panel).getByText(/Casa, você administra/)).toBeTruthy();
+  });
+
+  it("the index alone has the page title as its only h1", () => {
+    mockFetch();
+    renderSettings("/ajustes");
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual(["Ajustes"]);
+  });
+
+  it("with a subject open there is a single h1: the subject, not the index", () => {
+    mockFetch({ body: [] });
+    renderSettings("/ajustes/pessoas");
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual(["Pessoas"]);
+    expect(screen.getByRole("heading", { level: 2, name: "Ajustes" })).toBeTruthy();
+  });
+});

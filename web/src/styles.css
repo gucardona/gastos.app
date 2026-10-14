@@ -23,7 +23,6 @@ button { cursor: pointer; }
 .month-title::first-letter { text-transform: uppercase; }
 .month button { background: none; border: 0; width: 44px; height: 44px; border-radius: 999px; color: var(--muted); font-size: 22px; }
 
-
 /* ---------- overview ---------- */
 .hero { padding: 8px 0 4px; }
 .hero .label { color: var(--muted); font-size: 14px; }
@@ -65,7 +64,7 @@ button { cursor: pointer; }
 
 .settle { background: var(--surface); border-radius: var(--radius-group); padding: 18px 16px; display: grid; gap: 12px; }
 .settle p { margin: 0; }
-.settle .big { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; }
+.settle .big { font-weight: 700; font-size: 26px; letter-spacing: -0.01em; }
 .btn { border: 0; border-radius: 12px; padding: 12px 16px; font-weight: 600; background: var(--accent); color: var(--on-accent); }
 .btn:disabled { opacity: 0.55; cursor: default; }
 .btn.ghost { background: none; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
@@ -105,12 +104,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .amount .cur { font-size: 24px; color: var(--muted); font-weight: 600; }
 .amount input { border: 0; background: none; font-weight: 700; font-size: 52px; letter-spacing: -0.04em; width: 7ch; min-width: 0; padding: 0; outline: none; text-align: left; color: var(--ink); }
 .amount input::placeholder { color: color-mix(in srgb, var(--ink) 22%, transparent); }
-.field { margin-top: 16px; }
-.field > label, .field > .lbl { display: block; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-.text { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 8px 0; font-size: 17px; outline: none; border-radius: 0; }
-.text:focus { border-bottom-color: var(--accent); }
-.line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
-.line small { color: var(--muted); display: block; }
 .split-edit { display: grid; gap: 8px; padding: 0 0 12px; }
 .split-edit label { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .split-edit input { width: 90px; text-align: right; border: 1px solid var(--line); background: none; border-radius: 8px; padding: 6px 8px; }
@@ -127,7 +120,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .auth h1 { margin: 0 0 24px; font-size: 40px; font-weight: 700; letter-spacing: -0.04em; }
 .auth .btn { margin-top: 20px; min-height: 50px; }
 .auth .switch-mode { margin-top: 12px; min-height: 44px; background: none; border: 0; color: var(--accent); font-weight: 500; justify-self: start; padding: 0; }
-
 
 /* ---------- desktop ---------- */
 @media (min-width: 900px) {
@@ -153,16 +145,9 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 }
 
 /* ---------- settings and recurring ---------- */
-.item { padding: 14px 0; border-top: 1px solid var(--line); }
-.item:first-child { border-top: 0; }
-.item-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-.inline-form { display: grid; gap: 12px; }
-.inline-form label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
-.inline-form select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; color: var(--ink); }
 .chip.danger { border-color: var(--over); color: var(--over); }
 
 .badge { background: var(--accent); color: var(--on-accent); border-radius: 999px; font-size: 11px; font-weight: 600; padding: 1px 7px; margin-left: 6px; }
-
 
 /* ---------- phone navigation: floating bar + the + button ---------- */
 .tabbar { position: fixed; left: 14px; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; z-index: 5; }
@@ -182,7 +167,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .segmented { display: inline-flex; padding: 3px; border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .segmented button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 500; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
-
 
 /* ---------- grouped lists ---------- */
 .list-group { background: var(--surface); border-radius: var(--radius-group); padding: 4px 16px; }
@@ -204,7 +188,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .list-row .lr-check { color: var(--accent); font-weight: 700; }
 .date-other { margin-top: 12px; }
 .date-input { min-height: 44px; border: 0; background: none; color: var(--muted); font: inherit; }
-
 
 /* ---------- quick-add details ---------- */
 .desc-input { flex: 1.4; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: right; outline: none; }
@@ -314,7 +297,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .segmented { max-width: 100%; }
 .settings-detail .segmented button, .sheet .segmented button { min-width: 0; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-
 /* the text inputs hide the browser outline, so the row around them shows the keyboard focus */
 .list-row:focus-within, .field-row:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 .list-row .lr-value { overflow-wrap: anywhere; }
@@ -325,4 +307,5 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .sec > .btn.ghost { margin-top: 12px; }
 
 .auth-field .field-row { margin-bottom: 4px; }
-.auth-field .error { margin: 0 4px 8px; }
+.auth-field .error { margin: 0 4px 8px; }.settings-detail.default { display: none; }
+@media (min-width: 900px) { .settings-detail.default { display: block; } }

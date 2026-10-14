@@ -46,7 +46,7 @@ export function Settings() {
       <PageBar />
       <div className={`settings-layout ${current ? "has-section" : ""}`}>
         <nav className="settings-index" aria-label="Ajustes">
-          <h1 className="page-title">Ajustes</h1>
+          {current ? <h2 className="page-title">Ajustes</h2> : <h1 className="page-title">Ajustes</h1>}
           {GROUP_TITLES.map((title, group) => (
             <section key={title || "perfil"}>
               {title && <h2 className="group-title">{title}</h2>}
@@ -59,6 +59,13 @@ export function Settings() {
           ))}
           <SignOut />
         </nav>
+        {!current && (
+          // on a wide screen the right side shows the profile until a subject is chosen; on a phone it stays hidden
+          <div className="settings-detail default">
+            <h2 className="page-title">Perfil</h2>
+            <Profile />
+          </div>
+        )}
         {current && (
           // a key resets the forms when the wallet changes
           <div className="settings-detail" key={`${wallet.id}-${current.id}`}>
