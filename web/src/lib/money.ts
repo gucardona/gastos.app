@@ -39,3 +39,6 @@ export function parseCents(input: string): number | null {
   const cents = Number(int || "0") * 100 + Number(frac.padEnd(2, "0") || "0");
   return cents > 0 ? cents : null;
 }
+
+/** Cents as the text a person types into an amount field: 12990 becomes "129,90". */
+export const centsToInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link } from "react-router";
 import { useTransactions } from "../api/queries";
 import { MonthSwitcher, PageBar } from "../components/PageBar";
+import { RecurringSection } from "../components/RecurringSection";
+import { Segmented } from "../components/Segmented";
 import { TransactionList } from "../components/TransactionList";
 import { useApp } from "../context";
 import { formatBRL } from "../lib/money";
@@ -12,10 +13,12 @@ const FILTERS = [
   { id: "income", label: "Entradas" },
 ] as const;
 
+type Filter = (typeof FILTERS)[number]["id"];
+
 export function Transactions() {
   const { wallet, month, canEdit, openAdd } = useApp();
   const txs = useTransactions(wallet.id, month);
-  const [kind, setKind] = useState<(typeof FILTERS)[number]["id"]>("all");
+  const [kind, setKind] = useState<Filter>("all");
   const [q, setQ] = useState("");
 
   const all = txs.data ?? [];
@@ -27,7 +30,6 @@ export function Transactions() {
     <>
       <PageBar />
       <MonthSwitcher />
-      <Link className="link" to="/recorrentes">Repetem todo mês ›</Link>
       {txs.error ? (
         <div className="empty">
           <p>Não foi possível carregar os lançamentos.</p>
@@ -37,16 +39,12 @@ export function Transactions() {
         <><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>
       ) : (
         <>
-          <div className="totals">
-            <span>Entrou <b className="num">{formatBRL(sum("income"))}</b></span>
+          <div className="flows">
+            <span className="in">Entrou <b className="num">{formatBRL(sum("income"))}</b></span>
             <span>Saiu <b className="num">{formatBRL(sum("expense"))}</b></span>
           </div>
           <input className="search" type="search" placeholder="Buscar por descrição" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
-          <div className="filters" role="group" aria-label="Filtros">
-            {FILTERS.map((f) => (
-              <button type="button" key={f.id} className="chip" aria-pressed={kind === f.id} onClick={() => setKind(f.id)}>{f.label}</button>
-            ))}
-          </div>
+          <Segmented<Filter> label="Filtros" value={kind} onChange={setKind} options={FILTERS.map((f) => ({ value: f.id, label: f.label }))} />
           {shown.length === 0 ? (
             <div className="empty">
               <p>{all.length === 0 ? "Nenhum lançamento neste mês." : "Nenhum lançamento corresponde ao filtro."}</p>
@@ -57,6 +55,7 @@ export function Transactions() {
           )}
         </>
       )}
+      <RecurringSection />
     </>
   );
 }

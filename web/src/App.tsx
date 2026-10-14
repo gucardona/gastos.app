@@ -4,7 +4,6 @@ import { Inbox } from "./pages/Inbox";
 import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
-import { Recurring } from "./pages/Recurring";
 import { Transactions } from "./pages/Transactions";
 import { Shell } from "./Shell";
 
@@ -15,7 +14,7 @@ export function App() {
       <Route element={<Shell />}>
         <Route index element={<Overview />} />
         <Route path="lancamentos" element={<Transactions />} />
-        <Route path="recorrentes" element={<Recurring />} />
+        <Route path="recorrentes" element={<Navigate to="/lancamentos" replace />} />
         <Route path="divisao" element={<Division />} />
         <Route path="caixa" element={<Inbox />} />
         <Route path="ajustes" element={<Settings />} />

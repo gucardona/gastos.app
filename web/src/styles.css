@@ -78,8 +78,6 @@ button { cursor: pointer; }
 .filters .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .search { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 11px 14px; margin: 4px 0 14px; }
 .search::placeholder { color: var(--muted); }
-.totals { display: flex; gap: 24px; padding: 6px 0 4px; color: var(--muted); font-size: 14px; }
-.totals b { color: var(--ink); }
 .day { margin-top: 22px; }
 .day-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px; color: var(--muted); font-size: 13px; }
 .day-head strong { color: var(--ink); font-weight: 600; font-size: 14px; }
@@ -248,3 +246,34 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 }
 .switch::before { content: ""; position: absolute; inset: -8px -4px; } /* hit area of 47px without growing the switch */
 .split-edit input { min-height: 44px; }
+
+/* ---------- Lançamentos ---------- */
+.search { min-height: 44px; margin: 14px 0 10px; border-radius: var(--radius-control); }
+.flows + .search { margin-top: 14px; }
+.search + .segmented { margin-bottom: 6px; }
+.sheet-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* ---------- recurrences section ---------- */
+.rec-row { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); }
+.list-group > .rec-row:first-child { border-top: 0; }
+.rec-row > .list-row { border-top: 0; }
+.rec-open { flex: 1; min-width: 0; cursor: pointer; }
+.rec-open .lr-label, .rec-row > .lr-label { display: grid; }
+.rec-open .meta, .rec-row .meta { color: var(--muted); font-size: 13px; }
+.sec-note { margin: 24px 0 0; }
+
+/* ---------- list rows with a second and third line ---------- */
+.list-row .lr-label:has(.desc) { display: grid; gap: 1px; }
+.list-row .desc { font-weight: 500; }
+.list-row .meta { color: var(--muted); font-size: 13px; }
+.list-row .val { font-weight: 600; text-align: right; white-space: nowrap; }
+.list-row .val.in { color: var(--income); }
+.page-title { margin: 8px 0 4px; font-size: 32px; font-weight: 700; letter-spacing: -0.03em; }
+.lead { margin: 0 0 14px; }
+.inbox-list { margin-top: 14px; }
+.sheet .meta { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+
+/* long unbroken text (statement memos, names) must wrap instead of widening the page */
+.desc, .meta, .sheet-title, .lr-label { overflow-wrap: anywhere; }
+.row > *, .list-row > * { min-width: 0; }
+.list-row .val { flex: none; }

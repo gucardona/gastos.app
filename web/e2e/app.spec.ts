@@ -188,11 +188,19 @@ test("settings and recurring: category, overspent budget and paused recurrence",
   await expect(sheet).toBeHidden();
 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
-  await page.getByRole("link", { name: /Repetem todo mês/ }).click();
-  await expect(page.getByText("Netflix")).toBeVisible();
-  await expect(page.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Repetem todo mês" })).toBeVisible();
+  const repeating = page.locator("section", { has: page.getByRole("heading", { name: "Repetem todo mês" }) });
+  await expect(repeating.getByText("Netflix")).toBeVisible();
+  await expect(repeating.getByText(/Todo dia \d+, próxima em/)).toBeVisible();
   await page.getByRole("switch", { name: "Pausar Netflix" }).click();
-  await expect(page.getByText(/pausada/).first()).toBeVisible();
+  await expect(repeating.getByText(/pausada/)).toBeVisible();
+
+  // tapping the row edits it in a sheet
+  await repeating.getByRole("button", { name: /Netflix/ }).click();
+  await page.getByRole("dialog").getByLabel("Valor").fill("60,00");
+  await page.getByRole("dialog").getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(repeating.getByText(/−R\$\s*60,00/)).toBeVisible();
 });
 
 test("layout follows the viewport: bottom nav on a phone, sidebar on a desktop", async ({ page, isMobile }) => {
@@ -249,9 +257,13 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
   await expect(page.getByText("0 linhas novas, 2 já importadas antes.")).toBeVisible();
 
   await page.getByRole("link", { name: /Caixa/ }).first().click();
-  await page.getByLabel("Categoria de COMPRA MERCADO DO BAIRRO").selectOption({ label: "🛒 Mercado" });
-  await page.locator(".item", { hasText: "COMPRA MERCADO" }).getByRole("button", { name: "Aceitar" }).click();
-  await page.locator(".item", { hasText: "TARIFA" }).getByRole("button", { name: "Ignorar" }).click();
+  await page.getByRole("button", { name: /COMPRA MERCADO DO BAIRRO/ }).click();
+  const decision = page.getByRole("dialog");
+  await pickCategory(decision, "Mercado");
+  await decision.getByRole("button", { name: "Aceitar" }).click();
+  await expect(decision).toBeHidden();
+  await page.getByRole("button", { name: /TARIFA BANCARIA/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Ignorar" }).click();
   await expect(page.getByText(/Nada para revisar/)).toBeVisible();
 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
@@ -314,4 +326,38 @@ test("the overview does not scroll sideways at the narrowest desktop width, even
   await expect(page.getByText("Para onde foi")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("the old /recorrentes address lands on Lançamentos", async ({ page }) => {
+  await signUpAndEnter(page, "Olga");
+  await page.goto("/recorrentes");
+  await expect(page).toHaveURL(/lancamentos$/);
+  await expect(page.getByRole("heading", { name: "Repetem todo mês" })).toBeVisible();
+});
+
+test("long descriptions never make Lançamentos or the Caixa scroll sideways", async ({ page, isMobile }) => {
+  if (!isMobile) await page.setViewportSize({ width: 900, height: 800 }); // the narrowest width of the desktop layout
+  await signUpAndEnter(page, "Zeca");
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    const user = (await j("/api/me")).user.id;
+    const cats = await j(`/api/wallets/${w}/categories`);
+    const cat = cats.find((c: { kind: string }) => c.kind === "expense").id;
+    const iso = new Date().toISOString().slice(0, 10);
+    const long = "PAG*JOSEDASILVACOMERCIODEALIMENTOSLTDA".repeat(4); // one unbroken token, as banks send them
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 123456789, description: long, categoryId: cat, date: iso, paymentMethodId: null });
+    await j(`/api/wallets/${w}/recurrences`, "POST", { kind: "expense", amountCents: 5590, description: long, categoryId: cat, paymentMethodId: null, paidByUserId: user, dayOfMonth: 5, startDate: iso });
+    const acc = await j(`/api/wallets/${w}/bank-accounts`, "POST", { name: "Conta com um nome bem comprido para testar" });
+    const ofx = `OFXHEADER:100\n\n<OFX><BANKTRANLIST>\n<STMTTRN><TRNTYPE>X<DTPOSTED>${iso.replace(/-/g, "")}<TRNAMT>-9999999.99<FITID>L1<MEMO>${long}</STMTTRN>\n</BANKTRANLIST></OFX>`;
+    const f = new FormData();
+    f.set("format", "ofx");
+    f.set("file", new File([ofx], "x.ofx"));
+    await fetch(`/api/wallets/${w}/bank-accounts/${acc.id}/import`, { method: "POST", body: f });
+  });
+  for (const path of ["/lancamentos", "/caixa"]) {
+    await page.goto(path);
+    await expect(page.getByText(/PAG\*JOSEDASILVA/).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), path).toBeLessThanOrEqual(0);
+  }
 });
