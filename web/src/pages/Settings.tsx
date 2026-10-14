@@ -109,7 +109,7 @@ function Profile() {
   const { user, wallet } = useApp();
   return (
     <ListGroup>
-      <div className="list-row"><span className="lr-label">{user.name}<span className="meta">{user.email}</span></span></div>
+      <div className="list-row"><span className="lr-label"><span className="desc">{user.name}</span><span className="meta">{user.email}</span></span></div>
       <div className="list-row"><span className="lr-label">Carteira ativa</span> <span className="lr-value">{wallet.name}, {ROLE_TEXT[wallet.role]}</span></div>
     </ListGroup>
   );
