@@ -18,7 +18,7 @@ describe("Inbox", () => {
     serve([]);
     renderApp(<Inbox />);
     expect(await screen.findByText(/Nada para revisar/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Contas bancárias/ }).getAttribute("href")).toBe("/ajustes?s=bancos");
+    expect(screen.getByRole("link", { name: /Contas bancárias/ }).getAttribute("href")).toBe("/ajustes/bancos");
   });
 
   it("lists the lines in one block, with the suggested name and what the statement said", async () => {

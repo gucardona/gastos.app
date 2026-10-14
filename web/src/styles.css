@@ -277,3 +277,19 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .desc, .meta, .sheet-title, .lr-label { overflow-wrap: anywhere; }
 .row > *, .list-row > * { min-width: 0; }
 .list-row .val { flex: none; }
+
+/* ---------- Ajustes: index and screens ---------- */
+.settings-layout { display: block; }
+.settings-index > section { margin-top: 18px; }
+.settings-index .group-title { margin: 0 0 8px 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.settings-index .list-row { text-decoration: none; }
+.settings-index .list-row[aria-current="page"] .lr-label { color: var(--accent); font-weight: 600; }
+.sign-out { margin-top: 18px; }
+.danger-row { color: var(--over); font-weight: 500; }
+.settings-detail .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--accent); text-decoration: none; font-weight: 500; }
+.has-section .settings-index { display: none; }
+@media (min-width: 900px) {
+  .settings-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px; align-items: start; }
+  .has-section .settings-index { display: block; }
+  .settings-detail .back { display: none; }
+}
