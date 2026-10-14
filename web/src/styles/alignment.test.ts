@@ -14,7 +14,7 @@ describe("alignment rule", () => {
     const offenders = rules
       .filter((r) => /text-align:\s*center/.test(r.body))
       .map((r) => r.selector)
-      .filter((sel) => !sel.split(",").every((one) => CENTERED_OK.some((ok) => one.trim().startsWith(ok))));
+      .filter((sel) => !sel.split(",").every((one) => CENTERED_OK.some((ok) => new RegExp(`^${ok.replace(/\./g, "\\.")}(?![-\\w])`).test(one.trim()))));
     expect(offenders).toEqual([]);
   });
 });

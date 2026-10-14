@@ -100,3 +100,13 @@ describe("SettlementSheet: existing", () => {
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/settlements/3");
   });
 });
+
+describe("SettlementSheet: focus", () => {
+  it("coming back from a picker puts focus on the row that opened it", async () => {
+    serve();
+    const { user } = open("new");
+    await user.click(row("Quem pagou"));
+    await user.click(screen.getByRole("button", { name: "Ana (você)" }));
+    expect(document.activeElement).toBe(row("Quem pagou"));
+  });
+});

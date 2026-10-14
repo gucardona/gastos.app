@@ -42,7 +42,7 @@ export function WalletSection() {
         <>
           <ListGroup className="sign-out">
             {confirmDelete
-              ? <button key="confirm" type="button" className="list-row danger-row" disabled={remove.busy} onClick={() => void remove.run(() => api.del(`/wallets/${wallet.id}`))}>Confirmar exclusão</button>
+              ? <button key="confirm" type="button" className="list-row danger-row" disabled={remove.busy} onClick={(e) => e.detail < 2 && void remove.run(() => api.del(`/wallets/${wallet.id}`))}>Confirmar exclusão</button>
               : <button key="ask" type="button" className="list-row danger-row" onClick={() => setConfirmDelete(true)}>Excluir esta carteira</button>}
           </ListGroup>
           <p className="muted lead">Apaga lançamentos, categorias e orçamentos para todos os membros. Não dá para desfazer.{wallets.length === 1 && " É a sua única carteira."}</p>

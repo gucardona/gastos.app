@@ -74,7 +74,7 @@ export function Division() {
             <ListRow
               key={b.userId}
               label={<><span className="desc">{who(b.userId)}</span><span className="meta">{b.netCents > 0 ? "tem a receber" : b.netCents < 0 ? "deve" : "está quite"}</span></>}
-              value={<span className={`num ${b.netCents > 0 ? "plus" : ""}`}>{b.netCents === 0 ? formatBRL(0) : `${b.netCents > 0 ? "+" : "−"}${formatBRL(Math.abs(b.netCents))}`}</span>}
+              value={<span className={`num ${b.netCents > 0 ? "plus" : b.netCents < 0 ? "minus" : ""}`}>{b.netCents === 0 ? formatBRL(0) : `${b.netCents > 0 ? "+" : "−"}${formatBRL(Math.abs(b.netCents))}`}</span>}
             />
           ))}
         </ListGroup>

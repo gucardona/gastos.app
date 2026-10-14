@@ -145,7 +145,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 }
 
 /* ---------- settings and recurring ---------- */
-.chip.danger { border-color: var(--over); color: var(--over); }
 
 .badge { background: var(--accent); color: var(--on-accent); border-radius: 999px; font-size: 11px; font-weight: 600; padding: 1px 7px; margin-left: 6px; }
 
@@ -302,10 +301,13 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .list-row .lr-value { overflow-wrap: anywhere; }
 /* ---------- Divisão ---------- */
 .big { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; overflow-wrap: anywhere; }
-.settle .big { font-size: 26px; }
+.settle + .settle { margin-top: 12px; }
 .list-row .plus { color: var(--income); }
 .sec > .btn.ghost { margin-top: 12px; }
 
 .auth-field .field-row { margin-bottom: 4px; }
-.auth-field .error { margin: 0 4px 8px; }.settings-detail.default { display: none; }
+.auth-field .error { margin: 0 4px 8px; }
+.settings-detail.default { display: none; }
 @media (min-width: 900px) { .settings-detail.default { display: block; } }
+
+.list-row .minus { color: var(--over); }

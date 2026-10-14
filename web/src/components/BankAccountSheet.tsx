@@ -78,7 +78,7 @@ function Account({ account, onClose }: { account: BankAccount; onClose: () => vo
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         {confirm
-          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={() => void run(() => api.del(path)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir conta</button>}
       </div>
     </div>

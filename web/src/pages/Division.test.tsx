@@ -76,6 +76,14 @@ describe("Division", () => {
     expect(writeBody(fetch)).toEqual({ fromUserId: 3, toUserId: 1, amountCents: 9000, date: today() });
   });
 
+  it("a debt keeps its own color, apart from a credit", async () => {
+    serve();
+    const { container } = renderApp(<Division />, splitting());
+    await screen.findByText("tem a receber");
+    expect(container.querySelector(".plus")?.textContent).toMatch(/\+R\$\s190,00/);
+    expect(container.querySelector(".minus")?.textContent).toMatch(/−R\$\s190,00/);
+  });
+
   it("registers the suggested settlement with today's date", async () => {
     const fetch = serve();
     const user = userEvent.setup();

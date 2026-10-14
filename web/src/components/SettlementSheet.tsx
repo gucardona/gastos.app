@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Settlement } from "../api/types";
 import { firstName, useApp } from "../context";
@@ -32,6 +32,7 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
   const [problem, setProblem] = useState("");
   const [picking, setPicking] = useState<Picking>(null);
   const [confirm, setConfirm] = useState(false);
+  const openedFrom = useRef<Picking>(null);
   const path = `/wallets/${wallet.id}/settlements`;
 
   const name = (id: number) => {
@@ -50,6 +51,18 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
     if (await run(() => (settlement ? api.put(`${path}/${settlement.id}`, body) : api.post(path, body)))) onClose();
   }
 
+  // coming back from a picker, focus goes to the row that opened it
+  useEffect(() => {
+    if (picking === null && openedFrom.current) {
+      document.getElementById(`row-${openedFrom.current}`)?.focus();
+      openedFrom.current = null;
+    }
+  }, [picking]);
+  const choose = (p: Exclude<Picking, null>) => {
+    openedFrom.current = p;
+    setPicking(p);
+  };
+
   if (picking) {
     return (
       <PickerView title={picking === "from" ? "Quem pagou" : "Quem recebeu"} onBack={() => setPicking(null)}>
@@ -65,8 +78,8 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
       </div>
       <ListGroup>
-        <ListRow label="Quem pagou" value={name(from)} onClick={() => setPicking("from")} chevron />
-        <ListRow label="Quem recebeu" value={name(to)} onClick={() => setPicking("to")} chevron />
+        <ListRow id="row-from" label="Quem pagou" value={name(from)} onClick={() => choose("from")} chevron />
+        <ListRow id="row-to" label="Quem recebeu" value={name(to)} onClick={() => choose("to")} chevron />
         <div className="list-row">
           <label htmlFor="st-amount" className="lr-label">Valor</label>
           <input id="st-amount" className="desc-input" inputMode="decimal" aria-label="Valor do acerto" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -84,7 +97,7 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>{settlement ? "Salvar" : "Registrar"}</button>
         {settlement && (confirm
-          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={() => void run(() => api.del(`${path}/${settlement.id}`)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(`${path}/${settlement.id}`)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir acerto</button>)}
       </div>
     </form>

@@ -437,3 +437,20 @@ test("Divisão does not scroll sideways, even with a long unbroken note", async 
   await expect(ana.getByText(/PIXDOALUGUEL/)).toBeVisible();
   expect(await ana.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
+
+test("a real double click on Excluir does not confirm the deletion", async ({ page }) => {
+  await signUpAndEnter(page, "Lia");
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    await j(`/api/wallets/${w}/payment-methods`, "POST", { name: "Cheque", icon: "🧾" });
+  });
+  await page.goto("/ajustes/pagamentos");
+  await page.getByRole("button", { name: /Cheque/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Excluir forma de pagamento" }).dblclick();
+  // still asking: the deletion needs its own, deliberate click
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Confirmar exclusão" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Cheque/ })).toBeVisible();
+});
