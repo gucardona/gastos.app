@@ -319,3 +319,9 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .screen > .chip { justify-self: start; min-height: 44px; }
 .screen > .segmented { justify-self: start; }
 .color-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+
+/* ---------- bank account sheet ---------- */
+.import-form { margin-top: 18px; display: grid; gap: 10px; }
+.file-input { min-height: 44px; }
+.list-row input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
+.settings-index .group-title, .screen .group-title { margin: 12px 0 8px 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
