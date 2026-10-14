@@ -1,9 +1,9 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { Settlement, Summary } from "../api/types";
+import type { Member, Settlement, Summary } from "../api/types";
 import { today } from "../lib/dates";
-import { appCtx, bodyOf, mockFetch, renderApp, wallet } from "../test/fixtures";
+import { appCtx, bodyOf, members, mockFetch, renderApp, wallet } from "../test/fixtures";
 import { Division } from "./Division";
 
 const summary = (over: Partial<Summary> = {}): Summary => ({
@@ -39,14 +39,20 @@ describe("Division", () => {
     expect(screen.queryByRole("link", { name: "Ligar a divisão" })).toBeNull();
   });
 
-  it("shows each person's balance and what is left to settle", async () => {
+  it("says who owes whom in one sentence, and each person's balance", async () => {
     serve();
     renderApp(<Division />, splitting());
-    expect(await screen.findByText("tem a receber")).toBeTruthy();
+    expect(await screen.findByText(/Bia deve R\$\s190,00 a você\./)).toBeTruthy();
+    expect(screen.getByText("tem a receber")).toBeTruthy();
     expect(screen.getByText("deve")).toBeTruthy();
     expect(screen.getByText(/\+R\$\s190,00/)).toBeTruthy();
     expect(screen.getByText(/−R\$\s190,00/)).toBeTruthy();
-    expect(screen.getByText("Bia deve esse valor a você.")).toBeTruthy();
+  });
+
+  it("says 'Você' when it is you who owes", async () => {
+    serve(summary({ suggestedSettlements: [{ fromUserId: 1, toUserId: 2, amountCents: 4000 }] }));
+    renderApp(<Division />, splitting());
+    expect(await screen.findByText(/Você deve R\$\s40,00 para Bia\./)).toBeTruthy();
   });
 
   it("says everyone is even when there is no suggested settlement", async () => {
@@ -54,6 +60,20 @@ describe("Division", () => {
     renderApp(<Division />, splitting());
     expect(await screen.findByText("Vocês estão quites.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Registrar acerto" })).toBeNull();
+  });
+
+  it("with three people each suggested transfer has its own sentence and button", async () => {
+    const caio: Member = { userId: 3, name: "Caio Dias", email: "caio@example.com", role: "editor", splitsByDefault: true };
+    const user = userEvent.setup();
+    const fetch = mockFetch((url, init) => (init.method && init.method !== "GET" ? { body: {} } : { body: url.includes("/summary") ? summary({ suggestedSettlements: [{ fromUserId: 2, toUserId: 1, amountCents: 10000 }, { fromUserId: 3, toUserId: 1, amountCents: 9000 }] }) : [] }));
+    renderApp(<Division />, splitting({ members: [...members, caio] }));
+    expect(await screen.findByText(/Bia deve R\$\s100,00 a você\./)).toBeTruthy();
+    expect(screen.getByText(/Caio deve R\$\s90,00 a você\./)).toBeTruthy();
+    const buttons = screen.getAllByRole("button", { name: "Registrar acerto" });
+    expect(buttons).toHaveLength(2);
+    await user.click(buttons[1]);
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(writeBody(fetch)).toEqual({ fromUserId: 3, toUserId: 1, amountCents: 9000, date: today() });
   });
 
   it("registers the suggested settlement with today's date", async () => {
@@ -66,29 +86,23 @@ describe("Division", () => {
     expect(writeBody(fetch)).toEqual({ fromUserId: 2, toUserId: 1, amountCents: 19000, date: today() });
   });
 
-  it("registers another settlement by hand, validating amount and people", async () => {
-    const fetch = serve();
+  it("shows the error when registering the suggestion fails", async () => {
+    mockFetch((url, init) => (init.method === "POST" ? { status: 500, body: { error: { code: "internal", message: "Erro interno" } } } : { body: url.includes("/summary") ? summary() : [] }));
+    const user = userEvent.setup();
+    renderApp(<Division />, splitting());
+    await user.click(await screen.findByRole("button", { name: "Registrar acerto" }));
+    expect(await screen.findByText("Erro interno")).toBeTruthy();
+  });
+
+  it("'Registrar outro acerto' opens the sheet to register one by hand", async () => {
+    serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
     await user.click(await screen.findByRole("button", { name: "Registrar outro acerto" }));
-
-    await user.click(screen.getByRole("button", { name: "Registrar" }));
-    expect(await screen.findByText("Informe um valor maior que zero.")).toBeTruthy();
-
-    await user.type(screen.getByLabelText("Valor do acerto"), "75,50");
-    await user.selectOptions(screen.getByLabelText("Quem pagou"), "1"); // Ana pays and also receives
-    await user.click(screen.getByRole("button", { name: "Registrar" }));
-    expect(await screen.findByText(/Escolha pessoas diferentes/)).toBeTruthy();
-    expect(writes(fetch)).toHaveLength(0);
-
-    await user.selectOptions(screen.getByLabelText("Quem pagou"), "2");
-    await user.type(screen.getByLabelText("Observação do acerto"), "Pix");
-    await user.click(screen.getByRole("button", { name: "Registrar" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(writeBody(fetch)).toMatchObject({ fromUserId: 2, toUserId: 1, amountCents: 7550, note: "Pix" });
+    expect(screen.getByLabelText("Valor do acerto")).toBeTruthy();
   });
 
-  it("lists the history with date, amount and note", async () => {
+  it("lists the history with the people, the date, the amount and the note", async () => {
     serve();
     renderApp(<Division />, splitting());
     expect(await screen.findByText(/Bia pagou a você/)).toBeTruthy();
@@ -96,41 +110,27 @@ describe("Division", () => {
     expect(screen.getByText(/R\$\s50,00/)).toBeTruthy();
   });
 
-  it("edits a settlement from the history with PUT", async () => {
-    const fetch = serve();
+  it("tapping a settlement of the history opens it for editing", async () => {
+    serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
-    await user.click(await screen.findByRole("button", { name: "Editar" }));
-    const amount = screen.getByLabelText("Valor do acerto") as HTMLInputElement;
-    expect(amount.value).toBe("50,00");
-    await user.clear(amount);
-    await user.type(amount, "60,00");
-    await user.click(screen.getByRole("button", { name: "Salvar" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(writes(fetch)[0][0]).toBe("/api/wallets/1/settlements/3");
-    expect(writes(fetch)[0][1]!.method).toBe("PUT");
-    expect(writeBody(fetch)).toMatchObject({ amountCents: 6000, date: "2026-09-20", note: "Pix do aluguel" });
+    await user.click(await screen.findByRole("button", { name: /Bia pagou a você/ }));
+    expect((screen.getByLabelText("Valor do acerto") as HTMLInputElement).value).toBe("50,00");
   });
 
-  it("deletes a settlement only after confirming", async () => {
-    const fetch = serve();
-    const user = userEvent.setup();
+  it("with no history it says so", async () => {
+    serve(summary(), []);
     renderApp(<Division />, splitting());
-    await user.click(await screen.findByRole("button", { name: "Excluir" }));
-    expect(writes(fetch)).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
-    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(writes(fetch)[0][1]!.method).toBe("DELETE");
+    expect(await screen.findByText("Nenhum acerto registrado ainda.")).toBeTruthy();
   });
 
-  it("readers only look: no register, edit or delete buttons", async () => {
+  it("readers only look: no register and no tappable history", async () => {
     serve();
     renderApp(<Division />, splitting({ canEdit: false }));
     await screen.findByText(/Bia pagou a você/);
     expect(screen.queryByRole("button", { name: "Registrar acerto" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Registrar outro acerto" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Excluir" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Bia pagou a você/ })).toBeNull();
   });
 
   it("shows a load error with a retry option", async () => {
