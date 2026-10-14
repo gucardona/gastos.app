@@ -36,7 +36,7 @@ export function Inbox() {
         <><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></>
       ) : inbox.data.length === 0 ? (
         <div className="empty">
-          <p>Nada para revisar. Importe um extrato OFX ou CSV em <Link to="/ajustes?s=bancos">Ajustes, Contas bancárias</Link>.</p>
+          <p>Nada para revisar. Importe um extrato OFX ou CSV em <Link to="/ajustes/bancos">Ajustes, Contas bancárias</Link>.</p>
         </div>
       ) : (
         <ListGroup className="inbox-list">

@@ -73,9 +73,7 @@ button { cursor: pointer; }
 .btn.full { width: 100%; }
 
 /* ---------- transactions ---------- */
-.filters { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 12px; margin: 0 -16px; scrollbar-width: none; }
 .chip { flex: none; border: 1px solid var(--line); background: none; border-radius: 999px; padding: 7px 14px; color: var(--muted); font-size: 14px; }
-.filters .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .search { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 11px 14px; margin: 4px 0 14px; }
 .search::placeholder { color: var(--muted); }
 .day { margin-top: 22px; }
@@ -102,9 +100,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 @media (prefers-reduced-motion: reduce) { dialog.sheet[open] { animation: none; } }
 .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.seg { display: inline-flex; background: var(--paper); border-radius: 12px; padding: 3px; }
-.seg button { border: 0; background: none; padding: 7px 18px; border-radius: 9px; color: var(--muted); font-weight: 500; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 .icon-btn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; width: 44px; height: 44px; display: grid; place-items: center; }
 .amount { display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 18px 0 20px; }
 .amount .cur { font-size: 24px; color: var(--muted); font-weight: 600; }
@@ -133,9 +128,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .auth .btn { margin-top: 20px; }
 .auth .switch-mode { margin-top: 16px; background: none; border: 0; color: var(--accent); font-weight: 500; justify-self: start; padding: 0; }
 
-.settings { display: grid; gap: 4px; }
-.settings .line:first-of-type { border-top: 0; }
-.settings select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 6px 8px; }
 
 /* ---------- desktop ---------- */
 @media (min-width: 900px) {
@@ -164,16 +156,10 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .item { padding: 14px 0; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
 .item-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-.inline { display: inline-flex; align-items: center; gap: 8px; }
 .inline-form { display: grid; gap: 12px; }
 .inline-form label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
-.inline-form label.inline { display: inline-flex; }
-.inline-form select, .settings select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; color: var(--ink); }
-.inline-form input[type="color"] { width: 56px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+.inline-form select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; color: var(--ink); }
 .chip.danger { border-color: var(--over); color: var(--over); }
-.swatch { width: 20px; height: 20px; border-radius: 6px; flex: none; }
-.line .text { min-width: 0; }
-.settings .line > label { color: var(--ink); }
 
 .badge { background: var(--accent); color: var(--on-accent); border-radius: 999px; font-size: 11px; font-weight: 600; padding: 1px 7px; margin-left: 6px; }
 
@@ -277,3 +263,58 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .desc, .meta, .sheet-title, .lr-label { overflow-wrap: anywhere; }
 .row > *, .list-row > * { min-width: 0; }
 .list-row .val { flex: none; }
+
+/* ---------- Ajustes: index and screens ---------- */
+.settings-layout { display: block; }
+.settings-index > section { margin-top: 18px; }
+.settings-index .list-row { text-decoration: none; }
+.settings-index .list-row[aria-current="page"] .lr-label { color: var(--accent); font-weight: 600; }
+.sign-out { margin-top: 18px; }
+.danger-row { color: var(--over); font-weight: 500; }
+.settings-detail .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--accent); text-decoration: none; font-weight: 500; }
+.has-section .settings-index { display: none; }
+@media (min-width: 900px) {
+  .settings-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .has-section .settings-index { display: block; }
+  .settings-detail .back { display: none; }
+}
+
+/* ---------- emoji picker and color swatches ---------- */
+.emoji-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.emoji-tabs button { flex: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); font-weight: 500; }
+.emoji-tabs button[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); font-weight: 600; }
+.emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 4px 0; }
+.emoji-grid button { min-height: 44px; border: 0; border-radius: var(--radius-control); background: none; font-size: 24px; }
+.emoji-grid button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 2px var(--accent); }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.swatch-btn { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; }
+.swatch-btn span { width: 28px; height: 28px; border-radius: 50%; }
+.swatch-btn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* ---------- category and payment sheets ---------- */
+.preview { display: grid; justify-items: center; gap: 8px; margin: 6px 0 14px; }
+.preview-icon { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 24px; background: color-mix(in srgb, var(--ink) 6%, transparent); font-size: 38px; }
+.preview strong { font-size: 20px; letter-spacing: -0.02em; overflow-wrap: anywhere; text-align: center; }
+.field-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 16px; margin-bottom: 12px; border-radius: var(--radius-group); background: var(--surface); }
+.sheet-sub { margin: 16px 4px 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.sheet .segmented { margin-bottom: 4px; }
+
+/* ---------- a settings screen: stacked blocks ---------- */
+.screen { display: grid; gap: 14px; justify-items: stretch; }
+.screen > .chip { justify-self: start; min-height: 44px; }
+.screen > .segmented { justify-self: start; }
+.color-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+
+/* ---------- bank account sheet ---------- */
+.import-form { margin-top: 18px; display: grid; gap: 10px; }
+.file-input { min-height: 44px; }
+.list-row input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
+.settings-index .group-title, .screen .group-title { margin: 12px 0 8px 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+@media (min-width: 1100px) { .settings-layout { grid-template-columns: 300px minmax(0, 1fr); gap: 32px; } }
+.segmented { max-width: 100%; }
+.settings-detail .segmented button, .sheet .segmented button { min-width: 0; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* the text inputs hide the browser outline, so the row around them shows the keyboard focus */
+.list-row:focus-within, .field-row:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.list-row .lr-value { overflow-wrap: anywhere; }

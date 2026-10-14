@@ -1,54 +1,30 @@
 import { useState } from "react";
-import { api } from "../../api/client";
 import { useBudgets } from "../../api/queries";
 import type { Category } from "../../api/types";
+import { BudgetSheet } from "../../components/BudgetSheet";
+import { ListGroup, ListRow } from "../../components/ListGroup";
 import { useApp } from "../../context";
-import { useAction } from "../../hooks/useAction";
-import { parseCents } from "../../lib/money";
-
-const centsToInput = (c: number) => (c / 100).toFixed(2).replace(".", ",");
+import { formatBRL } from "../../lib/money";
 
 export function BudgetsSection() {
-  const { wallet, categories } = useApp();
+  const { wallet, categories, canEdit } = useApp();
   const budgets = useBudgets(wallet.id);
+  const [open, setOpen] = useState<Category | null>(null);
   const expense = categories.filter((c) => c.kind === "expense" && !c.archived);
 
   if (budgets.error) return <div className="empty"><p>Não foi possível carregar os orçamentos.</p><button type="button" className="btn" onClick={() => void budgets.refetch()}>Tentar de novo</button></div>;
   if (!budgets.data) return <div className="skeleton" />;
+  const limit = (id: number) => budgets.data.find((b) => b.categoryId === id)?.limitCents;
+
   return (
-    <div className="settings">
-      <p className="muted" style={{ margin: "0 0 8px" }}>O limite mensal de cada categoria aparece como uma linha na Visão geral.</p>
-      {expense.map((c) => <Row key={c.id} c={c} current={budgets.data.find((b) => b.categoryId === c.id)?.limitCents} />)}
+    <div className="screen">
+      <p className="muted lead">O limite mensal de cada categoria aparece como uma linha na Visão geral.</p>
+      <ListGroup>
+        {expense.map((c) => (
+          <ListRow key={c.id} icon={c.icon} label={c.name} value={limit(c.id) === undefined ? "sem limite" : formatBRL(limit(c.id) as number)} onClick={canEdit ? () => setOpen(c) : undefined} chevron={canEdit} />
+        ))}
+      </ListGroup>
+      <BudgetSheet category={open} current={open ? limit(open.id) : undefined} onClose={() => setOpen(null)} />
     </div>
-  );
-}
-
-function Row({ c, current }: { c: Category; current?: number }) {
-  const { wallet, canEdit } = useApp();
-  const { run, busy, error } = useAction();
-  const [value, setValue] = useState(current ? centsToInput(current) : "");
-  const [problem, setProblem] = useState("");
-  const path = `/wallets/${wallet.id}/budgets/${c.id}`;
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    const cents = parseCents(value);
-    if (!cents) return setProblem("Informe um valor maior que zero.");
-    setProblem("");
-    await run(() => api.put(path, { limitCents: cents }));
-  }
-
-  return (
-    <form className="line" onSubmit={save}>
-      <div><span aria-hidden>{c.icon}</span> {c.name}{(problem || error) && <small className="error" role="alert">{problem || error}</small>}</div>
-      <div className="item-actions" style={{ margin: 0 }}>
-        <span className="muted">R$</span>
-        <input className="text" style={{ width: 96, textAlign: "right" }} inputMode="decimal" placeholder="sem limite" aria-label={`Limite mensal de ${c.name}`} value={value} disabled={!canEdit} onChange={(e) => setValue(e.target.value)} />
-        {canEdit && <button type="submit" className="chip" disabled={busy || !value.trim()}>Definir</button>}
-        {canEdit && current !== undefined && (
-          <button type="button" className="chip" disabled={busy} onClick={async () => { if (await run(() => api.del(path))) setValue(""); }}>Remover</button>
-        )}
-      </div>
-    </form>
   );
 }

@@ -17,7 +17,7 @@ export function App() {
         <Route path="recorrentes" element={<Navigate to="/lancamentos" replace />} />
         <Route path="divisao" element={<Division />} />
         <Route path="caixa" element={<Inbox />} />
-        <Route path="ajustes" element={<Settings />} />
+        <Route path="ajustes/:section?" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
