@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { api } from "../../api/client";
 import type { Member } from "../../api/types";
-import { Switch } from "../../components/Switch";
+import { ListGroup, ListRow } from "../../components/ListGroup";
+import { MemberSheet } from "../../components/MemberSheet";
+import { Segmented } from "../../components/Segmented";
+import { Sheet } from "../../components/Sheet";
 import { useApp } from "../../context";
 import { useAction } from "../../hooks/useAction";
 
@@ -10,68 +13,53 @@ const ROLE_LABEL = { owner: "Administra", editor: "Pode editar", reader: "Só le
 export function MembersSection() {
   const { user, wallet, members } = useApp();
   const owner = wallet.role === "owner";
-  const invite = useAction();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"editor" | "reader">("editor");
+  const [open, setOpen] = useState<Member | null>(null);
+  const [inviting, setInviting] = useState(false);
+
+  // the owner opens anyone; everyone else only their own row, to leave the wallet
+  const actionable = (m: Member) => owner || (m.userId === user.id && m.role !== "owner");
 
   return (
-    <div className="settings">
-      {members.map((m) => <MemberRow key={m.userId} m={m} isMe={m.userId === user.id} />)}
-      {owner && (
-        <form className="inline-form item" onSubmit={async (e) => {
-          e.preventDefault();
-          if (await invite.run(() => api.post(`/wallets/${wallet.id}/members`, { email, role }))) setEmail("");
-        }}>
-          <strong>Convidar alguém</strong>
-          <p className="muted" style={{ margin: 0 }}>A pessoa precisa já ter uma conta no gastos.</p>
-          <label>E-mail<input className="text" type="email" aria-label="E-mail do convidado" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-          <label>Permissão
-            <select aria-label="Permissão do convidado" value={role} onChange={(e) => setRole(e.target.value as "editor" | "reader")}>
-              <option value="editor">Pode editar</option>
-              <option value="reader">Só leitura</option>
-            </select>
-          </label>
-          {invite.error && <p className="error" role="alert">{invite.error}</p>}
-          <div className="item-actions"><button type="submit" className="btn" disabled={invite.busy || !email.trim()}>Convidar</button></div>
-        </form>
-      )}
+    <div className="screen">
+      <ListGroup>
+        {members.map((m) => (
+          <ListRow
+            key={m.userId}
+            label={<><span className="desc">{m.name}{m.userId === user.id && " (você)"}</span><span className="meta">{m.email}</span></>}
+            value={ROLE_LABEL[m.role]}
+            onClick={actionable(m) ? () => setOpen(m) : undefined}
+            chevron={actionable(m)}
+          />
+        ))}
+      </ListGroup>
+      {owner && <button type="button" className="btn ghost full" onClick={() => setInviting(true)}>Convidar alguém</button>}
+      <MemberSheet member={open} onClose={() => setOpen(null)} />
+      <Sheet open={inviting} onClose={() => setInviting(false)} label="Convidar alguém">
+        {inviting && <InviteForm onClose={() => setInviting(false)} />}
+      </Sheet>
     </div>
   );
 }
 
-function MemberRow({ m, isMe }: { m: Member; isMe: boolean }) {
+function InviteForm({ onClose }: { onClose: () => void }) {
   const { wallet } = useApp();
   const { run, busy, error } = useAction();
-  const owner = wallet.role === "owner";
-  const [confirm, setConfirm] = useState(false);
-  const path = `/wallets/${wallet.id}/members/${m.userId}`;
-  const canRemove = m.role !== "owner" && (owner || isMe);
-
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"editor" | "reader">("editor");
   return (
-    <div className="item">
-      <div className="line" style={{ borderTop: 0, padding: 0 }}>
-        <div>{m.name}{isMe && " (você)"}<small>{m.email}</small></div>
-        {owner && m.role !== "owner" ? (
-          <select aria-label={`Permissão de ${m.name}`} value={m.role} disabled={busy} onChange={(e) => void run(() => api.patch(path, { role: e.target.value }))}>
-            <option value="editor">Pode editar</option>
-            <option value="reader">Só leitura</option>
-          </select>
-        ) : <span className="muted">{ROLE_LABEL[m.role]}</span>}
+    <form onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post(`/wallets/${wallet.id}/members`, { email, role }))) onClose(); }}>
+      <div className="sheet-head">
+        <h2 className="sheet-title">Convidar alguém</h2>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
       </div>
-      {owner && wallet.splittingEnabled && (
-        <div className="inline" style={{ marginTop: 8 }}>
-          <Switch checked={m.splitsByDefault} disabled={busy} label={`Dividir gastos com ${m.name} por padrão`} onChange={(v) => void run(() => api.patch(path, { splitsByDefault: v }))} />
-          <span className="muted">Entra na divisão por padrão</span>
-        </div>
-      )}
-      {canRemove && (
-        <div className="item-actions">
-          {confirm
-            ? <button type="button" className="chip danger" disabled={busy} onClick={() => void run(() => api.del(path))}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
-            : <button type="button" className="chip" onClick={() => setConfirm(true)}>{isMe ? "Sair da carteira" : "Remover"}</button>}
-        </div>
-      )}
+      <p className="meta">A pessoa precisa já ter uma conta no gastos.</p>
+      <div className="field-row">
+        <label htmlFor="invite-email" className="lr-label">E-mail</label>
+        <input id="invite-email" className="desc-input" type="email" aria-label="E-mail do convidado" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <Segmented<"editor" | "reader"> label="Permissão do convidado" value={role} onChange={setRole} options={[{ value: "editor", label: "Pode editar" }, { value: "reader", label: "Só leitura" }]} />
       {error && <p className="error" role="alert">{error}</p>}
-    </div>
+      <div className="actions"><button type="submit" className="btn full" disabled={busy || !email.trim()}>Convidar</button></div>
+    </form>
   );
 }
