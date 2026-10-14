@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { bodyOf, mockFetch } from "../test/fixtures";
 import { Login } from "./Login";
 
@@ -159,5 +159,59 @@ describe("Login: sign-up by registration mode", () => {
     renderLogin();
     await screen.findByRole("button", { name: "Criar uma conta" });
     expect(screen.queryByLabelText("Repita a senha")).toBeNull();
+  });
+});
+
+describe("Login: fields for browsers and password managers", () => {
+  it("sign-in fields are an email and a current password", async () => {
+    serve("open");
+    renderLogin();
+    await screen.findByRole("button", { name: "Criar uma conta" });
+    const email = screen.getByLabelText("E-mail") as HTMLInputElement;
+    const password = screen.getByLabelText("Senha") as HTMLInputElement;
+    expect([email.type, email.autocomplete]).toEqual(["email", "email"]);
+    expect([password.type, password.autocomplete]).toEqual(["password", "current-password"]);
+  });
+
+  it("sign-up fields name the person, and both passwords are new passwords", async () => {
+    serve("open");
+    const user = renderLogin();
+    await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
+    expect((screen.getByLabelText("Como você gostaria de ser chamado?") as HTMLInputElement).autocomplete).toBe("name");
+    for (const label of ["Senha", "Repita a senha"]) {
+      const field = screen.getByLabelText(label) as HTMLInputElement;
+      expect([field.type, field.autocomplete]).toEqual(["password", "new-password"]);
+    }
+  });
+
+  it("Enter in the last field signs in", async () => {
+    const fetch = serve("open");
+    const user = renderLogin();
+    await screen.findByRole("button", { name: "Criar uma conta" });
+    await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura{Enter}");
+    expect(await screen.findByText("Visão geral")).toBeTruthy();
+    expect(bodyTo(fetch, "/api/auth/login")).toEqual({ email: "ana@example.com", password: "senha-segura" });
+  });
+
+  it("the button is off while the request is on its way", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => (url === "/api/auth/registration" ? Promise.resolve(new Response(JSON.stringify({ mode: "open" }), { status: 200 })) : new Promise(() => {}))));
+    const user = renderLogin();
+    await screen.findByRole("button", { name: "Criar uma conta" });
+    await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura");
+    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Entrar" }) as HTMLButtonElement).disabled).toBe(true));
+  });
+
+  it("a field error sits under its own field", async () => {
+    serve("open", { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { email: "e-mail inválido" } } } });
+    const user = renderLogin();
+    await screen.findByRole("button", { name: "Criar uma conta" });
+    await user.type(screen.getByLabelText("E-mail"), "x@y");
+    await user.type(screen.getByLabelText("Senha"), "123");
+    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    const message = await screen.findByText("e-mail inválido");
+    expect(message.previousElementSibling?.contains(screen.getByLabelText("E-mail"))).toBe(true);
   });
 });

@@ -42,46 +42,28 @@ export function Login() {
     }
   }
 
-  const field = (k: string) => errors[k] && <p className="error" role="alert">{errors[k]}</p>;
+  const error = (k: string) => errors[k] && <p className="error" role="alert">{errors[k]}</p>;
+  /** One labelled row; the error of the field sits right under it. */
+  const row = (id: string, label: string, input: React.ReactNode, key?: string) => (
+    <div className="auth-field">
+      <div className="field-row"><label htmlFor={id} className="lr-label">{label}</label>{input}</div>
+      {key && error(key)}
+    </div>
+  );
 
   return (
     <div className="auth">
       <form onSubmit={submit}>
         <h1>gastos</h1>
-        {register && (
-          <div className="field">
-            <label htmlFor="name">Como você gostaria de ser chamado?</label>
-            <input id="name" className="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-            {field("name")}
-          </div>
-        )}
-        <div className="field">
-          <label htmlFor="email">E-mail</label>
-          <input id="email" className="text" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          {field("email")}
-        </div>
-        <div className="field">
-          <label htmlFor="password">Senha</label>
-          <input id="password" className="text" type="password" autoComplete={register ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />
-          {field("password")}
-        </div>
-        {register && (
-          <div className="field">
-            <label htmlFor="confirm">Repita a senha</label>
-            <input id="confirm" className="text" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-            {field("confirm")}
-          </div>
-        )}
-        {register && mode === "code" && (
-          <div className="field">
-            <label htmlFor="invite">Código de convite</label>
-            <input id="invite" className="text" autoComplete="off" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
-          </div>
-        )}
+        {register && row("name", "Como você gostaria de ser chamado?", <input id="name" className="desc-input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />, "name")}
+        {row("email", "E-mail", <input id="email" className="desc-input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />, "email")}
+        {row("password", "Senha", <input id="password" className="desc-input" type="password" autoComplete={register ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />, "password")}
+        {register && row("confirm", "Repita a senha", <input id="confirm" className="desc-input" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />, "confirm")}
+        {register && mode === "code" && row("invite", "Código de convite", <input id="invite" className="desc-input" autoComplete="off" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />)}
         {general && <p className="error" role="alert">{general}</p>}
-        <button type="submit" className="btn" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
+        <button type="submit" className="btn full" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
         {/* the toggle waits for the mode so a closed sign-up never flashes an option that cannot work */}
-        {mode === "closed" && <p className="muted" style={{ margin: "16px 0 0" }}>O cadastro está fechado. Peça um convite.</p>}
+        {mode === "closed" && <p className="muted lead">O cadastro está fechado. Peça um convite.</p>}
         {!registration.isPending && mode !== "closed" && (
           <button type="button" className="switch-mode" onClick={() => { setRegister(!register); setErrors({}); setGeneral(""); }}>
             {register ? "Já tenho conta" : "Criar uma conta"}
