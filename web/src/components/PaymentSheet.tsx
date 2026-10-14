@@ -48,8 +48,8 @@ function PaymentForm({ method, onClose }: { method: PaymentMethod | "new"; onClo
         {p?.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => put(false)).then(done)}>Restaurar</button>}
         {p && !p.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => put(true)).then(done)}>Arquivar</button>}
         {p && !p.archived && (confirm
-          ? <button type="button" className="btn danger full" disabled={busy} onClick={() => void run(() => api.del(path)).then(done)}>Confirmar exclusão</button>
-          : <button type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir forma de pagamento</button>)}
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={() => void run(() => api.del(path)).then(done)}>Confirmar exclusão</button>
+          : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir forma de pagamento</button>)}
       </div>
     </form>
   );

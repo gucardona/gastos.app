@@ -148,3 +148,11 @@ describe("Settings: Aparência and Sair", () => {
     await waitFor(() => expect(screen.getByText("tela de login")).toBeTruthy());
   });
 });
+
+describe("Settings: the way back", () => {
+  it("the back link says where it goes, so it is not confused with the avatar link", () => {
+    mockFetch({ body: [] });
+    renderSettings("/ajustes/pessoas");
+    expect(screen.getByRole("link", { name: "Voltar para Ajustes" }).getAttribute("href")).toBe("/ajustes");
+  });
+});

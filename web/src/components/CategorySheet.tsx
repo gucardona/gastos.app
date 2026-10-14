@@ -89,8 +89,8 @@ function CategoryForm({ category, kind, onClose }: { category: Category | "new";
         {c?.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.put(path, body(false))).then((ok) => ok && onClose())}>Restaurar</button>}
         {c && !c.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.put(path, body(true))).then((ok) => ok && onClose())}>Arquivar</button>}
         {c && !c.archived && (confirm
-          ? <button type="button" className="btn danger full" disabled={busy} onClick={() => void remove()}>Confirmar exclusão</button>
-          : <button type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir categoria</button>)}
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={() => void remove()}>Confirmar exclusão</button>
+          : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir categoria</button>)}
       </div>
     </form>
   );

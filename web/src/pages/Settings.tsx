@@ -62,7 +62,7 @@ export function Settings() {
         {current && (
           // a key resets the forms when the wallet changes
           <div className="settings-detail" key={`${wallet.id}-${current.id}`}>
-            <Link className="back" to="/ajustes"><span aria-hidden="true">‹</span> Ajustes</Link>
+            <Link className="back" to="/ajustes" aria-label="Voltar para Ajustes"><span aria-hidden="true">‹</span> Ajustes</Link>
             <h1 className="page-title">{current.label}</h1>
             <Screen id={current.id} />
           </div>

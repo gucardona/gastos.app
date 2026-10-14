@@ -27,7 +27,7 @@ export function Division() {
         <Title />
         <div className="empty">
           <p>A divisão de gastos está desligada em {wallet.name}. Ligue para ver quem pagou o quê e acertar as contas entre vocês.</p>
-          {wallet.role === "owner" && <Link className="btn" to="/ajustes?s=carteira">Ligar a divisão</Link>}
+          {wallet.role === "owner" && <Link className="btn" to="/ajustes/carteira">Ligar a divisão</Link>}
         </div>
       </>
     );

@@ -31,7 +31,7 @@ describe("Division", () => {
   it("explains and offers to turn splitting on when it is off", () => {
     renderApp(<Division />);
     expect(screen.getByText(/divisão de gastos está desligada/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Ligar a divisão" }).getAttribute("href")).toBe("/ajustes?s=carteira");
+    expect(screen.getByRole("link", { name: "Ligar a divisão" }).getAttribute("href")).toBe("/ajustes/carteira");
   });
 
   it("whoever does not manage the wallet does not see the turn-on button", () => {

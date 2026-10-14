@@ -93,3 +93,14 @@ describe("Wallet screen", () => {
     expect(screen.queryByRole("button", { name: "Excluir esta carteira" })).toBeNull();
   });
 });
+
+describe("Wallet screen: a double click is not a confirmation", () => {
+  it("clicking Excluir esta carteira twice fast does not delete anything", async () => {
+    const fetch = ok();
+    const user = userEvent.setup();
+    renderApp(<WalletSection />);
+    await user.dblClick(screen.getByRole("button", { name: "Excluir esta carteira" }));
+    expect(writes(fetch)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Confirmar exclusão" })).toBeTruthy();
+  });
+});

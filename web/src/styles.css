@@ -156,13 +156,10 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .item { padding: 14px 0; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
 .item-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-.inline { display: inline-flex; align-items: center; gap: 8px; }
 .inline-form { display: grid; gap: 12px; }
 .inline-form label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
-.inline-form label.inline { display: inline-flex; }
 .inline-form select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; color: var(--ink); }
 .chip.danger { border-color: var(--over); color: var(--over); }
-.line .text { min-width: 0; }
 
 .badge { background: var(--accent); color: var(--on-accent); border-radius: 999px; font-size: 11px; font-weight: 600; padding: 1px 7px; margin-left: 6px; }
 
@@ -270,7 +267,6 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 /* ---------- Ajustes: index and screens ---------- */
 .settings-layout { display: block; }
 .settings-index > section { margin-top: 18px; }
-.settings-index .group-title { margin: 0 0 8px 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
 .settings-index .list-row { text-decoration: none; }
 .settings-index .list-row[aria-current="page"] .lr-label { color: var(--accent); font-weight: 600; }
 .sign-out { margin-top: 18px; }
@@ -316,4 +312,9 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .settings-index .group-title, .screen .group-title { margin: 12px 0 8px 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
 @media (min-width: 1100px) { .settings-layout { grid-template-columns: 300px minmax(0, 1fr); gap: 32px; } }
 .segmented { max-width: 100%; }
-.segmented button { min-width: 0; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-detail .segmented button, .sheet .segmented button { min-width: 0; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+/* the text inputs hide the browser outline, so the row around them shows the keyboard focus */
+.list-row:focus-within, .field-row:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.list-row .lr-value { overflow-wrap: anywhere; }

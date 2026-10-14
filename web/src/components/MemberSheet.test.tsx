@@ -87,3 +87,12 @@ describe("MemberSheet: someone who is not the owner", () => {
     expect(writes(fetch)[0][1]!.method).toBe("DELETE");
   });
 });
+
+describe("MemberSheet: a double click is not a confirmation", () => {
+  it("clicking Remover twice fast does not remove anyone", async () => {
+    const fetch = serve();
+    const { user } = open(bia);
+    await user.dblClick(screen.getByRole("button", { name: "Remover" }));
+    expect(writes(fetch)).toHaveLength(0);
+  });
+});

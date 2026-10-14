@@ -126,3 +126,12 @@ describe("CategorySheet: existing", () => {
     expect(bodyAt(fetch)).toMatchObject({ archived: false, name: "Restaurante" });
   });
 });
+
+describe("CategorySheet: a double click is not a confirmation", () => {
+  it("clicking Excluir categoria twice fast does not delete anything", async () => {
+    const fetch = serve(undefined, 204);
+    const { user } = open(categories[0]);
+    await user.dblClick(screen.getByRole("button", { name: "Excluir categoria" }));
+    expect(writes(fetch)).toHaveLength(0);
+  });
+});
