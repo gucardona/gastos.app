@@ -158,19 +158,24 @@ test("settings and recurring: category, overspent budget and paused recurrence",
 
   // new category
   await page.getByRole("link", { name: "Ajustes" }).first().click();
-  await page.getByRole("button", { name: "Categorias" }).click();
+  await page.getByRole("link", { name: "Categorias" }).click();
   await page.getByRole("button", { name: "Nova categoria" }).click();
-  await page.getByLabel("Nome da categoria").fill("Pets");
-  await page.getByLabel("Ícone da categoria").fill("🐶");
-  await page.getByRole("button", { name: "Criar categoria" }).click();
-  await expect(page.locator(".item", { hasText: "Pets" })).toBeVisible();
+  const category = page.getByRole("dialog");
+  await category.getByLabel("Nome da categoria").fill("Pets");
+  await category.getByRole("button", { name: "Outros" }).click();
+  await category.getByRole("button", { name: "🐶" }).click();
+  await category.getByRole("button", { name: "Cor #D4568B" }).click();
+  await category.getByRole("button", { name: "Criar categoria" }).click();
+  await expect(category).toBeHidden();
+  await expect(page.getByRole("button", { name: /Pets/ })).toBeVisible();
 
   // a R$ 100,00 budget on Restaurante
-  await page.getByRole("button", { name: "Orçamentos" }).click();
-  const limit = page.getByLabel("Limite mensal de Restaurante");
-  await limit.fill("100,00");
-  await limit.locator("xpath=ancestor::form").getByRole("button", { name: "Definir" }).click();
-  await expect(limit.locator("xpath=ancestor::form").getByRole("button", { name: "Remover" })).toBeVisible();
+  await page.goto("/ajustes/orcamentos");
+  await page.getByRole("button", { name: /Restaurante/ }).click();
+  await page.getByRole("dialog").getByLabel("Limite mensal de Restaurante").fill("100,00");
+  await page.getByRole("dialog").getByRole("button", { name: "Definir" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByRole("button", { name: /Restaurante/ })).toContainText("100,00");
 
   // a R$ 130,00 expense overspends the budget on the overview
   await page.getByRole("link", { name: /Visão/ }).first().click();
@@ -242,11 +247,12 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
 </BANKTRANLIST></OFX>`;
 
   await page.getByRole("link", { name: "Ajustes" }).first().click();
-  await page.getByRole("button", { name: "Contas bancárias" }).click();
+  await page.getByRole("link", { name: "Contas bancárias" }).click();
   await page.getByRole("button", { name: "Nova conta bancária" }).click();
   await page.getByLabel("Nome da conta bancária").fill("Conta corrente");
   await page.getByRole("button", { name: "Criar", exact: true }).click();
-  await page.getByRole("button", { name: "Importar extrato" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await page.getByRole("button", { name: /Conta corrente/ }).click();
   await page.getByLabel("Arquivo do extrato").setInputFiles({ name: "extrato.ofx", mimeType: "application/x-ofx", buffer: Buffer.from(ofx) });
   await page.getByRole("button", { name: "Importar", exact: true }).click();
   await expect(page.getByText("2 linhas novas, 0 já importadas antes.")).toBeVisible();
@@ -255,6 +261,7 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
   await page.getByLabel("Arquivo do extrato").setInputFiles({ name: "extrato.ofx", mimeType: "application/x-ofx", buffer: Buffer.from(ofx) });
   await page.getByRole("button", { name: "Importar", exact: true }).click();
   await expect(page.getByText("0 linhas novas, 2 já importadas antes.")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Fechar" }).click();
 
   await page.getByRole("link", { name: /Caixa/ }).first().click();
   await page.getByRole("button", { name: /COMPRA MERCADO DO BAIRRO/ }).click();
@@ -359,5 +366,36 @@ test("long descriptions never make Lançamentos or the Caixa scroll sideways", a
     await page.goto(path);
     await expect(page.getByText(/PAG\*JOSEDASILVA/).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), path).toBeLessThanOrEqual(0);
+  }
+});
+
+test("old Ajustes addresses still work, and inviting someone who has no account says so", async ({ page }) => {
+  await signUpAndEnter(page, "Iara");
+  await page.goto("/ajustes?s=bancos");
+  await expect(page).toHaveURL(/\/ajustes\/bancos$/);
+  await expect(page.getByRole("button", { name: "Nova conta bancária" })).toBeVisible();
+
+  await page.goto("/ajustes/pessoas");
+  await page.getByRole("button", { name: "Convidar alguém" }).click();
+  await page.getByLabel("E-mail do convidado").fill("ninguem@example.com");
+  await page.getByRole("button", { name: "Convidar", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+});
+
+test("no Ajustes screen scrolls sideways, even with long names", async ({ page, isMobile }) => {
+  if (!isMobile) await page.setViewportSize({ width: 900, height: 800 });
+  await signUpAndEnter(page, "Jair");
+  const long = "UmNomeMuitoLongoSemEspacosParaTestarOTransbordoDaLista".repeat(2);
+  await page.evaluate(async (name) => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    await j(`/api/wallets/${w}/categories`, "POST", { kind: "expense", name: name.slice(0, 40), icon: "🐶", color: "#0E6577", essentiality: "essential" });
+    await j(`/api/wallets/${w}/bank-accounts`, "POST", { name: name.slice(0, 60) });
+    await j(`/api/wallets/${w}/payment-methods`, "POST", { name: name.slice(0, 40), icon: "💳" });
+  }, long);
+  for (const section of ["perfil", "carteira", "pessoas", "categorias", "pagamentos", "orcamentos", "bancos", "recorrentes", "aparencia"]) {
+    await page.goto(`/ajustes/${section}`);
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), section).toBeLessThanOrEqual(0);
   }
 });
