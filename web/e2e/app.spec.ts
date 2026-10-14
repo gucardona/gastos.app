@@ -128,7 +128,7 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
 
   await ana.getByRole("link", { name: /Divisão/ }).first().click();
   await expect(ana.getByText("Saldo entre vocês")).toBeVisible();
-  await expect(ana.getByText("Você deve esse valor para Bia.")).toBeVisible();
+  await expect(ana.getByText(/Você deve R\$\s*190,00 para Bia\./)).toBeVisible();
   await expect(ana.getByText(/−R\$\s*190,00/).first()).toBeVisible();
 
   // Ana settles up: the balance goes to zero and the settlement enters the history
@@ -142,9 +142,30 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
   await expect(bia.getByText(/Ana pagou a você/)).toBeVisible();
 
   // deleting the settlement brings the balance back
-  await ana.getByRole("button", { name: "Excluir" }).click();
-  await ana.getByRole("button", { name: "Confirmar exclusão" }).click();
-  await expect(ana.getByText("Você deve esse valor para Bia.")).toBeVisible();
+  await ana.getByRole("button", { name: /Você pagou Bia/ }).click();
+  await ana.getByRole("dialog").getByRole("button", { name: "Excluir acerto" }).click();
+  await ana.getByRole("dialog").getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(ana.getByText(/Você deve R\$\s*190,00 para Bia\./)).toBeVisible();
+
+  // registering another one by hand, from the sheet
+  await ana.getByRole("button", { name: "Registrar outro acerto" }).click();
+  const sheet = ana.getByRole("dialog");
+  await sheet.getByLabel("Valor do acerto").fill("20,00");
+  await sheet.getByLabel("Observação do acerto").fill("Pix de teste");
+  await sheet.getByRole("button", { name: "Registrar", exact: true }).click();
+  await expect(sheet).toBeHidden();
+  await expect(ana.getByText(/Pix de teste/)).toBeVisible();
+});
+
+test("sign-in works from the keyboard alone", async ({ page }) => {
+  const email = await signUpAndEnter(page, "Kleber");
+  await page.getByRole("link", { name: "Ajustes" }).first().click();
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha").fill(password);
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Saldo do mês")).toBeVisible();
 });
 
 // browser.newContext() does not inherit the project's device settings, so pass them along (otherwise the mobile project would run these on a desktop viewport)
@@ -398,4 +419,38 @@ test("no Ajustes screen scrolls sideways, even with long names", async ({ page, 
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), section).toBeLessThanOrEqual(0);
   }
+});
+
+test("Divisão does not scroll sideways, even with a long unbroken note", async ({ browser, isMobile }) => {
+  const { ana } = await pairUp(browser);
+  if (!isMobile) await ana.setViewportSize({ width: 900, height: 800 });
+  await ana.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const me = await j("/api/me");
+    const w = me.wallets[0].id;
+    const members = await j(`/api/wallets/${w}/members`);
+    const other = members.find((m: { userId: number }) => m.userId !== me.user.id).userId;
+    const iso = new Date().toISOString().slice(0, 10);
+    await j(`/api/wallets/${w}/settlements`, "POST", { fromUserId: other, toUserId: me.user.id, amountCents: 123456789, date: iso, note: "PIXDOALUGUELDOAPARTAMENTOCENTRAL".repeat(5) });
+  });
+  await ana.goto("/divisao");
+  await expect(ana.getByText(/PIXDOALUGUEL/)).toBeVisible();
+  expect(await ana.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
+test("a real double click on Excluir does not confirm the deletion", async ({ page }) => {
+  await signUpAndEnter(page, "Lia");
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    await j(`/api/wallets/${w}/payment-methods`, "POST", { name: "Cheque", icon: "🧾" });
+  });
+  await page.goto("/ajustes/pagamentos");
+  await page.getByRole("button", { name: /Cheque/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Excluir forma de pagamento" }).dblclick();
+  // still asking: the deletion needs its own, deliberate click
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Confirmar exclusão" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Cheque/ })).toBeVisible();
 });

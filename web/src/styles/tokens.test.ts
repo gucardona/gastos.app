@@ -73,3 +73,14 @@ describe("contrast (WCAG AA, 4.5:1 for normal text)", () => {
     });
   }
 });
+
+describe("contrast of the money colors", () => {
+  for (const [name, body] of [["light", light], ["dark", darkForced]] as const) {
+    it(`${name}: income green and the debt color read on cards and on the page`, () => {
+      for (const role of ["income", "over"]) {
+        expect(contrast(value(body, role)!, value(body, "surface")!), `${role} on surface`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(value(body, role)!, value(body, "paper")!), `${role} on paper`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+});

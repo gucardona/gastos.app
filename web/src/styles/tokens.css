@@ -7,14 +7,13 @@
   --line: #ECEEEF;
   --accent: #0E6577;
   --on-accent: #FFFFFF;
-  --income: #1E8E5A;
+  --income: #187A4C;
   --over: #C2412D;
   --scrim: rgba(20, 24, 27, 0.28);
   --tick: #B9C0C4;
   --tick-future: #D9DDE0;
   --font: "Geist Variable", system-ui, sans-serif;
   --ui: var(--font);
-  --display: var(--font);
   --radius-group: 22px;
   --radius-control: 12px;
   color-scheme: light;

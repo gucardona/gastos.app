@@ -55,7 +55,7 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
       {canRemove && (
         <div className="actions">
           {confirm
-            ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={() => void run(() => api.del(path)).then((ok) => ok && onClose())}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
+            ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then((ok) => ok && onClose())}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
             : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>{isMe ? "Sair da carteira" : "Remover"}</button>}
         </div>
       )}
