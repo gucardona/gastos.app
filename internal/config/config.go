@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"gastos/internal/secret"
 	"strconv"
 	"strings"
 	"time"
@@ -19,14 +20,19 @@ type Config struct {
 	Dev          bool
 	// InviteCode, when set, is required to sign up once the database has users.
 	InviteCode string
+	// SecretKey seals stored API keys; nil when GASTOS_SECRET_KEY is unset, which disables the assistant.
+	SecretKey []byte
+	// AnthropicURL is the Anthropic API base URL; tests point it at a local fake.
+	AnthropicURL string
 }
 
 // Load reads the configuration from getenv (os.Getenv in production) and fails early on invalid values.
 func Load(getenv func(string) string) (Config, error) {
 	c := Config{
-		Addr:      or(getenv("GASTOS_ADDR"), ":8000"),
-		DBPath:    or(getenv("GASTOS_DB_PATH"), "./data/gastos.db"),
-		BackupDir: or(getenv("GASTOS_BACKUP_DIR"), "./data/backups"),
+		Addr:         or(getenv("GASTOS_ADDR"), ":8000"),
+		DBPath:       or(getenv("GASTOS_DB_PATH"), "./data/gastos.db"),
+		BackupDir:    or(getenv("GASTOS_BACKUP_DIR"), "./data/backups"),
+		AnthropicURL: or(getenv("GASTOS_ANTHROPIC_URL"), "https://api.anthropic.com"),
 	}
 
 	keep, err := strconv.Atoi(or(getenv("GASTOS_BACKUP_KEEP"), "14"))
@@ -48,6 +54,11 @@ func Load(getenv func(string) string) (Config, error) {
 	c.InviteCode = strings.TrimSpace(getenv("GASTOS_INVITE_CODE"))
 	if c.InviteCode != "" && len(c.InviteCode) < minInviteCodeLen {
 		return Config{}, fmt.Errorf("invalid GASTOS_INVITE_CODE: use at least %d characters", minInviteCodeLen)
+	}
+	if raw := strings.TrimSpace(getenv("GASTOS_SECRET_KEY")); raw != "" {
+		if c.SecretKey, err = secret.ParseKey(raw); err != nil {
+			return Config{}, fmt.Errorf("invalid GASTOS_SECRET_KEY: %w", err)
+		}
 	}
 	return c, nil
 }
