@@ -88,6 +88,74 @@ func TestHousekeepingRemovesExpiredSessionsOnly(t *testing.T) {
 	ana.do("GET", "/api/me", nil, 200, nil) // the active session keeps working
 }
 
+func addChat(t *testing.T, app *testApp, c *client, daysOld int) {
+	t.Helper()
+	at := app.s.now().UTC().AddDate(0, 0, -daysOld).Format(tsLayout)
+	if _, err := app.s.db.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content, created_at) VALUES (?, ?, 'user', 'hi', ?)`, c.user.ID, c.walletID, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func setRetention(t *testing.T, app *testApp, c *client, days int) {
+	t.Helper()
+	if _, err := app.s.db.Exec(`INSERT INTO ai_settings (user_id, api_key_enc, key_hint, retention_days) VALUES (?, x'', '1234', ?)`, c.user.ID, days); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func chatCount(t *testing.T, app *testApp, c *client) int {
+	t.Helper()
+	var n int
+	if err := app.s.db.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE user_id = ?`, c.user.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestHousekeepingDeletesExpiredChat(t *testing.T) {
+	app := newTestApp(t)
+	ana := app.register("Ana", "ana@example.com")
+	setRetention(t, app, ana, 3)
+	addChat(t, app, ana, 4)
+	addChat(t, app, ana, 2)
+	runHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 1 })
+	if n := chatCount(t, app, ana); n != 1 {
+		t.Fatalf("%d messages, want 1 (the 2-day-old one stays)", n)
+	}
+	var age int
+	if err := app.s.db.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.s.now().UTC().Format(tsLayout)).Scan(&age); err != nil || age != 2 {
+		t.Fatalf("remaining message age %d (err %v), want 2", age, err)
+	}
+}
+
+func TestHousekeepingRetentionIsPerUser(t *testing.T) {
+	app := newTestApp(t)
+	ana := app.register("Ana", "ana@example.com")
+	bia := app.register("Bia", "bia@example.com")
+	setRetention(t, app, ana, 3)
+	setRetention(t, app, bia, 30)
+	addChat(t, app, ana, 10)
+	addChat(t, app, bia, 10)
+	runHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 0 })
+	if n := chatCount(t, app, ana); n != 0 {
+		t.Fatalf("ana has %d messages, want 0", n)
+	}
+	if n := chatCount(t, app, bia); n != 1 {
+		t.Fatalf("bia has %d messages, want 1", n)
+	}
+}
+
+func TestHousekeepingDefaultsToSevenDays(t *testing.T) {
+	app := newTestApp(t)
+	ana := app.register("Ana", "ana@example.com")
+	addChat(t, app, ana, 8)
+	addChat(t, app, ana, 6)
+	runHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 1 })
+	if n := chatCount(t, app, ana); n != 1 {
+		t.Fatalf("%d messages, want 1 (the 6-day-old one stays)", n)
+	}
+}
+
 func TestHousekeepingMakesBackupOnlyWhenTheLastIsOld(t *testing.T) {
 	app := newTestApp(t)
 	if len(backups(app)) != 0 {

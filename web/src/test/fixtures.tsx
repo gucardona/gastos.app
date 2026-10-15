@@ -36,7 +36,7 @@ export function tx(over: Partial<Transaction> = {}): Transaction {
 export function appCtx(over: Partial<AppCtx> = {}): AppCtx {
   return {
     user: ana, wallet, wallets: [wallet], setWalletId: vi.fn(), month: today().slice(0, 7), setMonth: vi.fn(),
-    categories, paymentMethods, members, canEdit: true, openAdd: vi.fn(), ...over,
+    categories, paymentMethods, members, canEdit: true, assistantEnabled: false, openAdd: vi.fn(), ...over,
   };
 }
 

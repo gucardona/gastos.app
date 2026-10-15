@@ -14,6 +14,11 @@ func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 		if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, now.Format(tsLayout)); err != nil && ctx.Err() == nil {
 			s.log.Error("clean up sessions", "err", err)
 		}
+		// retention is per user (7 days without settings); both sides use the tsLayout string format
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM chat_messages WHERE created_at <= strftime('%Y-%m-%dT%H:%M:%SZ', ?, '-' ||
+			COALESCE((SELECT retention_days FROM ai_settings WHERE user_id = chat_messages.user_id), 7) || ' days')`, now.Format(tsLayout)); err != nil && ctx.Err() == nil {
+			s.log.Error("clean up chat messages", "err", err)
+		}
 		if db.LastBackupAge(s.cfg.BackupDir, now) > 24*time.Hour {
 			if p, err := db.Backup(ctx, s.db, s.cfg.BackupDir, s.cfg.BackupKeep, now); err != nil {
 				if ctx.Err() == nil {

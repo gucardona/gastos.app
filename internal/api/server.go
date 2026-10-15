@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"gastos/internal/config"
@@ -21,10 +22,21 @@ type Server struct {
 	log     *slog.Logger
 	limiter *rateLimiter
 	now     func() time.Time
+
+	anthropicURL string
+
+	chatLimiter  *rateLimiter
+	chatMu       sync.Mutex
+	chatInFlight map[int64]bool // users with an answer being generated
 }
 
 func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materializer, log *slog.Logger) *Server {
-	return &Server{db: db, cfg: cfg, bus: bus, mat: mat, log: log, limiter: newRateLimiter(10, 15*time.Minute), now: time.Now}
+	aiURL := cfg.AnthropicURL
+	if aiURL == "" {
+		aiURL = config.DefaultAnthropicURL
+	}
+	return &Server{db: db, cfg: cfg, bus: bus, mat: mat, log: log, limiter: newRateLimiter(10, 15*time.Minute), now: time.Now, anthropicURL: aiURL,
+		chatLimiter: newRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
 }
 
 func (s *Server) Routes(spa fs.FS) http.Handler {
@@ -39,6 +51,12 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("POST /api/auth/logout", user(s.logout))
 	mux.Handle("GET /api/me", user(s.me))
 	mux.Handle("PATCH /api/me", user(s.rename))
+	mux.Handle("GET /api/me/ai", user(s.getAI))
+	mux.Handle("PUT /api/me/ai", user(s.putAI))
+	mux.Handle("DELETE /api/me/ai/key", user(s.deleteAIKey))
+	mux.Handle("POST /api/chat", user(s.postChat))
+	mux.Handle("GET /api/chat", user(s.getChat))
+	mux.Handle("DELETE /api/chat", user(s.deleteChat))
 
 	mux.Handle("GET /api/wallets", user(s.listWallets))
 	mux.Handle("POST /api/wallets", user(s.createWallet))

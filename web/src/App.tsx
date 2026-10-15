@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router";
+import { Chat } from "./pages/Chat";
 import { Division } from "./pages/Division";
 import { Inbox } from "./pages/Inbox";
 import { Login } from "./pages/Login";
@@ -17,6 +18,7 @@ export function App() {
         <Route path="recorrentes" element={<Navigate to="/lancamentos" replace />} />
         <Route path="divisao" element={<Division />} />
         <Route path="caixa" element={<Inbox />} />
+        <Route path="chat" element={<Chat />} />
         <Route path="ajustes/:section?" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

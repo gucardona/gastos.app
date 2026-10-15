@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"encoding/base64"
 	"testing"
 	_ "time/tzdata"
 )
@@ -54,5 +56,31 @@ func TestLoadRejectsAShortInviteCode(t *testing.T) {
 		if _, err := Load(env(map[string]string{"GASTOS_INVITE_CODE": code})); err == nil {
 			t.Errorf("GASTOS_INVITE_CODE=%q should be rejected", code)
 		}
+	}
+}
+
+func TestLoadSecretKey(t *testing.T) {
+	c, err := Load(env(nil))
+	if err != nil || c.SecretKey != nil {
+		t.Fatalf("no secret key by default: %+v, %v", c, err)
+	}
+	valid := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))
+	c, err = Load(env(map[string]string{"GASTOS_SECRET_KEY": valid}))
+	if err != nil || len(c.SecretKey) != 32 {
+		t.Fatalf("valid secret key should load as 32 bytes: %+v, %v", c, err)
+	}
+	if _, err := Load(env(map[string]string{"GASTOS_SECRET_KEY": "curta"})); err == nil {
+		t.Fatal("malformed GASTOS_SECRET_KEY should fail Load")
+	}
+}
+
+func TestLoadAnthropicURL(t *testing.T) {
+	c, err := Load(env(nil))
+	if err != nil || c.AnthropicURL != "https://api.anthropic.com" {
+		t.Fatalf("default AnthropicURL: %q, %v", c.AnthropicURL, err)
+	}
+	c, err = Load(env(map[string]string{"GASTOS_ANTHROPIC_URL": "http://127.0.0.1:9999"}))
+	if err != nil || c.AnthropicURL != "http://127.0.0.1:9999" {
+		t.Fatalf("overridden AnthropicURL: %q, %v", c.AnthropicURL, err)
 	}
 }

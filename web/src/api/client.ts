@@ -18,12 +18,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? undefined : form ? body : JSON.stringify(body),
   });
   if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const e = data?.error;
-    throw new ApiError(res.status, e?.code ?? "error", e?.message ?? "Algo deu errado. Tente de novo.", e?.fields);
-  }
-  return data as T;
+  if (!res.ok) throw await errorOf(res);
+  return (await res.json().catch(() => null)) as T;
+}
+
+/** The ApiError for a refused response, read from its `{error: {code, message, fields}}` body. */
+export async function errorOf(res: Response): Promise<ApiError> {
+  const e = (await res.json().catch(() => null))?.error;
+  return new ApiError(res.status, e?.code ?? "error", e?.message ?? "Algo deu errado. Tente de novo.", e?.fields);
 }
 
 export const api = {

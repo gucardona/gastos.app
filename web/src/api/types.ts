@@ -20,6 +20,7 @@ export interface Wallet {
 export interface Me {
   user: User;
   wallets: Wallet[];
+  assistantEnabled: boolean;
 }
 
 export interface Member {
@@ -162,4 +163,29 @@ export interface Rule {
   categoryId: number;
   renameTo: string | null;
   priority: number;
+}
+
+export interface AISettings {
+  available: boolean;
+  configured: boolean;
+  keyHint: string;
+  model: string;
+  enabled: boolean;
+  retentionDays: number;
+  warning?: string;
+}
+
+export interface ChartData {
+  kind: "bars" | "line" | "pie";
+  title: string;
+  /** value is in cents */
+  points: { label: string; value: number }[];
+}
+
+/** A message of the assistant chat (GET /chat also sends walletIds and createdAt, unused by the screen). */
+export interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  charts: ChartData[];
 }

@@ -1,4 +1,4 @@
-export type IconName = "home" | "list" | "tray" | "split" | "plus";
+export type IconName = "home" | "list" | "tray" | "chat" | "split" | "plus";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   home: (
@@ -21,6 +21,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M3.5 13.5v5h17v-5h-5.5a3 3 0 0 1-6 0z" />
     </>
   ),
+  chat: <path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-4 3.5v-3.5a2 2 0 0 1-1.5-2z" />,
   split: <path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" />,
   plus: <path d="M12 5v14M5 12h14" />,
 };

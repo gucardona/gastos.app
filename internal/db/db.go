@@ -13,21 +13,13 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-// migrations[i] takes the database from version i+1 to i+2. schema.sql is always version 1.
-// To change the schema: append an item here; never edit old items.
-//
-//go:embed migrations/0002_bank_import.sql
-var migrationBankImport string
-
-var migrations = []string{migrationBankImport}
-
 const pragmas = "?_pragma=foreign_keys(1)" +
 	"&_pragma=journal_mode(WAL)" +
 	"&_pragma=busy_timeout(5000)" +
 	"&_pragma=synchronous(NORMAL)" +
 	"&_txlock=immediate"
 
-// Open opens SQLite with pragmas applied on every pooled connection, and applies the schema.
+// Open opens SQLite with pragmas applied on every pooled connection, and creates the schema on an empty database.
 func Open(path string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, err
@@ -40,38 +32,39 @@ func Open(path string) (*sql.DB, error) {
 		d.Close()
 		return nil, err
 	}
-	if err := migrate(d); err != nil {
+	if err := applySchema(d); err != nil {
 		d.Close()
 		return nil, err
 	}
 	return d, nil
 }
 
-func migrate(d *sql.DB) error {
-	var version int
-	if err := d.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+// schemaVersion is the user_version of the single schema.sql. Bump it when the schema changes.
+const schemaVersion = 3
+
+// applySchema runs schema.sql on an empty database (user_version 0) and accepts a current one;
+// any other version is refused so the server fails to start instead of running on a missing schema.
+func applySchema(d *sql.DB) error {
+	tx, err := d.Begin()
+	if err != nil {
 		return err
 	}
-	steps := append([]string{schemaSQL}, migrations...)
-	if version > len(steps) {
-		return fmt.Errorf("database is at version %d, this binary only knows up to %d", version, len(steps))
+	defer tx.Rollback()
+	var version int
+	if err := tx.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return err
 	}
-	for i := version; i < len(steps); i++ {
-		tx, err := d.Begin()
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(steps[i]); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("schema v%d: %w", i+1, err)
-		}
-		if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, i+1)); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
-			return err
-		}
+	if version == schemaVersion {
+		return nil
 	}
-	return nil
+	if version != 0 {
+		return fmt.Errorf("database is at schema version %d, this binary expects %d: recreate it (see docs/assistente.md)", version, schemaVersion)
+	}
+	if _, err := tx.Exec(schemaSQL); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

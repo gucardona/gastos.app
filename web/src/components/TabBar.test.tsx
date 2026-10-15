@@ -19,6 +19,15 @@ describe("TabBar", () => {
     expect(labels()).toEqual(["Visão", "Lançamentos", "Caixa", "Divisão"]);
   });
 
+  it("shows Chat after Caixa only when the assistant is on", () => {
+    const { unmount } = renderApp(<TabBar pending={0} onAdd={vi.fn()} />, appCtx({ assistantEnabled: true }));
+    expect(labels()).toEqual(["Visão", "Lançamentos", "Caixa", "Chat"]);
+    expect(within(nav()).getByRole("link", { name: "Chat" }).getAttribute("href")).toBe("/chat");
+    unmount();
+    renderApp(<TabBar pending={0} onAdd={vi.fn()} />);
+    expect(labels()).not.toContain("Chat");
+  });
+
   it("the + button opens Novo lançamento", async () => {
     const onAdd = vi.fn();
     renderApp(<TabBar pending={0} onAdd={onAdd} />);

@@ -6,7 +6,7 @@ import { ListGroup, ListRow } from "./ListGroup";
 /** A choice that takes over the sheet: a back button and a title above the options. */
 export function PickerView({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => heading.current?.focus(), []); // the previous control is gone: land on the title, so the change is announced
+  useEffect(() => { heading.current?.focus(); }, []); // the previous control is gone: land on the title, so the change is announced
   return (
     <div className="picker">
       <div className="picker-head">
