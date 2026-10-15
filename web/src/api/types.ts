@@ -174,3 +174,10 @@ export interface AISettings {
   retentionDays: number;
   warning?: string;
 }
+
+export interface ChartData {
+  kind: "bars" | "line" | "pie";
+  title: string;
+  /** value is in cents */
+  points: { label: string; value: number }[];
+}

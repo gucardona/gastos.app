@@ -317,3 +317,20 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 @media (min-width: 900px) { .settings-detail.default { display: block; } }
 
 .list-row .minus { color: var(--over); }
+
+/* ---------- Gráficos do assistente ---------- */
+.chart { margin: 8px 0; max-width: 100%; }
+.chart-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px; overflow-wrap: anywhere; }
+.chart-svg { display: block; width: 100%; max-width: 360px; height: auto; }
+.chart-pie { max-width: 180px; }
+.chart-svg text { font-size: 11px; fill: var(--muted); }
+.chart-svg .chart-value { fill: var(--ink); }
+.chart-bar { fill: var(--accent); }
+.chart-line { stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.chart-dot { fill: var(--accent); }
+.chart-axis { stroke: var(--line); stroke-width: 1; }
+.chart-empty { margin: 0; font-size: 13px; color: var(--muted); }
+.chart-legend { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.chart-legend li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chart-legend .chart-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.chart-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
