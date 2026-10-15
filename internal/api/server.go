@@ -38,6 +38,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("POST /api/auth/login", public(s.login))
 	mux.Handle("POST /api/auth/logout", user(s.logout))
 	mux.Handle("GET /api/me", user(s.me))
+	mux.Handle("PATCH /api/me", user(s.rename))
 
 	mux.Handle("GET /api/wallets", user(s.listWallets))
 	mux.Handle("POST /api/wallets", user(s.createWallet))
