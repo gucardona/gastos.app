@@ -168,7 +168,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
 
 /* ---------- grouped lists ---------- */
-.list-group { background: var(--surface); border-radius: var(--radius-group); padding: 4px 16px; }
+.list-group { background: var(--surface); border-radius: var(--radius-group); padding: 10px 16px; }
 .list-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); text-align: left; font: inherit; }
 .list-group > .list-row:first-child { border-top: 0; }
 .list-row:disabled { opacity: 0.55; }

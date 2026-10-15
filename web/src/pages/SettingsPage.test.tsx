@@ -74,6 +74,30 @@ describe("Settings: a screen per subject", () => {
     expect(screen.getByText(/Casa, você administra/)).toBeTruthy();
   });
 
+  it("Perfil renames you, only once the name changed", async () => {
+    const fetch = mockFetch((_u, init) => ({ body: init.method === "PATCH" ? { id: 1, name: "Aninha", email: "ana@example.com" } : {} }));
+    const user = renderSettings("/ajustes/perfil");
+    const input = screen.getByLabelText("Seu nome") as HTMLInputElement;
+    expect(input.value).toBe("Ana Souza");
+    expect(screen.queryByRole("button", { name: "Salvar nome" })).toBeNull();
+    await user.clear(input);
+    await user.type(input, "Aninha");
+    await user.click(screen.getByRole("button", { name: "Salvar nome" }));
+    await waitFor(() => expect(fetch.mock.calls.some((c) => c[1]?.method === "PATCH")).toBe(true));
+    const call = fetch.mock.calls.find((c) => c[1]?.method === "PATCH")!;
+    expect(call[0]).toBe("/api/me");
+    expect(JSON.parse(call[1]!.body as string)).toEqual({ name: "Aninha" });
+  });
+
+  it("Perfil shows the error of the API when the name is refused", async () => {
+    mockFetch((_u, init) => (init.method === "PATCH" ? { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { name: "obrigatório" } } } } : { body: {} }));
+    const user = renderSettings("/ajustes/perfil");
+    await user.clear(screen.getByLabelText("Seu nome"));
+    await user.type(screen.getByLabelText("Seu nome"), " ");
+    await user.click(screen.getByRole("button", { name: "Salvar nome" }));
+    expect(await screen.findByText("obrigatório")).toBeTruthy();
+  });
+
   it("every screen has a way back to the index", () => {
     mockFetch({ body: [] });
     renderSettings("/ajustes/pessoas");

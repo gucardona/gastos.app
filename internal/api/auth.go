@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -233,6 +234,43 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets})
+	return nil
+}
+
+const maxNameLen = 60
+
+// rename changes the caller's own name; the other members of their wallets are told to reload.
+func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	in.Name = strings.TrimSpace(in.Name)
+	fe := fieldErrors{}
+	if in.Name == "" {
+		fe.add("name", "obrigatório")
+	} else if utf8.RuneCountInString(in.Name) > maxNameLen {
+		fe.add("name", "use até 60 caracteres")
+	}
+	if err := fe.err(); err != nil {
+		return err
+	}
+	uid := userIDFrom(r.Context())
+	var u userDTO
+	if err := s.db.QueryRowContext(r.Context(), `UPDATE users SET name = ? WHERE id = ? RETURNING id, name, email`,
+		in.Name, uid).Scan(&u.ID, &u.Name, &u.Email); err != nil {
+		return err
+	}
+	wallets, err := s.walletsFor(r.Context(), uid)
+	if err != nil {
+		return err
+	}
+	for _, wl := range wallets {
+		s.bus.Notify(wl.ID, uid)
+	}
+	writeJSON(w, http.StatusOK, u)
 	return nil
 }
 

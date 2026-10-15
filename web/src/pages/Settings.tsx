@@ -7,6 +7,7 @@ import { PageBar } from "../components/PageBar";
 import { RecurringSection } from "../components/RecurringSection";
 import { Segmented } from "../components/Segmented";
 import { useApp } from "../context";
+import { useAction } from "../hooks/useAction";
 import { setTheme, storedTheme, type Theme } from "../lib/theme";
 import { BankSection } from "./settings/BankSection";
 import { BudgetsSection } from "./settings/BudgetsSection";
@@ -107,11 +108,21 @@ const ROLE_TEXT = { owner: "você administra", editor: "você pode editar", read
 
 function Profile() {
   const { user, wallet } = useApp();
+  const rename = useAction();
+  const [name, setName] = useState(user.name);
   return (
-    <ListGroup>
-      <div className="list-row"><span className="lr-label"><span className="desc">{user.name}</span><span className="meta">{user.email}</span></span></div>
-      <div className="list-row"><span className="lr-label">Carteira ativa</span> <span className="lr-value">{wallet.name}, {ROLE_TEXT[wallet.role]}</span></div>
-    </ListGroup>
+    <div className="screen">
+      <ListGroup>
+        <form className="list-row" onSubmit={(e) => { e.preventDefault(); void rename.run(() => api.patch("/me", { name })); }}>
+          <label htmlFor="pname" className="lr-label">Seu nome</label>
+          <input id="pname" className="desc-input" maxLength={60} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+          {name.trim() !== user.name && <button type="submit" className="chip" disabled={rename.busy}>Salvar nome</button>}
+        </form>
+        <div className="list-row"><span className="lr-label">E-mail</span> <span className="lr-value">{user.email}</span></div>
+        <div className="list-row"><span className="lr-label">Carteira ativa</span> <span className="lr-value">{wallet.name}, {ROLE_TEXT[wallet.role]}</span></div>
+      </ListGroup>
+      {rename.error && <p className="error" role="alert">{rename.error}</p>}
+    </div>
   );
 }
 
