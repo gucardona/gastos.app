@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -280,6 +281,126 @@ func TestChatToolLoop(t *testing.T) {
 	}
 }
 
+// toolResultOf runs one tool call through the chat and returns the tool_result the model got back.
+func toolResultOf(t *testing.T, input string, before func(*testApp)) anthropic.Block {
+	t.Helper()
+	app, fake := newChatApp(t, func(call int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
+		if call == 0 {
+			fmt.Fprint(w, sseToolUse("tu_1", "resumo_por_categoria", input))
+			return
+		}
+		fmt.Fprint(w, sseText("ok"))
+	})
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	if before != nil {
+		before(app)
+	}
+	if _, _, evs := ana.ask("oi"); evs[len(evs)-1].Name != "done" {
+		t.Fatalf("events %+v", evs)
+	}
+	reqs := fake.requests()
+	if len(reqs) != 2 {
+		t.Fatalf("%d calls", len(reqs))
+	}
+	msgs := reqs[1].Messages
+	return msgs[len(msgs)-1].Content[0]
+}
+
+func TestChatToolInputErrorReachesModel(t *testing.T) {
+	res := toolResultOf(t, `{"de":"ontem","ate":"hoje"}`, nil)
+	if !res.IsError || res.Content != "'de' e 'ate' são obrigatórios no formato YYYY-MM-DD" {
+		t.Fatalf("tool result %+v", res)
+	}
+}
+
+func TestChatToolInternalErrorIsHidden(t *testing.T) {
+	res := toolResultOf(t, `{"de":"2026-10-01","ate":"2026-10-31"}`, func(app *testApp) {
+		if _, err := app.s.db.Exec(`ALTER TABLE transactions RENAME TO transactions_gone`); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !res.IsError || res.Content != "erro interno ao consultar os dados" {
+		t.Fatalf("tool result %+v", res)
+	}
+}
+
+func TestChatSeparatesTextFromTurns(t *testing.T) {
+	app, _ := newChatApp(t, func(call int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
+		if call == 1 {
+			fmt.Fprint(w, sseText("R$ 1,00."))
+			return
+		}
+		fmt.Fprint(w, sseFrames(
+			`{"type":"message_start","message":{"usage":{"input_tokens":1}}}`,
+			`{"type":"content_block_start","index":0,"content_block":{"type":"text"}}`,
+			`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Vou ver."}}`,
+			`{"type":"content_block_stop","index":0}`,
+			`{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tu_1","name":"resumo_por_categoria"}}`,
+			`{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"de\":\"2026-10-01\",\"ate\":\"2026-10-31\"}"}}`,
+			`{"type":"content_block_stop","index":1}`,
+			`{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":1}}`,
+			`{"type":"message_stop"}`,
+		))
+	})
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	_, raw, _ := ana.ask("oi")
+	if !strings.Contains(raw, `data: {"text":"\n\n"}`) {
+		t.Fatalf("no separator delta: %s", raw)
+	}
+	if h := ana.history(ana.walletID); len(h) != 2 || h[1].Content != "Vou ver.\n\nR$ 1,00." {
+		t.Fatalf("history %+v", h)
+	}
+}
+
+func TestChatMaxTokensNotesCutAndSkipsTools(t *testing.T) {
+	app, fake := newChatApp(t, func(_ int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, strings.Replace(sseText("Resposta longa"), `"end_turn"`, `"max_tokens"`, 1))
+	})
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	_, _, evs := ana.ask("oi")
+	if evs[len(evs)-1].Name != "done" || len(fake.requests()) != 1 {
+		t.Fatalf("events %+v", evs)
+	}
+	if h := ana.history(ana.walletID); len(h) != 2 || h[1].Content != "Resposta longa\n\n(resposta cortada pelo limite de tamanho)" {
+		t.Fatalf("history %+v", h)
+	}
+
+	// A tool_use block without stop_reason tool_use is not run.
+	app2, fake2 := newChatApp(t, func(_ int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, strings.Replace(sseToolUse("tu_1", "resumo_por_categoria", `{"de":"2026-10-01","ate":"2026-10-31"}`),
+			`"tool_use"}`, `"end_turn"}`, 1))
+	})
+	bia := app2.register("Bia", "bia@example.com")
+	enableAI(bia)
+	if _, _, evs := bia.ask("oi"); len(eventsNamed(evs, "status")) != 0 || evs[len(evs)-1].Name != "done" || len(fake2.requests()) != 1 {
+		t.Fatalf("events %+v", evs)
+	}
+}
+
+func TestChatWalletRequired(t *testing.T) {
+	app, _ := newChatApp(t, replyText("ok"))
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	for _, body := range []map[string]any{
+		{"wallets": []int64{ana.walletID}, "text": "oi"},
+		{"wallet": 0, "wallets": []int64{ana.walletID}, "text": "oi"},
+	} {
+		if st, raw, _ := ana.chat(body); st != 400 {
+			t.Fatalf("%v: %d %s", body, st, raw)
+		}
+	}
+	for _, m := range []string{"GET", "DELETE"} {
+		for _, q := range []string{"", "?wallet=0"} {
+			if st := ana.status(m, "/api/chat"+q, nil); st != 400 {
+				t.Fatalf("%s %s: %d", m, q, st)
+			}
+		}
+	}
+}
+
 func TestChatChartEvent(t *testing.T) {
 	app, _ := newChatApp(t, func(call int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
 		if call == 0 {
@@ -431,15 +552,20 @@ func TestChatOneAtATime(t *testing.T) {
 	done := make(chan int)
 	go func() { st, _, _ := ana.ask("primeira"); done <- st }()
 	<-started
-	if st, _, _ := ana.ask("segunda"); st != 409 {
-		t.Fatalf("second while busy: %d", st)
+	for range 5 {
+		if st, _, _ := ana.ask("segunda"); st != 409 {
+			t.Fatalf("second while busy: %d", st)
+		}
 	}
 	close(release)
 	if st := <-done; st != 200 {
 		t.Fatalf("first: %d", st)
 	}
-	if st, _, _ := ana.ask("terceira"); st != 200 {
-		t.Fatalf("after: %d", st)
+	// The 409s did not use the quota: 19 more sends fit in the 20/min limit.
+	for i := range 19 {
+		if st, _, _ := ana.ask("depois"); st != 200 {
+			t.Fatalf("after %d: %d", i, st)
+		}
 	}
 }
 
@@ -502,12 +628,14 @@ func TestChatClientCancelSavesNoAnswer(t *testing.T) {
 func TestChatAnthropicErrorsBecomeEvents(t *testing.T) {
 	cases := []struct {
 		status int
+		kind   string
 		want   string
 	}{
-		{401, "chave"}, {429, "limite"}, {529, "indisponível"}, {500, "indisponível"}, {0, "conexão"},
+		{401, "", "chave"}, {429, "", "limite"}, {529, "", "indisponível"}, {500, "", "indisponível"}, {0, "", "conexão"},
+		{402, "", "saldo"}, {400, "billing_error", "saldo"},
 	}
 	for _, tc := range cases {
-		t.Run(fmt.Sprint(tc.status), func(t *testing.T) {
+		t.Run(fmt.Sprint(tc.status, tc.kind), func(t *testing.T) {
 			app, _ := newChatApp(t, func(_ int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
 				if tc.status == 0 {
 					conn, _, _ := w.(http.Hijacker).Hijack()
@@ -516,7 +644,7 @@ func TestChatAnthropicErrorsBecomeEvents(t *testing.T) {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tc.status)
-				fmt.Fprintf(w, `{"error":{"type":"some_error","message":"bad key %s"}}`, aiTestKey)
+				fmt.Fprintf(w, `{"error":{"type":%q,"message":"bad key %s"}}`, cmp.Or(tc.kind, "some_error"), aiTestKey)
 			})
 			ana := app.register("Ana", "ana@example.com")
 			enableAI(ana)

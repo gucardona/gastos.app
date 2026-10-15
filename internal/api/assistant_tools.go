@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -81,14 +80,21 @@ func (p period) validate() error {
 	to, err2 := time.Parse(dateLayout, p.Ate)
 	switch {
 	case err1 != nil || err2 != nil:
-		return errors.New("'de' e 'ate' são obrigatórios no formato YYYY-MM-DD")
+		return inputErr("'de' e 'ate' são obrigatórios no formato YYYY-MM-DD")
 	case from.After(to):
-		return errors.New("'de' não pode ser depois de 'ate'")
+		return inputErr("'de' não pode ser depois de 'ate'")
 	case to.After(from.AddDate(maxRangeYears, 0, 0)):
-		return fmt.Errorf("o intervalo máximo é de %d anos", maxRangeYears)
+		return inputErr("o intervalo máximo é de %d anos", maxRangeYears)
 	}
 	return nil
 }
+
+// toolInputError is a problem with the model's tool input; its message is safe to show the model.
+type toolInputError struct{ msg string }
+
+func (e toolInputError) Error() string { return e.msg }
+
+func inputErr(format string, a ...any) error { return toolInputError{fmt.Sprintf(format, a...)} }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
@@ -96,7 +102,7 @@ func decodeToolInput(input json.RawMessage, v any) error {
 	dec := json.NewDecoder(bytes.NewReader(input))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		return fmt.Errorf("entrada inválida: %w", err)
+		return inputErr("entrada inválida: %v", err)
 	}
 	return nil
 }
@@ -120,7 +126,7 @@ func (s *Server) runTool(ctx context.Context, walletIDs []int64, name string, in
 		return `{"ok":true}`, chart, nil
 	}
 	if len(walletIDs) == 0 {
-		return "", nil, errors.New("nenhuma carteira disponível")
+		return "", nil, inputErr("nenhuma carteira disponível")
 	}
 	var out any
 	var err error
@@ -134,7 +140,7 @@ func (s *Server) runTool(ctx context.Context, walletIDs []int64, name string, in
 	case "maiores_gastos":
 		out, err = s.toolTopExpenses(ctx, walletIDs, input)
 	default:
-		return "", nil, fmt.Errorf("ferramenta desconhecida: %s", name)
+		return "", nil, inputErr("ferramenta desconhecida: %s", name)
 	}
 	if err != nil {
 		return "", nil, err
@@ -158,21 +164,21 @@ func chartFromInput(input json.RawMessage) (*chartDTO, error) {
 	title := strings.TrimSpace(in.Titulo)
 	switch {
 	case in.Tipo != "bars" && in.Tipo != "line" && in.Tipo != "pie":
-		return nil, errors.New("'tipo' deve ser bars, line ou pie")
+		return nil, inputErr("'tipo' deve ser bars, line ou pie")
 	case utf8.RuneCountInString(title) > maxTitleLen:
-		return nil, fmt.Errorf("'titulo' pode ter no máximo %d caracteres", maxTitleLen)
+		return nil, inputErr("'titulo' pode ter no máximo %d caracteres", maxTitleLen)
 	case title == "":
-		return nil, errors.New("'titulo' é obrigatório")
+		return nil, inputErr("'titulo' é obrigatório")
 	case len(in.Pontos) == 0 || len(in.Pontos) > maxChartPoints:
-		return nil, fmt.Errorf("'pontos' deve ter de 1 a %d itens", maxChartPoints)
+		return nil, inputErr("'pontos' deve ter de 1 a %d itens", maxChartPoints)
 	}
 	c := &chartDTO{Kind: in.Tipo, Title: title, Points: make([]chartPoint, 0, len(in.Pontos))}
 	for _, p := range in.Pontos {
 		if p.Valor < 0 {
-			return nil, errors.New("'valor' não pode ser negativo")
+			return nil, inputErr("'valor' não pode ser negativo")
 		}
 		if utf8.RuneCountInString(p.Rotulo) > maxLabelLen {
-			return nil, fmt.Errorf("'rotulo' pode ter no máximo %d caracteres", maxLabelLen)
+			return nil, inputErr("'rotulo' pode ter no máximo %d caracteres", maxLabelLen)
 		}
 		c.Points = append(c.Points, chartPoint{Label: p.Rotulo, Value: p.Valor})
 	}
@@ -257,7 +263,7 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 	case "mes", "":
 		bucket = "strftime('%Y-%m', t.date)"
 	default:
-		return nil, errors.New("'agrupar' deve ser dia, semana ou mes")
+		return nil, inputErr("'agrupar' deve ser dia, semana ou mes")
 	}
 	var sum monthTotals
 	for _, id := range walletIDs {
@@ -341,11 +347,11 @@ func (s *Server) toolListTransactions(ctx context.Context, walletIDs []int64, in
 	limit := 20
 	if in.Limite != nil {
 		if limit = *in.Limite; limit < 1 || limit > 50 {
-			return nil, errors.New("'limite' deve estar entre 1 e 50")
+			return nil, inputErr("'limite' deve estar entre 1 e 50")
 		}
 	}
 	if utf8.RuneCountInString(in.Busca) > maxSearchLen {
-		return nil, fmt.Errorf("'busca' pode ter no máximo %d caracteres", maxSearchLen)
+		return nil, inputErr("'busca' pode ter no máximo %d caracteres", maxSearchLen)
 	}
 	extra, extraArgs := "", []any{}
 	if in.Categoria != "" {
@@ -382,7 +388,7 @@ func (s *Server) toolTopExpenses(ctx context.Context, walletIDs []int64, input j
 	n := 5
 	if in.N != nil {
 		if n = *in.N; n < 1 || n > 20 {
-			return nil, errors.New("'n' deve estar entre 1 e 20")
+			return nil, inputErr("'n' deve estar entre 1 e 20")
 		}
 	}
 	items, err := s.queryTx(ctx, walletIDs, in.period, ` AND t.kind = 'expense'`, nil, "t.amount_cents DESC, t.date DESC, t.id DESC", n)

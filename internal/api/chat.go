@@ -163,7 +163,7 @@ func (s *Server) deleteChat(w http.ResponseWriter, r *http.Request) error {
 }
 
 // historyMessages turns the stored thread into API messages: capped by size, starting with a user turn,
-// consecutive same-role messages merged.
+// consecutive same-role messages merged. The size cap counts bytes, stricter than characters for accented text.
 func historyMessages(msgs []chatMessageDTO) []anthropic.Message {
 	start, size := len(msgs), 0
 	for start > 0 && (start == len(msgs) || size+len(msgs[start-1].Content) <= chatHistoryChars) {
@@ -215,6 +215,9 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	ctx, uid := r.Context(), userIDFrom(r.Context())
 	in.Text = strings.TrimSpace(in.Text)
 	fe := fieldErrors{}
+	if in.Wallet <= 0 {
+		fe.add("wallet", "inválida")
+	}
 	if n := utf8.RuneCountInString(in.Text); n == 0 || n > chatMaxText {
 		fe.add("text", fmt.Sprintf("escreva de 1 a %d caracteres", chatMaxText))
 	}
@@ -244,13 +247,15 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	case keyErr != nil && !errors.Is(keyErr, errAIKeyUnreadable):
 		return keyErr
 	}
-	if !s.chatLimiter.allow(strconv.FormatInt(uid, 10)) {
-		return &apiError{Status: 429, Code: "rate_limited", Message: "Muitas mensagens seguidas, aguarde um minuto."}
-	}
 	s.chatMu.Lock()
 	if s.chatInFlight[uid] {
 		s.chatMu.Unlock()
 		return errConflict("Aguarde a resposta anterior terminar.")
+	}
+	// Checked under chatMu, after the busy check, so a 409 does not use up the quota.
+	if !s.chatLimiter.allow(strconv.FormatInt(uid, 10)) {
+		s.chatMu.Unlock()
+		return &apiError{Status: 429, Code: "rate_limited", Message: "Muitas mensagens seguidas, aguarde um minuto."}
 	}
 	s.chatInFlight[uid] = true
 	s.chatMu.Unlock()
@@ -298,10 +303,18 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	var answer strings.Builder
 	charts := []chartDTO{}
 	var inTok, outTok int
+	write := func(t string) {
+		answer.WriteString(t)
+		send("delta", map[string]string{"text": t})
+	}
 	for range chatMaxTurns {
+		needSep := answer.Len() > 0 // text from an earlier turn: separate it from this turn's text
 		res, err := client.Stream(ctx, req, func(t string) {
-			answer.WriteString(t)
-			send("delta", map[string]string{"text": t})
+			if needSep && t != "" {
+				write("\n\n")
+				needSep = false
+			}
+			write(t)
 		})
 		if ctx.Err() != nil {
 			return nil // client went away: the answer is incomplete, keep nothing
@@ -318,7 +331,7 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 			switch {
 			case b.Type == "text" && b.Text != "":
 				blocks = append(blocks, b)
-			case b.Type == "tool_use":
+			case b.Type == "tool_use" && res.StopReason == "tool_use":
 				blocks = append(blocks, b)
 				if b.Name != "mostrar_grafico" {
 					send("status", map[string]string{"text": "Consultando os lançamentos…"})
@@ -328,16 +341,27 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 					return nil
 				}
 				result := anthropic.Block{Type: "tool_result", ToolUseID: b.ID, Content: out}
-				if err != nil {
-					result.Content, result.IsError = err.Error(), true
-				} else if chart != nil {
+				var ie toolInputError
+				switch {
+				case errors.As(err, &ie):
+					result.Content, result.IsError = ie.msg, true
+				case err != nil:
+					s.log.ErrorContext(ctx, "chat: tool", "tool", b.Name, "err", err)
+					result.Content, result.IsError = "erro interno ao consultar os dados", true
+				case chart != nil:
 					charts = append(charts, *chart)
 					send("chart", chart)
 				}
 				results = append(results, result)
 			}
 		}
-		if res.StopReason != "tool_use" || len(results) == 0 {
+		if len(results) == 0 {
+			if res.StopReason == "max_tokens" {
+				if answer.Len() > 0 {
+					write("\n\n")
+				}
+				write("(resposta cortada pelo limite de tamanho)")
+			}
 			chartsJSON, _ := json.Marshal(charts)
 			if _, err := s.db.ExecContext(ctx, `
 				INSERT INTO chat_messages (user_id, wallet_id, role, content, charts, wallet_ids, input_tokens, output_tokens)
