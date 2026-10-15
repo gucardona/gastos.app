@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,7 +64,8 @@ func TestStreamToolUse(t *testing.T) {
 			`content_block_delta|{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"a\":"}}`,
 			`content_block_delta|{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"1}"}}`,
 			`content_block_stop|{"type":"content_block_stop","index":0}`,
-			`message_delta|{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":7}}`)
+			`message_delta|{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":7}}`,
+			`message_stop|{"type":"message_stop"}`)
 	})
 	defer srv.Close()
 	res, err := c.Stream(context.Background(), Request{Model: "m"}, nil)
@@ -186,5 +188,68 @@ func TestCheck(t *testing.T) {
 	var ae *APIError
 	if err := c.Check(context.Background(), "m"); !errors.As(err, &ae) || ae.Status != 401 {
 		t.Fatalf("err = %#v", err)
+	}
+}
+
+func TestStreamTruncatedToolInput(t *testing.T) {
+	c, srv := newClient(func(w http.ResponseWriter, r *http.Request) {
+		sse(w,
+			`content_block_start|{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t","name":"q"}}`,
+			`content_block_delta|{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"a\":"}}`,
+			`content_block_stop|{"type":"content_block_stop","index":0}`)
+	})
+	defer srv.Close()
+	_, err := c.Stream(context.Background(), Request{Model: "m"}, nil)
+	if err == nil || !strings.Contains(err.Error(), "cut off") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestStreamWithoutMessageStop(t *testing.T) {
+	c, srv := newClient(func(w http.ResponseWriter, r *http.Request) {
+		sse(w, `content_block_start|{"type":"content_block_start","index":0,"content_block":{"type":"text"}}`)
+	})
+	defer srv.Close()
+	_, err := c.Stream(context.Background(), Request{Model: "m"}, nil)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestStreamToolUseWithoutInput(t *testing.T) {
+	c, srv := newClient(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "data:\n\n") // empty data lines are skipped
+		sse(w,
+			`content_block_start|{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t","name":"q"}}`,
+			`content_block_delta|{"type":"content_block_delta","index":-1,"delta":{"type":"text_delta","text":"x"}}`,
+			`content_block_stop|{"type":"content_block_stop","index":0}`,
+			`message_stop|{"type":"message_stop"}`)
+	})
+	defer srv.Close()
+	res, err := c.Stream(context.Background(), Request{Model: "m"}, nil)
+	if err != nil || string(res.Blocks[0].Input) != "{}" {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+}
+
+func TestStreamNonJSONErrorBodyAndKeyRedaction(t *testing.T) {
+	c, srv := newClient(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(502)
+		fmt.Fprint(w, "<html>bad gateway</html>")
+	})
+	_, err := c.Stream(context.Background(), Request{Model: "m"}, nil)
+	srv.Close()
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Message != "Bad Gateway" {
+		t.Fatalf("err = %#v", err)
+	}
+	c, srv = newClient(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(401)
+		fmt.Fprintf(w, `{"type":"error","error":{"type":"authentication_error","message":"bad key %s"}}`, r.Header.Get("x-api-key"))
+	})
+	defer srv.Close()
+	_, err = c.Stream(context.Background(), Request{Model: "m"}, nil)
+	if err == nil || strings.Contains(err.Error(), testKey) || !strings.Contains(err.Error(), "[redacted]") {
+		t.Fatalf("err = %v", err)
 	}
 }

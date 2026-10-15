@@ -114,16 +114,21 @@ func (c *Client) Stream(ctx context.Context, req Request, onText func(string)) (
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 		var eb apiErrBody
 		_ = json.Unmarshal(raw, &eb)
-		return res, &APIError{Status: resp.StatusCode, Kind: eb.Error.Type, Message: eb.Error.Message}
+		msg := eb.Error.Message
+		if msg == "" {
+			msg = http.StatusText(resp.StatusCode)
+		}
+		return res, &APIError{Status: resp.StatusCode, Kind: c.redact(eb.Error.Type), Message: c.redact(msg)}
 	}
 
+	stopped := false
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 0, 64<<10), 8<<20)
 	var inputs = map[int]*strings.Builder{}
 	for sc.Scan() {
 		line := sc.Text()
 		data, ok := strings.CutPrefix(line, "data:")
-		if !ok {
+		if !ok || strings.TrimSpace(data) == "" {
 			continue // "event:" lines are redundant with the data's own type
 		}
 		var ev struct {
@@ -158,7 +163,7 @@ func (c *Client) Stream(ctx context.Context, req Request, onText func(string)) (
 		case "content_block_start":
 			res.Blocks = append(res.Blocks, Block{Type: ev.ContentBlock.Type, ID: ev.ContentBlock.ID, Name: ev.ContentBlock.Name})
 		case "content_block_delta":
-			if ev.Index >= len(res.Blocks) {
+			if ev.Index < 0 || ev.Index >= len(res.Blocks) {
 				continue
 			}
 			switch ev.Delta.Type {
@@ -174,18 +179,23 @@ func (c *Client) Stream(ctx context.Context, req Request, onText func(string)) (
 				inputs[ev.Index].WriteString(ev.Delta.PartialJSON)
 			}
 		case "content_block_stop":
-			if ev.Index < len(res.Blocks) && res.Blocks[ev.Index].Type == "tool_use" {
+			if ev.Index >= 0 && ev.Index < len(res.Blocks) && res.Blocks[ev.Index].Type == "tool_use" {
 				in := "{}" // a tool without arguments streams no deltas
 				if b := inputs[ev.Index]; b != nil && b.Len() > 0 {
 					in = b.String()
+				}
+				if !json.Valid([]byte(in)) {
+					return res, fmt.Errorf("anthropic: tool input was cut off (response truncated, likely max_tokens)")
 				}
 				res.Blocks[ev.Index].Input = json.RawMessage(in)
 			}
 		case "message_delta":
 			res.StopReason = ev.Delta.StopReason
 			res.OutputTokens = ev.Usage.OutputTokens
+		case "message_stop":
+			stopped = true
 		case "error":
-			return res, &APIError{Status: resp.StatusCode, Kind: ev.Error.Type, Message: ev.Error.Message}
+			return res, &APIError{Status: resp.StatusCode, Kind: c.redact(ev.Error.Type), Message: c.redact(ev.Error.Message)}
 		}
 	}
 	if ctx.Err() != nil {
@@ -194,7 +204,17 @@ func (c *Client) Stream(ctx context.Context, req Request, onText func(string)) (
 	if err := sc.Err(); err != nil {
 		return res, fmt.Errorf("anthropic: reading stream: %w", err)
 	}
+	if !stopped {
+		return res, fmt.Errorf("anthropic: stream ended without message_stop: %w", io.ErrUnexpectedEOF)
+	}
 	return res, nil
+}
+
+func (c *Client) redact(s string) string {
+	if c.APIKey == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, c.APIKey, "[redacted]")
 }
 
 func unwrapURL(err error) error {
