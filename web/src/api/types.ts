@@ -181,3 +181,11 @@ export interface ChartData {
   /** value is in cents */
   points: { label: string; value: number }[];
 }
+
+/** A message of the assistant chat (GET /chat also sends walletIds and createdAt, unused by the screen). */
+export interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  charts: ChartData[];
+}

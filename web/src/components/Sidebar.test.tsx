@@ -16,6 +16,15 @@ describe("Sidebar", () => {
     expect(labels()).toEqual(["Visão", "Lançamentos", "Caixa", "Divisão"]);
   });
 
+  it("shows Chat after Caixa only when the assistant is on", () => {
+    const { unmount } = renderApp(<Sidebar pending={0} onAdd={vi.fn()} />, appCtx({ assistantEnabled: true }));
+    expect(labels()).toEqual(["Visão", "Lançamentos", "Caixa", "Chat"]);
+    expect(within(nav()).getByRole("link", { name: "Chat" }).getAttribute("href")).toBe("/chat");
+    unmount();
+    renderApp(<Sidebar pending={0} onAdd={vi.fn()} />);
+    expect(labels()).not.toContain("Chat");
+  });
+
   it("has no Recorrentes or Ajustes among the destinations", () => {
     renderApp(<Sidebar pending={0} onAdd={vi.fn()} />);
     expect(within(nav()).queryByRole("link", { name: /Recorrentes|Ajustes/ })).toBeNull();

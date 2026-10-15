@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import { addDays, monthRange, today } from "../lib/dates";
 import { api } from "./client";
-import type { AISettings, BankAccount, Budget, Category, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
+import type { AISettings, BankAccount, Budget, Category, ChatMessage, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
 
 // Every data key of a wallet starts with ["wallet", id], so a single invalidation refreshes everything.
 const w = (id: number, ...rest: unknown[]) => ["wallet", id, ...rest] as const;
@@ -75,3 +75,7 @@ export const useInbox = (id: number) =>
 
 export const useRules = (id: number) =>
   useQuery({ queryKey: w(id, "rules"), queryFn: () => api.get<Rule[]>(`/wallets/${id}/rules`) });
+
+/** The user's conversation with the assistant in a wallet. */
+export const useChat = (walletId: number) =>
+  useQuery({ queryKey: ["chat", walletId], queryFn: () => api.get<ChatMessage[]>(`/chat?wallet=${walletId}`) });

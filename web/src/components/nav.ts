@@ -8,11 +8,12 @@ export interface NavItem {
 }
 
 /** The destinations of the app. Ajustes is reached through the avatar, and Recorrentes from Lançamentos. */
-export function navItems(splitting: boolean): NavItem[] {
+export function navItems(splitting: boolean, assistant: boolean): NavItem[] {
   return [
     { to: "/", label: "Visão", icon: "home", end: true },
     { to: "/lancamentos", label: "Lançamentos", icon: "list" },
     { to: "/caixa", label: "Caixa", icon: "tray" },
+    ...(assistant ? [{ to: "/chat", label: "Chat", icon: "chat" as const }] : []),
     ...(splitting ? [{ to: "/divisao", label: "Divisão", icon: "split" as const }] : []),
   ];
 }

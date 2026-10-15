@@ -69,6 +69,7 @@ export function Shell() {
       paymentMethods: paymentMethods.data,
       members: members.data,
       canEdit,
+      assistantEnabled: me.data.assistantEnabled,
       openAdd: (tx) => setAdding({ tx }),
     };
   }, [me.data, wallet, wallets, categories.data, paymentMethods.data, members.data, month, canEdit, setParams]);

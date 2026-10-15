@@ -5,7 +5,7 @@ import { formatBadge, navItems } from "./nav";
 
 /** Desktop navigation: wallet on top, destinations, the new-transaction button and the profile, which leads to Ajustes. */
 export function Sidebar({ pending, onAdd }: { pending: number; onAdd: () => void }) {
-  const { user, wallet, wallets, setWalletId, members, canEdit } = useApp();
+  const { user, wallet, wallets, setWalletId, members, canEdit, assistantEnabled } = useApp();
   const others = members.filter((m) => m.userId !== user.id).map((m) => firstName(m.name));
   const badge = formatBadge(pending);
   return (
@@ -17,7 +17,7 @@ export function Sidebar({ pending, onAdd }: { pending: number; onAdd: () => void
         {others.length > 0 && <small>com {others.join(", ")}</small>}
       </label>
       <nav aria-label="Navegação">
-        {navItems(wallet.splittingEnabled).map((item) => (
+        {navItems(wallet.splittingEnabled, assistantEnabled).map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end}>
             <Icon name={item.icon} />
             {item.label}

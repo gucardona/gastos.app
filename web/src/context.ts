@@ -12,6 +12,7 @@ export interface AppCtx {
   paymentMethods: PaymentMethod[];
   members: Member[];
   canEdit: boolean;
+  assistantEnabled: boolean;
   /** Opens quick add; with `tx`, edits that transaction. */
   openAdd: (tx?: Transaction) => void;
 }
