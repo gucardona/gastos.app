@@ -15,8 +15,8 @@ import (
 )
 
 type chartPoint struct {
-	Label string  `json:"label"`
-	Value float64 `json:"value"`
+	Label string `json:"label"`
+	Value int64  `json:"value"`
 }
 
 type chartDTO struct {
@@ -29,6 +29,8 @@ const (
 	maxChartPoints = 24
 	maxRangeYears  = 5
 	maxSearchLen   = 80
+	maxTitleLen    = 80
+	maxLabelLen    = 60
 )
 
 // The schema fragments are shared by the tools that take a period.
@@ -63,8 +65,8 @@ func assistantTools() []anthropic.Tool {
 		},
 		{
 			Name:        "mostrar_grafico",
-			Description: "Use para mostrar ao usuário um gráfico (barras, linha ou pizza) com números que você já obteve das outras ferramentas. Não busca dados: você informa os pontos. Valores em reais (não em centavos), no máximo 24 pontos.",
-			InputSchema: schema(`"tipo":{"type":"string","enum":["bars","line","pie"]},"titulo":{"type":"string","description":"Título curto do gráfico."},"pontos":{"type":"array","maxItems":24,"items":{"type":"object","additionalProperties":false,"properties":{"rotulo":{"type":"string"},"valor":{"type":"number"}},"required":["rotulo","valor"]}}`, "tipo", "titulo", "pontos"),
+			Description: "Use para mostrar ao usuário um gráfico (barras, linha ou pizza) com números que você já obteve das outras ferramentas. Não busca dados: você informa os pontos. Valores sempre em centavos (inteiros, não negativos), no máximo 24 pontos.",
+			InputSchema: schema(`"tipo":{"type":"string","enum":["bars","line","pie"]},"titulo":{"type":"string","maxLength":80,"description":"Título curto do gráfico."},"pontos":{"type":"array","maxItems":24,"items":{"type":"object","additionalProperties":false,"properties":{"rotulo":{"type":"string","maxLength":60},"valor":{"type":"integer","minimum":0,"description":"Valor em centavos."}},"required":["rotulo","valor"]}}`, "tipo", "titulo", "pontos"),
 		},
 	}
 }
@@ -87,6 +89,8 @@ func (p period) validate() error {
 	}
 	return nil
 }
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func decodeToolInput(input json.RawMessage, v any) error {
 	dec := json.NewDecoder(bytes.NewReader(input))
@@ -144,8 +148,8 @@ func chartFromInput(input json.RawMessage) (*chartDTO, error) {
 		Tipo   string `json:"tipo"`
 		Titulo string `json:"titulo"`
 		Pontos []struct {
-			Rotulo string  `json:"rotulo"`
-			Valor  float64 `json:"valor"`
+			Rotulo string `json:"rotulo"`
+			Valor  int64  `json:"valor"`
 		} `json:"pontos"`
 	}
 	if err := decodeToolInput(input, &in); err != nil {
@@ -155,6 +159,8 @@ func chartFromInput(input json.RawMessage) (*chartDTO, error) {
 	switch {
 	case in.Tipo != "bars" && in.Tipo != "line" && in.Tipo != "pie":
 		return nil, errors.New("'tipo' deve ser bars, line ou pie")
+	case utf8.RuneCountInString(title) > maxTitleLen:
+		return nil, fmt.Errorf("'titulo' pode ter no máximo %d caracteres", maxTitleLen)
 	case title == "":
 		return nil, errors.New("'titulo' é obrigatório")
 	case len(in.Pontos) == 0 || len(in.Pontos) > maxChartPoints:
@@ -162,8 +168,11 @@ func chartFromInput(input json.RawMessage) (*chartDTO, error) {
 	}
 	c := &chartDTO{Kind: in.Tipo, Title: title, Points: make([]chartPoint, 0, len(in.Pontos))}
 	for _, p := range in.Pontos {
-		if math.IsNaN(p.Valor) || math.IsInf(p.Valor, 0) {
-			return nil, errors.New("valor inválido em 'pontos'")
+		if p.Valor < 0 {
+			return nil, errors.New("'valor' não pode ser negativo")
+		}
+		if utf8.RuneCountInString(p.Rotulo) > maxLabelLen {
+			return nil, fmt.Errorf("'rotulo' pode ter no máximo %d caracteres", maxLabelLen)
 		}
 		c.Points = append(c.Points, chartPoint{Label: p.Rotulo, Value: p.Valor})
 	}
@@ -191,7 +200,7 @@ func (s *Server) toolCategorySummary(ctx context.Context, walletIDs []int64, inp
 	where, args := walletFilter(walletIDs, in)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT w.name, c.name, SUM(t.amount_cents) AS cents
-		FROM transactions t JOIN categories c ON c.id = t.category_id JOIN wallets w ON w.id = t.wallet_id
+		FROM transactions t JOIN categories c ON c.id = t.category_id AND c.wallet_id = t.wallet_id JOIN wallets w ON w.id = t.wallet_id
 		WHERE t.kind = 'expense' AND `+where+`
 		GROUP BY t.wallet_id, c.name ORDER BY cents DESC, c.name`, args...)
 	if err != nil {
@@ -295,7 +304,7 @@ func (s *Server) queryTx(ctx context.Context, walletIDs []int64, p period, extra
 	where, args := walletFilter(walletIDs, p)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT t.date, t.kind, t.description, c.name, t.amount_cents, w.name
-		FROM transactions t JOIN categories c ON c.id = t.category_id JOIN wallets w ON w.id = t.wallet_id
+		FROM transactions t JOIN categories c ON c.id = t.category_id AND c.wallet_id = t.wallet_id JOIN wallets w ON w.id = t.wallet_id
 		WHERE `+where+extra+` ORDER BY `+order+` LIMIT ?`, append(append(args, extraArgs...), limit)...)
 	if err != nil {
 		return nil, err
@@ -344,8 +353,8 @@ func (s *Server) toolListTransactions(ctx context.Context, walletIDs []int64, in
 		extraArgs = append(extraArgs, in.Categoria)
 	}
 	if in.Busca != "" {
-		extra += ` AND t.description LIKE '%' || ? || '%'`
-		extraArgs = append(extraArgs, in.Busca)
+		extra += ` AND t.description LIKE '%' || ? || '%' ESCAPE '\'`
+		extraArgs = append(extraArgs, likeEscaper.Replace(in.Busca))
 	}
 	// One extra row tells the model whether the list was cut.
 	items, err := s.queryTx(ctx, walletIDs, in.period, extra, extraArgs, "t.date DESC, t.id DESC", limit+1)

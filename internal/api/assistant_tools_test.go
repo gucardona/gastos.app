@@ -143,6 +143,16 @@ func TestListarLancamentosFilters(t *testing.T) {
 	if got := list(`,"busca":"padaria"`); len(got) != 1 || got[0].(map[string]any)["centavos"] != float64(3000) {
 		t.Errorf("text: %v", got)
 	}
+	f.ana.do("POST", "/api/wallets/"+itoa(f.a)+"/transactions", map[string]any{
+		"kind": "expense", "amountCents": 100, "description": "Desconto 10%", "date": "2026-10-08",
+		"categoryId": catIDByName(t, f.ana, f.a, "expense", f.catA),
+	}, 201, nil)
+	if got := list(`,"busca":"%"`); len(got) != 1 || got[0].(map[string]any)["descricao"] != "Desconto 10%" {
+		t.Errorf("literal percent: %v", got)
+	}
+	if got := list(`,"busca":"_"`); len(got) != 0 {
+		t.Errorf("underscore must not be a wildcard: %v", got)
+	}
 	out, _ := f.run(t, f.walletsAB, "listar_lancamentos", `{`+octRange+`,"limite":2}`)
 	if len(out["lancamentos"].([]any)) != 2 || out["truncado"] != true {
 		t.Errorf("limit: %v", out)
@@ -161,8 +171,8 @@ func TestMaioresGastosOrder(t *testing.T) {
 func TestMostrarGraficoReturnsChart(t *testing.T) {
 	f := newToolFixture(t)
 	_, chart := f.run(t, f.walletsAB, "mostrar_grafico",
-		`{"tipo":"pie","titulo":"Gastos","pontos":[{"rotulo":"Mercado","valor":10.5},{"rotulo":"Luz","valor":2}]}`)
-	if chart == nil || chart.Kind != "pie" || chart.Title != "Gastos" || len(chart.Points) != 2 || chart.Points[0].Value != 10.5 {
+		`{"tipo":"pie","titulo":"Gastos","pontos":[{"rotulo":"Mercado","valor":1050},{"rotulo":"Luz","valor":2}]}`)
+	if chart == nil || chart.Kind != "pie" || chart.Title != "Gastos" || len(chart.Points) != 2 || chart.Points[0].Value != 1050 {
 		t.Fatalf("chart: %+v", chart)
 	}
 	var many []string
@@ -174,6 +184,10 @@ func TestMostrarGraficoReturnsChart(t *testing.T) {
 		"too many":    `{"tipo":"bars","titulo":"x","pontos":[` + strings.Join(many, ",") + `]}`,
 		"empty title": `{"tipo":"bars","titulo":"  ","pontos":[{"rotulo":"a","valor":1}]}`,
 		"no points":   `{"tipo":"bars","titulo":"x","pontos":[]}`,
+		"negative":    `{"tipo":"line","titulo":"x","pontos":[{"rotulo":"a","valor":-1}]}`,
+		"fractional":  `{"tipo":"bars","titulo":"x","pontos":[{"rotulo":"a","valor":1.5}]}`,
+		"long title":  `{"tipo":"bars","titulo":"` + strings.Repeat("t", 81) + `","pontos":[{"rotulo":"a","valor":1}]}`,
+		"long label":  `{"tipo":"bars","titulo":"x","pontos":[{"rotulo":"` + strings.Repeat("r", 61) + `","valor":1}]}`,
 	} {
 		if _, c, err := f.app.s.runTool(context.Background(), f.walletsAB, "mostrar_grafico", json.RawMessage(in)); err == nil || c != nil {
 			t.Errorf("%s: want error, got chart=%v err=%v", name, c, err)
