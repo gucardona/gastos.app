@@ -37,7 +37,7 @@ function Probe() {
 type Me = { user: typeof ana; wallets: (typeof wallet)[] };
 
 /** Serves the whole API the Shell consumes; `me` can be swapped for an error status. */
-function serve(me: Me | { status: number } = { user: ana, assistantEnabled: false, wallets: [wallet, viagem] }, extra: Record<string, unknown> = {}) {
+function serve(me: Me | { status: number } = { user: ana, wallets: [wallet, viagem] }, extra: Record<string, unknown> = {}) {
   return mockFetch((url) => {
     if (url === "/api/me") return "status" in me ? { status: me.status, body: { error: { code: "x", message: "falhou" } } } : { body: me };
     for (const [suffix, body] of Object.entries({ "/categories": categories, "/payment-methods": paymentMethods, "/members": members, ...extra })) {
@@ -94,7 +94,7 @@ describe("Shell: session and loading", () => {
   });
 
   it("offers Divisão when the active wallet splits expenses", async () => {
-    serve({ user: ana, assistantEnabled: false, wallets: [{ ...wallet, splittingEnabled: true }] });
+    serve({ user: ana, wallets: [{ ...wallet, splittingEnabled: true }] });
     renderShell();
     await screen.findByText("carteira Casa");
     expect(screen.getAllByRole("link", { name: "Divisão" }).length).toBeGreaterThan(0);
@@ -121,13 +121,13 @@ describe("Shell: session and loading", () => {
   });
 
   it("a failure loading the wallet data shows the failure too", async () => {
-    mockFetch((url) => (url === "/api/me" ? { body: { user: ana, assistantEnabled: false, wallets: [wallet] } } : url.endsWith("/members") ? { body: members } : { status: 500, body: { error: { code: "x", message: "falhou" } } }));
+    mockFetch((url) => (url === "/api/me" ? { body: { user: ana, wallets: [wallet] } } : url.endsWith("/members") ? { body: members } : { status: 500, body: { error: { code: "x", message: "falhou" } } }));
     renderShell();
     expect(await screen.findByText(/Não foi possível carregar seus dados/)).toBeTruthy();
   });
 
   it("a user with no wallet gets a clear notice", async () => {
-    serve({ user: ana, assistantEnabled: false, wallets: [] });
+    serve({ user: ana, wallets: [] });
     renderShell();
     expect(await screen.findByText("Você não participa de nenhuma carteira.")).toBeTruthy();
   });
@@ -255,7 +255,7 @@ describe("Shell: quick add", () => {
   });
 
   it("readers have neither the button nor the shortcut", async () => {
-    serve({ user: ana, assistantEnabled: false, wallets: [{ ...wallet, role: "reader" }] });
+    serve({ user: ana, wallets: [{ ...wallet, role: "reader" }] });
     renderShell();
     await screen.findByText("carteira Casa");
     expect(screen.queryByRole("button", { name: "Novo lançamento" })).toBeNull();
