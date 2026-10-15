@@ -40,10 +40,10 @@ describe("Settings: the index", () => {
     const links = within(index()).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "/ajustes/perfil", "/ajustes/carteira", "/ajustes/pessoas", "/ajustes/categorias", "/ajustes/pagamentos", "/ajustes/orcamentos",
-      "/ajustes/bancos", "/ajustes/recorrentes", "/ajustes/aparencia",
+      "/ajustes/bancos", "/ajustes/recorrentes", "/ajustes/assistente", "/ajustes/aparencia",
     ]);
     expect(links.map((l) => l.querySelector(".lr-label")?.textContent)).toEqual([
-      "Perfil", "Carteira", "Pessoas", "Categorias", "Formas de pagamento", "Orçamentos", "Contas bancárias", "Recorrentes", "Aparência",
+      "Perfil", "Carteira", "Pessoas", "Categorias", "Formas de pagamento", "Orçamentos", "Contas bancárias", "Recorrentes", "Assistente", "Aparência",
     ]);
     expect(screen.getByRole("heading", { name: "Casa" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Dados" })).toBeTruthy();
@@ -54,7 +54,7 @@ describe("Settings: the index", () => {
     renderSettings();
     expect(within(index()).getByRole("link", { name: /Perfil/ }).textContent).toContain("Ana Souza");
     const all = within(index()).getAllByRole("link").length;
-    expect(all).toBe(9);
+    expect(all).toBe(10);
     expect(within(index()).getAllByRole("button").at(-1)?.textContent).toBe("Sair");
   });
 

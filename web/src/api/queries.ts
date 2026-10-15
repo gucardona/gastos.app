@@ -2,12 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import { addDays, monthRange, today } from "../lib/dates";
 import { api } from "./client";
-import type { BankAccount, Budget, Category, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
+import type { AISettings, BankAccount, Budget, Category, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
 
 // Every data key of a wallet starts with ["wallet", id], so a single invalidation refreshes everything.
 const w = (id: number, ...rest: unknown[]) => ["wallet", id, ...rest] as const;
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/me"), staleTime: 60_000 });
+export const useAISettings = () => useQuery({ queryKey: ["ai"], queryFn: () => api.get<AISettings>("/me/ai") });
 
 export const useCategories = (id: number) =>
   useQuery({ queryKey: w(id, "categories"), queryFn: () => api.get<Category[]>(`/wallets/${id}/categories`), staleTime: 60_000, enabled: id > 0 });

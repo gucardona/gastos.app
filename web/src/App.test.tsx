@@ -9,7 +9,7 @@ describe("App routes", () => {
   it("the old /recorrentes address lands on Lançamentos", async () => {
     vi.stubGlobal("EventSource", class { onmessage = null; close() {} });
     mockFetch((url) => {
-      if (url === "/api/me") return { body: { user: ana, wallets: [wallet] } };
+      if (url === "/api/me") return { body: { user: ana, assistantEnabled: false, wallets: [wallet] } };
       for (const [suffix, body] of Object.entries({ "/categories": categories, "/payment-methods": paymentMethods, "/members": members })) {
         if (url.endsWith(suffix)) return { body };
       }

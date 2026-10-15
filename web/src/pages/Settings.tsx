@@ -9,6 +9,7 @@ import { Segmented } from "../components/Segmented";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
 import { setTheme, storedTheme, type Theme } from "../lib/theme";
+import { AssistantSection } from "./settings/AssistantSection";
 import { BankSection } from "./settings/BankSection";
 import { BudgetsSection } from "./settings/BudgetsSection";
 import { CategoriesSection } from "./settings/CategoriesSection";
@@ -26,6 +27,7 @@ export const SETTINGS_SECTIONS = [
   { id: "orcamentos", label: "Orçamentos", group: 1 },
   { id: "bancos", label: "Contas bancárias", group: 2 },
   { id: "recorrentes", label: "Recorrentes", group: 2 },
+  { id: "assistente", label: "Assistente", group: 2 },
   { id: "aparencia", label: "Aparência", group: 2 },
 ] as const;
 
@@ -100,6 +102,7 @@ function Screen({ id }: { id: (typeof SETTINGS_SECTIONS)[number]["id"] }) {
     case "orcamentos": return <BudgetsSection />;
     case "bancos": return <BankSection />;
     case "recorrentes": return <RecurringSection />;
+    case "assistente": return <AssistantSection />;
     case "aparencia": return <Appearance />;
   }
 }

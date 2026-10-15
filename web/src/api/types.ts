@@ -20,6 +20,7 @@ export interface Wallet {
 export interface Me {
   user: User;
   wallets: Wallet[];
+  assistantEnabled: boolean;
 }
 
 export interface Member {
@@ -162,4 +163,14 @@ export interface Rule {
   categoryId: number;
   renameTo: string | null;
   priority: number;
+}
+
+export interface AISettings {
+  available: boolean;
+  configured: boolean;
+  keyHint: string;
+  model: string;
+  enabled: boolean;
+  retentionDays: number;
+  warning?: string;
 }
