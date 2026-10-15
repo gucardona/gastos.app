@@ -233,7 +233,11 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets})
+	_, _, aiErr := s.userAIKey(r.Context(), u.ID)
+	if aiErr != nil && !errors.Is(aiErr, errAIDisabled) && !errors.Is(aiErr, errAIKeyUnreadable) {
+		return aiErr
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets, "assistantEnabled": aiErr == nil})
 	return nil
 }
 

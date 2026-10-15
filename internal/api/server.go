@@ -21,10 +21,16 @@ type Server struct {
 	log     *slog.Logger
 	limiter *rateLimiter
 	now     func() time.Time
+
+	anthropicURL string
 }
 
 func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materializer, log *slog.Logger) *Server {
-	return &Server{db: db, cfg: cfg, bus: bus, mat: mat, log: log, limiter: newRateLimiter(10, 15*time.Minute), now: time.Now}
+	aiURL := cfg.AnthropicURL
+	if aiURL == "" {
+		aiURL = defaultAnthropicURL
+	}
+	return &Server{db: db, cfg: cfg, bus: bus, mat: mat, log: log, limiter: newRateLimiter(10, 15*time.Minute), now: time.Now, anthropicURL: aiURL}
 }
 
 func (s *Server) Routes(spa fs.FS) http.Handler {
@@ -39,6 +45,9 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("POST /api/auth/logout", user(s.logout))
 	mux.Handle("GET /api/me", user(s.me))
 	mux.Handle("PATCH /api/me", user(s.rename))
+	mux.Handle("GET /api/me/ai", user(s.getAI))
+	mux.Handle("PUT /api/me/ai", user(s.putAI))
+	mux.Handle("DELETE /api/me/ai/key", user(s.deleteAIKey))
 
 	mux.Handle("GET /api/wallets", user(s.listWallets))
 	mux.Handle("POST /api/wallets", user(s.createWallet))
