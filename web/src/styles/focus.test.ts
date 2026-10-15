@@ -16,12 +16,18 @@ describe("keyboard focus stays visible, and fits the shape it is on", () => {
     expect(css).toMatch(/\.list-row:focus-visible\s*\{[^}]*outline-offset:\s*4px[^}]*border-radius:\s*var\(--radius-control\)/);
   });
 
-  it("the group has enough padding above and below for the ring (offset 4px + width 2px = 6px, plus 4px of air), so it never touches the edge of the block", () => {
+  it("the group has enough padding above and below for the ring (offset 4px + width 2px = 6px, plus 10px of air, the same as on the sides), so it never touches the edge of the block", () => {
     const pad = css.match(/\.list-group\s*\{[^}]*padding:\s*(\d+)px/);
-    expect(Number(pad?.[1])).toBeGreaterThanOrEqual(10);
+    expect(Number(pad?.[1])).toBeGreaterThanOrEqual(16);
   });
 
   it("no rule gives a focused row a square inset ring (focus-within matches the row itself too)", () => {
     expect(css).not.toMatch(/\.list-row:focus-within/);
+  });
+});
+
+describe("the dividers next to a focused row", () => {
+  it("are hidden, so they do not cut through the ring", () => {
+    expect(css).toMatch(/\.list-row:is\(:focus-visible, :has\(input:focus-visible\)\) \+ \.list-row\s*\{[^}]*border-top-color:\s*transparent/);
   });
 });

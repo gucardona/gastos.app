@@ -168,7 +168,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
 
 /* ---------- grouped lists ---------- */
-.list-group { background: var(--surface); border-radius: var(--radius-group); padding: 10px 16px; }
+.list-group { background: var(--surface); border-radius: var(--radius-group); padding: 16px; }
 .list-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); text-align: left; font: inherit; }
 .list-group > .list-row:first-child { border-top: 0; }
 .list-row:disabled { opacity: 0.55; }
@@ -301,6 +301,8 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .list-row:focus-visible { outline-offset: 4px; border-radius: var(--radius-control); }
 /* a row holding a text input, which hides the browser outline: the ring goes on the row, only while the input has the focus */
 .list-row:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius-control); }
+/* the dividers touching the ring would cut through it */
+.list-row:is(:focus-visible, :has(input:focus-visible)), .list-row:is(:focus-visible, :has(input:focus-visible)) + .list-row { border-top-color: transparent; }
 .field-row:has(input:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent); }
 .list-row .lr-value { overflow-wrap: anywhere; }
 /* ---------- Divisão ---------- */
