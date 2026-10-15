@@ -39,9 +39,17 @@ describe("WalletPicker", () => {
     render(<Harness initial={[1]} onChange={onChange} />);
     await userEvent.click(screen.getByRole("button", { name: /Casa/ }));
     const casa = within(sheet()).getByRole("checkbox", { name: "Casa" });
+    expect(casa.getAttribute("aria-disabled")).toBe("true");
+    expect(casa).toHaveProperty("disabled", false); // still reachable with Tab
+    expect(document.getElementById(casa.getAttribute("aria-describedby") ?? "")?.textContent).toBe("Pelo menos uma carteira.");
     await userEvent.click(casa);
     expect(casa).toHaveProperty("checked", true);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("shows the first wallet's name when the selected one is not in the list", () => {
+    render(<Harness initial={[99]} />);
+    expect(screen.getByRole("button", { name: /Casa/ })).toBeTruthy();
   });
 
   it("works with the keyboard", async () => {

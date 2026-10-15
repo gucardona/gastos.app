@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { Wallet } from "../api/types";
 import { ListGroup } from "./ListGroup";
 import { Sheet } from "./Sheet";
@@ -6,7 +6,8 @@ import { Sheet } from "./Sheet";
 /** Which wallets the assistant looks at: at least one, shown closed as its name or "N carteiras". */
 export function WalletPicker({ wallets, selected, onChange }: { wallets: Wallet[]; selected: number[]; onChange: (ids: number[]) => void }) {
   const [open, setOpen] = useState(false);
-  const label = selected.length === 1 ? wallets.find((w) => w.id === selected[0])?.name : `${selected.length} carteiras`;
+  const hint = useId();
+  const label = selected.length === 1 ? (wallets.find((w) => w.id === selected[0]) ?? wallets[0])?.name : `${selected.length} carteiras`;
   const toggle = (id: number, on: boolean) => {
     const next = wallets.filter((w) => (w.id === id ? on : selected.includes(w.id))).map((w) => w.id);
     if (next.length > 0) onChange(next);
@@ -24,14 +25,16 @@ export function WalletPicker({ wallets, selected, onChange }: { wallets: Wallet[
         <ListGroup>
           {wallets.map((w) => {
             const checked = selected.includes(w.id);
+            const last = checked && selected.length === 1; // stays focusable; toggle() ignores it
             return (
               <label className="list-row" key={w.id}>
-                <input type="checkbox" checked={checked} disabled={checked && selected.length === 1} onChange={(e) => toggle(w.id, e.target.checked)} />
+                <input type="checkbox" checked={checked} aria-disabled={last || undefined} aria-describedby={last ? hint : undefined} onChange={(e) => toggle(w.id, e.target.checked)} />
                 <span className="lr-label">{w.name}</span>
               </label>
             );
           })}
         </ListGroup>
+        <p id={hint} className="sheet-sub">Pelo menos uma carteira.</p>
         <div className="actions">
           <button type="button" className="btn ghost" onClick={() => onChange(wallets.map((w) => w.id))}>Selecionar todas</button>
         </div>

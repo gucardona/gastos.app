@@ -78,4 +78,10 @@ export const useRules = (id: number) =>
 
 /** The user's conversation with the assistant in a wallet. */
 export const useChat = (walletId: number) =>
-  useQuery({ queryKey: ["chat", walletId], queryFn: () => api.get<ChatMessage[]>(`/chat?wallet=${walletId}`) });
+  useQuery({
+    queryKey: ["chat", walletId],
+    queryFn: () => api.get<ChatMessage[]>(`/chat?wallet=${walletId}`),
+    // keeps a stopped or failed exchange, which the server does not store, on screen while the user is around
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });

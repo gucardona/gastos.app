@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "../api/types";
 import { Ctx } from "../context";
@@ -14,7 +14,7 @@ const viagem = { ...wallet, id: 2, name: "Viagem" };
  * Fakes the chat API. POST /api/chat answers with a stream the test feeds through `push` and ends with `end`;
  * the stream fails when the request is aborted, as the browser's does.
  */
-function fakeApi(history: ChatMessage[] = []) {
+function fakeApi(history: ChatMessage[] = [], refuse?: { status: number; body: unknown }) {
   const enc = new TextEncoder();
   let ctl: ReadableStreamDefaultController<Uint8Array> | null = null;
   const posts: { body: unknown; signal: AbortSignal }[] = [];
@@ -22,6 +22,7 @@ function fakeApi(history: ChatMessage[] = []) {
     const method = init.method ?? "GET";
     if (url.startsWith("/api/chat?") && method === "GET") return Response.json(history);
     if (url.startsWith("/api/chat?") && method === "DELETE") return new Response(null, { status: 204 });
+    if (url === "/api/chat" && method === "POST" && refuse) return Response.json(refuse.body, { status: refuse.status });
     if (url === "/api/chat" && method === "POST") {
       const signal = init.signal as AbortSignal;
       posts.push({ body: JSON.parse(init.body as string), signal });
@@ -41,6 +42,7 @@ function fakeApi(history: ChatMessage[] = []) {
     posts,
     push: (event: string, data: unknown) => ctl?.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)),
     end: () => ctl?.close(),
+    fail: () => ctl?.error(new TypeError("network error")),
   };
 }
 
@@ -49,7 +51,12 @@ function renderChat(ctx = appCtx({ assistantEnabled: true, wallets: [wallet, via
   const ui = (c: typeof ctx) => (
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={["/chat"]}>
-        <Ctx.Provider value={c}><Chat /></Ctx.Provider>
+        <Ctx.Provider value={c}>
+          <Routes>
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/login" element={<p>Entrar</p>} />
+          </Routes>
+        </Ctx.Provider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -133,6 +140,64 @@ describe("Chat", () => {
     api.end();
     const msg = await within(thread()).findByText("A conta da Anthropic está sem saldo. Adicione créditos e tente de novo.");
     expect(msg.closest(".msg")?.className).toContain("msg-assistant");
+  });
+
+  it("a lost connection after part of the answer keeps that part and adds the notice below it", async () => {
+    const api = fakeApi();
+    renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    api.push("delta", { text: "Parcial" });
+    await within(thread()).findByText("Parcial");
+    api.fail();
+    await vi.waitFor(() => expect(thread().querySelector(".msg-assistant")?.textContent).toBe("Parcial\n\nSem conexão. Tente de novo."));
+  });
+
+  it("an answer cut without done or error says it was interrupted", async () => {
+    const api = fakeApi();
+    renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    api.push("delta", { text: "Parcial" });
+    api.end();
+    await vi.waitFor(() => expect(thread().querySelector(".msg-assistant")?.textContent).toBe("Parcial\n\nResposta interrompida."));
+  });
+
+  it.each([
+    [409, "Aguarde a resposta anterior terminar."],
+    [429, "Muitas mensagens seguidas, aguarde um minuto."],
+  ])("a %i before the stream shows the server's message as the consultant's", async (status, message) => {
+    fakeApi([], { status, body: { error: { code: "x", message } } });
+    renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    const msg = await within(thread()).findByText(message);
+    expect(msg.closest(".msg")?.className).toContain("msg-assistant");
+  });
+
+  it("a 401 goes to the login", async () => {
+    fakeApi([], { status: 401, body: { error: { code: "unauthenticated", message: "Faça login." } } });
+    renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    expect(await screen.findByText("Entrar")).toBeTruthy();
+  });
+
+  it("leaving the page aborts the request", async () => {
+    const api = fakeApi();
+    const { unmount } = renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    await vi.waitFor(() => expect(api.posts).toHaveLength(1));
+    unmount();
+    expect(api.posts[0].signal.aborted).toBe(true);
+  });
+
+  it("switching wallet mid-answer aborts it and leaves the other thread untouched", async () => {
+    const api = fakeApi();
+    const { rerenderWith } = renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    api.push("delta", { text: "Parcial" });
+    await within(thread()).findByText("Parcial");
+    rerenderWith(appCtx({ assistantEnabled: true, wallet: viagem, wallets: [wallet, viagem] }));
+    expect(api.posts[0].signal.aborted).toBe(true);
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Enviar" })).toBeTruthy());
+    expect(screen.queryByText("Parcial")).toBeNull();
   });
 
   it("an empty conversation shows only the text field: no suggestions, no empty-state text", async () => {

@@ -32,8 +32,24 @@ function Conversation() {
   const [streaming, setStreaming] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const gone = useRef(false);
 
-  useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => {
+    gone.current = false; // set again because StrictMode runs the cleanup once in development
+    return () => {
+      gone.current = true;
+      abort.current?.abort();
+    };
+  }, []);
+  // auto-grow where CSS field-sizing is missing; max-height in the CSS still caps it
+  // biome-ignore lint/correctness/useExhaustiveDependencies: measure again whenever the text changes
+  useEffect(() => {
+    const el = box.current;
+    if (!el || globalThis.CSS?.supports?.("field-sizing", "content")) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [text]);
   const messages = [...(history.data ?? []), ...live];
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on every new piece of the answer
   useEffect(() => end.current?.scrollIntoView?.({ block: "end" }), [messages.length, live]);
@@ -46,6 +62,7 @@ function Conversation() {
     const question: ChatMessage = { id: -Date.now(), role: "user", content: q, charts: [] };
     const answer: ChatMessage = { id: question.id - 1, role: "assistant", content: "", charts: [] };
     const show = () => setLive([question, { ...answer, charts: [...answer.charts] }]);
+    const append = (m: string) => { answer.content += (answer.content ? "\n\n" : "") + m; show(); };
     setText("");
     setStreaming(true);
     show();
@@ -55,12 +72,14 @@ function Conversation() {
         status: setStatus,
         chart: (c) => { answer.charts.push(c); show(); },
         done: () => {},
-        error: (m) => { answer.content += (answer.content ? "\n\n" : "") + m; show(); },
+        error: append,
       }, ctrl.signal);
     } catch (e) {
+      if (gone.current) return;
       if (isUnauthenticated(e)) return navigate("/login", { replace: true });
-      answer.content = e instanceof ApiError ? (Object.values(e.fields)[0] ?? e.message) : "Sem conexão. Tente de novo.";
+      append(e instanceof ApiError ? (Object.values(e.fields)[0] ?? e.message) : "Sem conexão. Tente de novo.");
     }
+    if (gone.current) return; // left the page or switched wallet: this thread is no longer on screen
     // the exchange joins the cached thread; the next fetch of the thread replaces it with what the server kept
     const kept = answer.content || answer.charts.length ? [question, answer] : [question];
     qc.setQueryData<ChatMessage[]>(key, (old = []) => [...old, ...kept]);
@@ -108,6 +127,7 @@ function Conversation() {
       )}
       <form className="composer" onSubmit={submit}>
         <textarea
+          ref={box}
           aria-label="Mensagem"
           rows={1}
           maxLength={4000}

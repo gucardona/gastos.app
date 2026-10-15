@@ -3,12 +3,12 @@ import { ApiError } from "../api/client";
 import { streamChat } from "./chatStream";
 
 /** A fetch whose response body yields `chunks`; when `hold` the stream stays open until the request is aborted. */
-function sse(chunks: string[], hold = false) {
+function sse(chunks: (string | Uint8Array)[], hold = false) {
   const fn = vi.fn(async (_url: string, init: RequestInit) => {
     const enc = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
       start(c) {
-        for (const ch of chunks) c.enqueue(enc.encode(ch));
+        for (const ch of chunks) c.enqueue(typeof ch === "string" ? enc.encode(ch) : ch);
         if (!hold) c.close();
         init.signal?.addEventListener("abort", () => c.error(new DOMException("aborted", "AbortError")));
       },
@@ -51,6 +51,54 @@ describe("streamChat", () => {
     await streamChat(body, on, new AbortController().signal);
     expect(on.delta.mock.calls).toEqual([["Olá"]]);
     expect(on.done).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads CRLF line endings, even with a \\r\\n split between chunks", async () => {
+    sse(['event: delta\r\ndata: {"text":"Oi"}\r', '\n\r\nevent: done\r\ndata: {}\r\n\r\n']);
+    const on = handlers();
+    await streamChat(body, on, new AbortController().signal);
+    expect(on.delta.mock.calls).toEqual([["Oi"]]);
+    expect(on.done).toHaveBeenCalledTimes(1);
+    expect(on.error).not.toHaveBeenCalled();
+  });
+
+  it("dispatches a last event that has no blank line after it", async () => {
+    sse(['event: delta\ndata: {"text":"Fim"}\n\nevent: done\ndata: {}']);
+    const on = handlers();
+    await streamChat(body, on, new AbortController().signal);
+    expect(on.delta).toHaveBeenCalledWith("Fim");
+    expect(on.done).toHaveBeenCalledTimes(1);
+  });
+
+  it("joins several data lines with a newline", async () => {
+    sse(['event: delta\ndata: {"text":\ndata: "Oi"}\n\nevent: done\ndata: {}\n\n']);
+    const on = handlers();
+    await streamChat(body, on, new AbortController().signal);
+    expect(on.delta).toHaveBeenCalledWith("Oi");
+  });
+
+  it("decodes a multi-byte character split across two chunks", async () => {
+    const bytes = new TextEncoder().encode('event: delta\ndata: {"text":"ç"}\n\nevent: done\ndata: {}\n\n');
+    const cut = bytes.indexOf(0xc3) + 1; // between the two bytes of "ç"
+    sse([bytes.slice(0, cut), bytes.slice(cut)]);
+    const on = handlers();
+    await streamChat(body, on, new AbortController().signal);
+    expect(on.delta).toHaveBeenCalledWith("ç");
+  });
+
+  it("skips a malformed event and keeps reading", async () => {
+    sse(['event: delta\ndata: {"text":\n\n', 'event: delta\ndata: {"text":"ok"}\n\nevent: done\ndata: {}\n\n']);
+    const on = handlers();
+    await streamChat(body, on, new AbortController().signal);
+    expect(on.delta.mock.calls).toEqual([["ok"]]);
+    expect(on.error).not.toHaveBeenCalled();
+  });
+
+  it("a stream that ends without done or error reports the answer as interrupted", async () => {
+    sse(['event: delta\ndata: {"text":"Parcial"}\n\n']);
+    const on = handlers();
+    await streamChat(body, on, new AbortController().signal);
+    expect(on.error).toHaveBeenCalledWith("Resposta interrompida.");
   });
 
   it("an error event calls on.error with its message", async () => {
