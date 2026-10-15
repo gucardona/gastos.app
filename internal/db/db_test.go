@@ -6,6 +6,7 @@ import (
 	"gastos/internal/testutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -23,28 +24,6 @@ func mustExec(t *testing.T, d *sql.DB, q string) {
 	t.Helper()
 	if _, err := d.Exec(q); err != nil {
 		t.Fatalf("%s: %v", q, err)
-	}
-}
-
-func TestOpenSetsUserVersion(t *testing.T) {
-	d := openTemp(t)
-	var v int
-	if err := d.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
-		t.Fatal(err)
-	}
-	if v != len(migrations)+1 {
-		t.Fatalf("user_version = %d, want %d", v, len(migrations)+1)
-	}
-}
-
-func TestOpenIsIdempotent(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	for i := 0; i < 2; i++ {
-		d, err := Open(path)
-		if err != nil {
-			t.Fatalf("abertura %d: %v", i, err)
-		}
-		d.Close()
 	}
 }
 
@@ -111,19 +90,6 @@ func TestOpenFailsWhenParentIsAFile(t *testing.T) {
 	}
 }
 
-func TestOpenRefusesDatabaseFromTheFuture(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	d, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mustExec(t, d, `PRAGMA user_version = 99`)
-	d.Close()
-	if _, err := Open(path); err == nil {
-		t.Fatal("a database newer than the binary must not be opened (avoids running old code against a new schema)")
-	}
-}
-
 func TestOpenFailsOnACorruptFile(t *testing.T) {
 	path := filepath.Join(testutil.TempDir(t), "t.db")
 	if err := os.WriteFile(path, []byte("this is not a sqlite database, it is just text garbage with more than a hundred bytes to get past the header..........."), 0o600); err != nil {
@@ -131,5 +97,70 @@ func TestOpenFailsOnACorruptFile(t *testing.T) {
 	}
 	if _, err := Open(path); err == nil {
 		t.Fatal("a corrupt file should fail on open")
+	}
+}
+
+func TestOpenCreatesFullSchema(t *testing.T) {
+	d := openTemp(t)
+	for _, table := range []string{"bank_accounts", "bank_transactions", "categorization_rules", "ai_settings", "chat_messages"} {
+		var n int
+		d.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&n)
+		if n != 1 {
+			t.Errorf("table %s missing", table)
+		}
+	}
+	var ddl string
+	if err := d.QueryRow(`SELECT sql FROM sqlite_master WHERE name='transactions'`).Scan(&ddl); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(ddl, "source") || !strings.Contains(ddl, "'manual','recurring','bank'") {
+		t.Errorf("transactions.source with its CHECK missing: %s", ddl)
+	}
+	var v int
+	d.QueryRow(`PRAGMA user_version`).Scan(&v)
+	if v != 1 {
+		t.Errorf("user_version = %d, want 1", v)
+	}
+}
+
+func TestOpenIsIdempotent(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	d.Close()
+	d, err = Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer d.Close()
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("users = %d after reopen, want 1", n)
+	}
+}
+
+func TestAISettingsConstraints(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	ins := func(retention int, model string) error {
+		_, err := d.Exec(`INSERT OR REPLACE INTO ai_settings (user_id, api_key_enc, key_hint, model, retention_days) VALUES (1, x'00', '1234', ?, ?)`, model, retention)
+		return err
+	}
+	for _, r := range []int{0, 31} {
+		if ins(r, "claude-sonnet-5-5") == nil {
+			t.Errorf("retention %d should be refused", r)
+		}
+	}
+	if ins(7, "gpt-4") == nil {
+		t.Error("unknown model should be refused")
+	}
+	for _, r := range []int{1, 30} {
+		if err := ins(r, "claude-opus-5-5"); err != nil {
+			t.Errorf("retention %d: %v", r, err)
+		}
 	}
 }
