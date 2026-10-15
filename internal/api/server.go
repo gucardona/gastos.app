@@ -33,7 +33,7 @@ type Server struct {
 func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materializer, log *slog.Logger) *Server {
 	aiURL := cfg.AnthropicURL
 	if aiURL == "" {
-		aiURL = defaultAnthropicURL
+		aiURL = config.DefaultAnthropicURL
 	}
 	return &Server{db: db, cfg: cfg, bus: bus, mat: mat, log: log, limiter: newRateLimiter(10, 15*time.Minute), now: time.Now, anthropicURL: aiURL,
 		chatLimiter: newRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}

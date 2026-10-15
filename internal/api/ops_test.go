@@ -104,9 +104,13 @@ func setRetention(t *testing.T, app *testApp, c *client, days int) {
 }
 
 func chatCount(t *testing.T, app *testApp, c *client) int {
-	return countRows(t, app, `SELECT COUNT(*) FROM chat_messages WHERE user_id = `+itoa(c.user.ID))
+	t.Helper()
+	var n int
+	if err := app.s.db.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE user_id = ?`, c.user.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
-
 
 func TestHousekeepingDeletesExpiredChat(t *testing.T) {
 	app := newTestApp(t)

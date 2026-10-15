@@ -13,8 +13,6 @@ import (
 	"gastos/internal/secret"
 )
 
-const defaultAnthropicURL = "https://api.anthropic.com"
-
 var aiModels = []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}
 
 var (

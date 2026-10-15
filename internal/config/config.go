@@ -2,13 +2,17 @@ package config
 
 import (
 	"fmt"
-	"gastos/internal/secret"
 	"strconv"
 	"strings"
 	"time"
+
+	"gastos/internal/secret"
 )
 
 const minInviteCodeLen = 8
+
+// DefaultAnthropicURL is the Anthropic API base URL used unless GASTOS_ANTHROPIC_URL overrides it.
+const DefaultAnthropicURL = "https://api.anthropic.com"
 
 type Config struct {
 	Addr         string
@@ -32,7 +36,7 @@ func Load(getenv func(string) string) (Config, error) {
 		Addr:         or(getenv("GASTOS_ADDR"), ":8000"),
 		DBPath:       or(getenv("GASTOS_DB_PATH"), "./data/gastos.db"),
 		BackupDir:    or(getenv("GASTOS_BACKUP_DIR"), "./data/backups"),
-		AnthropicURL: or(getenv("GASTOS_ANTHROPIC_URL"), "https://api.anthropic.com"),
+		AnthropicURL: or(getenv("GASTOS_ANTHROPIC_URL"), DefaultAnthropicURL),
 	}
 
 	keep, err := strconv.Atoi(or(getenv("GASTOS_BACKUP_KEEP"), "14"))

@@ -792,3 +792,28 @@ func TestSystemPromptMentionsTodayAndWallets(t *testing.T) {
 		}
 	}
 }
+
+func TestChatInStreamAnthropicErrorsBecomeEvents(t *testing.T) {
+	for kind, want := range map[string]string{
+		"overloaded_error": "indisponível", "rate_limit_error": "limite", "authentication_error": "chave", "billing_error": "saldo",
+	} {
+		t.Run(kind, func(t *testing.T) {
+			app, _ := newChatApp(t, func(_ int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprintf(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":%q,\"message\":\"bad key %s\"}}\n\n", kind, aiTestKey)
+			})
+			ana := app.register("Ana", "ana@example.com")
+			enableAI(ana)
+			st, raw, evs := ana.ask("oi")
+			if st != 200 {
+				t.Fatalf("status %d", st)
+			}
+			if msg := errorEvent(t, evs); !strings.Contains(msg, want) {
+				t.Fatalf("message %q, want %q", msg, want)
+			}
+			if strings.Contains(raw, aiTestKey) || strings.Contains(raw, "bad key") {
+				t.Fatalf("leaked upstream text: %s", raw)
+			}
+		})
+	}
+}

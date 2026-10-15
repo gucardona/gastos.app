@@ -190,13 +190,13 @@ func chatErrorMessage(err error) string {
 	var ae *anthropic.APIError
 	if errors.As(err, &ae) {
 		switch {
-		case ae.Status == http.StatusUnauthorized:
+		case ae.Status == http.StatusUnauthorized || ae.Kind == "authentication_error":
 			return "A Anthropic recusou a chave. Informe a chave de novo em Ajustes."
 		case ae.Status == http.StatusPaymentRequired || ae.Kind == "billing_error" || strings.Contains(strings.ToLower(ae.Message), "credit balance"):
 			return "A conta da Anthropic está sem saldo. Adicione créditos e tente de novo."
-		case ae.Status == http.StatusTooManyRequests:
+		case ae.Status == http.StatusTooManyRequests || ae.Kind == "rate_limit_error":
 			return "Você atingiu o limite de uso da Anthropic. Tente de novo em instantes."
-		case ae.Status >= 500:
+		case ae.Status >= 500 || ae.Kind == "overloaded_error":
 			return "O serviço da Anthropic está indisponível agora. Tente de novo em instantes."
 		}
 	}
