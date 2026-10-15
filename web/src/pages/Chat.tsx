@@ -52,7 +52,7 @@ function Conversation() {
   }, [text]);
   const messages = [...(history.data ?? []), ...live];
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on every new piece of the answer
-  useEffect(() => end.current?.scrollIntoView?.({ block: "end" }), [messages.length, live]);
+  useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [messages.length, live]);
 
   async function send() {
     const q = text.trim();

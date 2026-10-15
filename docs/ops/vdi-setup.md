@@ -35,6 +35,12 @@ GASTOS_INVITE_CODE=<um segredo de pelo menos 8 caracteres>
 
 Quando todo mundo já tiver conta, **remova a linha** e reinicie para fechar o cadastro de novo. Quem já tem conta não é afetado.
 
+**Assistente.** Para habilitar o chat de consulta, acrescente a chave mestra (gere com `openssl rand -base64 32`; o valor fica só no servidor). Sem ela o assistente fica indisponível e o resto funciona normalmente. Detalhes e cuidados em [Assistente de consulta](../assistente.md).
+
+```
+GASTOS_SECRET_KEY=<saída do openssl rand -base64 32>
+```
+
 `GASTOS_COOKIE_SECURE` fica no padrão (`true`), então o acesso precisa ser por HTTPS (passo 4).
 
 ## 3. systemd

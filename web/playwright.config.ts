@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 18080;
+const fakePort = 18081;
 
 // E2E against the real Go binary (with the embedded frontend) and a fresh database on every run.
 // Locally: E2E_CHANNEL=chrome uses the installed Chrome; in CI the Chromium comes from `playwright install`.
@@ -16,7 +17,7 @@ export default defineConfig({
     { name: "desktop" },
     { name: "mobile", use: { ...devices["Pixel 5"] } },
   ],
-  webServer: {
+  webServer: [{
     command: "go run ./cmd/gastos",
     cwd: "..",
     url: `http://127.0.0.1:${port}/healthz`,
@@ -28,6 +29,14 @@ export default defineConfig({
       GASTOS_BACKUP_DIR: "web/e2e-data/backups",
       GASTOS_COOKIE_SECURE: "false",
       GASTOS_INVITE_CODE: "e2e-invite-code",
+      GASTOS_SECRET_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", // test-only master key
+      GASTOS_ANTHROPIC_URL: `http://127.0.0.1:${fakePort}`,
     },
-  },
+  }, {
+    // stands in for api.anthropic.com; a real key never enters tests
+    command: "node e2e/fake-anthropic.mjs",
+    url: `http://127.0.0.1:${fakePort}/`,
+    reuseExistingServer: false,
+    env: { PORT: String(fakePort) },
+  }],
 });

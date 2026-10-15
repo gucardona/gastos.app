@@ -60,6 +60,8 @@ O servidor sobe em `:8000`. Teste com `curl localhost:8000/healthz`.
 | `GASTOS_COOKIE_SECURE` | `true` | `false` só em desenvolvimento local (http) |
 | `GASTOS_DEV` | `false` | libera CORS para `localhost:5173` |
 | `GASTOS_INVITE_CODE` | vazio | código exigido no cadastro depois da primeira conta (mínimo de 8 caracteres). Sem ele, o cadastro fecha depois do primeiro usuário |
+| `GASTOS_SECRET_KEY` | vazio | chave mestra (32 bytes em base64) que cifra as chaves da Anthropic guardadas. Sem ela o assistente fica indisponível. Veja [Assistente de consulta](docs/assistente.md) |
+| `GASTOS_ANTHROPIC_URL` | `https://api.anthropic.com` | só para testes (e2e): aponta o assistente para um servidor falso |
 
 ## Testes
 
@@ -86,6 +88,8 @@ O `internal/db/schema.sql` é a versão 1 do schema. Mudanças futuras entram co
 Todas as rotas ficam sob `/api`. Autenticação e carteira ativa vêm do cookie de sessão e do path (`/api/wallets/{walletID}/...`). A referência completa está na [spec do backend](docs/superpowers/specs/2026-10-09-backend-foundation-design.md).
 
 Para importar extratos do banco (OFX/CSV), veja [Importar o extrato do banco](docs/bank-import.md).
+
+Para perguntar aos seus próprios lançamentos em linguagem natural, veja [Assistente de consulta](docs/assistente.md).
 
 ## Licença
 
