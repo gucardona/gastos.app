@@ -297,7 +297,11 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .settings-detail .segmented button, .sheet .segmented button { min-width: 0; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* the text inputs hide the browser outline, so the row around them shows the keyboard focus */
-.list-row:focus-within, .field-row:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+/* a row that is itself the focused control (a link or a button): a rounded outline just outside the text, inside the padding of the block */
+.list-row:focus-visible { outline-offset: 4px; border-radius: var(--radius-control); }
+/* a row holding a text input, which hides the browser outline: the ring goes on the row, only while the input has the focus */
+.list-row:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius-control); }
+.field-row:has(input:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent); }
 .list-row .lr-value { overflow-wrap: anywhere; }
 /* ---------- Divisão ---------- */
 .big { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; overflow-wrap: anywhere; }
