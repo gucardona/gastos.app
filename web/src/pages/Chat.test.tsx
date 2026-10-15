@@ -76,6 +76,23 @@ describe("Chat", () => {
     expect(api.posts[0].body).toEqual({ wallet: 1, wallets: [1], text: "Quanto gastei?" });
   });
 
+  it("does not return scrollIntoView's result from the scroll effect", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    Element.prototype.scrollIntoView = (() => 42) as unknown as typeof Element.prototype.scrollIntoView;
+    try {
+      const api = fakeApi();
+      renderChat();
+      await userEvent.type(input(), "oi{Enter}");
+      api.push("delta", { text: "olá" });
+      await screen.findByText("olá");
+      expect(err).not.toHaveBeenCalled();
+    } finally {
+      // @ts-expect-error jsdom has no scrollIntoView; remove the stub
+      delete Element.prototype.scrollIntoView;
+      err.mockRestore();
+    }
+  });
+
   it("Enter sends, Shift+Enter breaks the line", async () => {
     const api = fakeApi();
     renderChat();

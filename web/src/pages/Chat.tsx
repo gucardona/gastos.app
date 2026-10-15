@@ -129,6 +129,7 @@ function Conversation() {
         <textarea
           ref={box}
           aria-label="Mensagem"
+          placeholder="Pergunte sobre seus gastos"
           rows={1}
           maxLength={4000}
           value={text}

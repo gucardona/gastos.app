@@ -36,7 +36,8 @@ createServer((req, res) => {
       res.end(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }));
       return;
     }
-    const body = JSON.parse(raw);
+    let body;
+    try { body = JSON.parse(raw); } catch { res.writeHead(400).end("bad json"); return; }
     const msgs = body.messages ?? [];
     const last = msgs.at(-1);
     if (body.max_tokens === 1) return sse(res, text("ok"));
