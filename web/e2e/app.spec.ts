@@ -462,8 +462,8 @@ test("you can change your own name, and it shows everywhere", async ({ page }) =
   await page.getByLabel("Seu nome").focus();
   const row = await page.locator('form.list-row').boundingBox();
   const group = await page.locator('.settings-detail .list-group').boundingBox();
-  // the focus ring sits 4px outside the row and is 2px wide: it must keep clear of the edge of the white block (6px plus 4px of air)
-  expect(row!.y - group!.y).toBeGreaterThanOrEqual(10);
+  // the focus ring sits 4px outside the row and is 2px wide: it must keep clear of the edge of the white block (6px, and as much air as on the sides)
+  expect(row!.y - group!.y).toBeGreaterThanOrEqual(16);
   await page.getByRole("button", { name: "Salvar nome" }).click();
   await expect(page.getByRole("button", { name: "Salvar nome" })).toBeHidden();
   await page.reload();
