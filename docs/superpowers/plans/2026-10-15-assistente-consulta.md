@@ -32,7 +32,7 @@
 
 ---
 
-### Tarefa 1: schema único, sem migrations, com as tabelas do assistente
+### Task 1: schema único, sem migrations, com as tabelas do assistente
 
 **Arquivos:**
 - Modificar: `internal/db/schema.sql`, `internal/db/db.go`
@@ -51,7 +51,7 @@
 
 ---
 
-### Tarefa 2: configuração e cifra da chave
+### Task 2: configuração e cifra da chave
 
 **Arquivos:**
 - Criar: `internal/secret/secret.go`, `internal/secret/secret_test.go`
@@ -69,7 +69,7 @@
 
 ---
 
-### Tarefa 3: cliente da API da Anthropic (streaming e ferramentas)
+### Task 3: cliente da API da Anthropic (streaming e ferramentas)
 
 **Arquivos:**
 - Criar: `internal/anthropic/client.go`, `internal/anthropic/client_test.go`
@@ -95,7 +95,7 @@
 
 ---
 
-### Tarefa 4: configurações do assistente na API
+### Task 4: configurações do assistente na API
 
 **Arquivos:**
 - Criar: `internal/api/ai_settings.go`, `internal/api/ai_settings_test.go`
@@ -115,7 +115,7 @@
 
 ---
 
-### Tarefa 5: ferramentas de leitura do consultor
+### Task 5: ferramentas de leitura do consultor
 
 **Arquivos:**
 - Criar: `internal/api/assistant_tools.go`, `internal/api/assistant_tools_test.go`
@@ -135,7 +135,7 @@
 
 ---
 
-### Tarefa 6: endpoint do chat (laço do modelo, SSE, histórico)
+### Task 6: endpoint do chat (laço do modelo, SSE, histórico)
 
 **Arquivos:**
 - Criar: `internal/api/chat.go`, `internal/api/chat_test.go`
@@ -155,7 +155,7 @@
 
 ---
 
-### Tarefa 7: retenção das conversas
+### Task 7: retenção das conversas
 
 **Arquivos:**
 - Modificar: `internal/api/housekeeping.go`, `internal/api/ops_test.go`
@@ -172,7 +172,7 @@
 
 ---
 
-### Tarefa 8: Ajustes > Assistente (frontend)
+### Task 8: Ajustes > Assistente (frontend)
 
 **Arquivos:**
 - Criar: `web/src/pages/settings/AssistantSection.tsx`, `web/src/pages/settings/AssistantSection.test.tsx`
@@ -191,7 +191,7 @@
 
 ---
 
-### Tarefa 9: gráficos em SVG
+### Task 9: gráficos em SVG
 
 **Arquivos:**
 - Criar: `web/src/components/Chart.tsx`, `web/src/components/Chart.test.tsx`
@@ -208,7 +208,7 @@
 
 ---
 
-### Tarefa 10: aba Chat (frontend)
+### Task 10: aba Chat (frontend)
 
 **Arquivos:**
 - Criar: `web/src/pages/Chat.tsx`, `web/src/pages/Chat.test.tsx`, `web/src/components/WalletPicker.tsx`, `web/src/components/WalletPicker.test.tsx`, `web/src/lib/chatStream.ts`, `web/src/lib/chatStream.test.ts`
@@ -227,7 +227,7 @@
 
 ---
 
-### Tarefa 11: e2e, documentação e roteiro de deploy
+### Task 11: e2e, documentação e roteiro de deploy
 
 **Arquivos:**
 - Criar: `web/e2e/assistant.spec.ts`, `web/e2e/fake-anthropic.mjs`, `docs/assistente.md`
