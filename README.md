@@ -81,7 +81,7 @@ O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
 
 ## Banco de dados
 
-O `internal/db/schema.sql` é a versão 1 do schema. Mudanças futuras entram como itens novos em `migrations` (`internal/db/db.go`), aplicados por `PRAGMA user_version`. Nunca edite um item antigo.
+O `internal/db/schema.sql` é o schema único, na versão 3 (`PRAGMA user_version`). O servidor só abre um banco novo (versão 0, criado na hora) ou já na versão 3; qualquer outra versão faz o app recusar subir. Para mudar o schema, aumente a versão esperada em `internal/db/db.go` e recrie o banco ou reintroduza migrações de propósito.
 
 ## API
 

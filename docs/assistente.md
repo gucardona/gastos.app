@@ -38,12 +38,14 @@ O uso é cobrado na conta da Anthropic dona de cada chave, não pelo app. Modelo
 
 ## Roteiro de deploy (versão com assistente)
 
-Esta versão cria um banco novo. O banco atual **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
+Esta versão usa o schema na versão 3 e cria um banco novo. O banco atual (versão 2) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
+
+**Os passos 1 a 4 acontecem ANTES de fazer o merge do PR**, porque o merge na `master` já é o deploy de produção. Se o merge vier antes, a nova versão se recusa a abrir o banco antigo ("database is at schema version 2, this binary expects 3"), o `/healthz` falha e o deploy volta sozinho para a versão anterior. Nada se perde, mas refaça a ordem certa.
 
 1. Gere a chave mestra na VPS (`openssl rand -base64 32`) e coloque `GASTOS_SECRET_KEY` em `/etc/gastos/production.env`.
-2. **Backup** do banco atual e da pasta de backups (veja [docs/ops/backup.md](ops/backup.md)); confira que a cópia abre.
+2. **Backup** do banco atual (veja [docs/ops/backup.md](ops/backup.md)): baixe **uma cópia verificada** para o seu computador (`scp`) e confira que ela abre. O app novo rotaciona a pasta `GASTOS_BACKUP_DIR` (mantém 14) e o script off-site força o push só dos 14 mais novos, então em cerca de 14 dias toda cópia dos dados antigos sumiria, menos a que está no mesmo disco. Tire também os backups antigos dessa pasta (por exemplo para `/var/lib/gastos/antigo/`).
 3. **Pare** o serviço: `systemctl stop gastos@production`.
-4. **Mova** o banco antigo para fora do caminho, por exemplo `mv /var/lib/gastos/production/gastos.db{,-wal,-shm} /var/lib/gastos/antigo/` (crie a pasta antes; mova também os arquivos `-wal` e `-shm`, se existirem).
-5. **Suba** a nova versão (deploy normal pela `master`) e inicie o serviço: o app cria o banco novo e vazio.
+4. **Mova** o banco antigo para fora do caminho: `mkdir -p /var/lib/gastos/antigo && mv /var/lib/gastos/production/gastos.db* /var/lib/gastos/antigo/` (o curinga leva junto os arquivos `-wal` e `-shm`, se existirem).
+5. **Faça o merge** do PR (deploy normal pela `master`) e inicie o serviço: o app cria o banco novo e vazio.
 6. Cada pessoa **recria a conta** (a primeira entra sem código; as outras com `GASTOS_INVITE_CODE`) e depois coloca a própria chave em Ajustes > Assistente.
 7. Quando todos tiverem conta, remova `GASTOS_INVITE_CODE` e reinicie, como no setup da VDI.

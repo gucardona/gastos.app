@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	_ "embed"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -38,7 +39,11 @@ func Open(path string) (*sql.DB, error) {
 	return d, nil
 }
 
-// applySchema runs schema.sql once, on a database whose user_version is 0.
+// schemaVersion is the user_version of the single schema.sql. Bump it when the schema changes.
+const schemaVersion = 3
+
+// applySchema runs schema.sql on an empty database (user_version 0) and accepts a current one;
+// any other version is refused so the server fails to start instead of running on a missing schema.
 func applySchema(d *sql.DB) error {
 	tx, err := d.Begin()
 	if err != nil {
@@ -49,13 +54,16 @@ func applySchema(d *sql.DB) error {
 	if err := tx.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return err
 	}
-	if version != 0 {
+	if version == schemaVersion {
 		return nil
+	}
+	if version != 0 {
+		return fmt.Errorf("database is at schema version %d, this binary expects %d: recreate it (see docs/assistente.md)", version, schemaVersion)
 	}
 	if _, err := tx.Exec(schemaSQL); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`PRAGMA user_version = 1`); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
 		return err
 	}
 	return tx.Commit()

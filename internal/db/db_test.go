@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"gastos/internal/testutil"
 	"os"
 	"path/filepath"
@@ -118,8 +119,37 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 1 {
-		t.Errorf("user_version = %d, want 1", v)
+	if v != 3 {
+		t.Errorf("user_version = %d, want 3", v)
+	}
+}
+
+func TestOpenRefusesOldSchemaVersions(t *testing.T) {
+	for _, old := range []int{1, 2} {
+		path := filepath.Join(testutil.TempDir(t), "t.db")
+		raw, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mustExec(t, raw, `CREATE TABLE marker (x INTEGER)`)
+		mustExec(t, raw, fmt.Sprintf(`PRAGMA user_version = %d`, old))
+		raw.Close()
+
+		_, err = Open(path)
+		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("schema version %d", old)) {
+			t.Fatalf("v%d: want a schema version error, got %v", old, err)
+		}
+		raw, err = sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var v, n int
+		raw.QueryRow(`PRAGMA user_version`).Scan(&v)
+		raw.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name <> 'marker'`).Scan(&n)
+		raw.Close()
+		if v != old || n != 0 {
+			t.Errorf("v%d database was modified: version %d, extra objects %d", old, v, n)
+		}
 	}
 }
 
