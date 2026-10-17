@@ -103,7 +103,7 @@ func TestOpenFailsOnACorruptFile(t *testing.T) {
 
 func TestOpenCreatesFullSchema(t *testing.T) {
 	d := openTemp(t)
-	for _, table := range []string{"bank_accounts", "bank_transactions", "categorization_rules", "ai_settings", "chat_messages"} {
+	for _, table := range []string{"bank_accounts", "bank_transactions", "categorization_rules", "ai_settings", "chat_messages", "ai_usage", "fx_rate"} {
 		var n int
 		d.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&n)
 		if n != 1 {
@@ -119,13 +119,13 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 3 {
-		t.Errorf("user_version = %d, want 3", v)
+	if v != schemaVersion {
+		t.Errorf("user_version = %d, want %d", v, schemaVersion)
 	}
 }
 
 func TestOpenRefusesOldSchemaVersions(t *testing.T) {
-	for _, old := range []int{1, 2} {
+	for _, old := range []int{1, 2, 3} {
 		path := filepath.Join(testutil.TempDir(t), "t.db")
 		raw, err := sql.Open("sqlite", path)
 		if err != nil {
@@ -136,7 +136,7 @@ func TestOpenRefusesOldSchemaVersions(t *testing.T) {
 		raw.Close()
 
 		_, err = Open(path)
-		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("schema version %d", old)) {
+		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("database is at schema version %d, this binary expects %d: recreate it", old, schemaVersion)) {
 			t.Fatalf("v%d: want a schema version error, got %v", old, err)
 		}
 		raw, err = sql.Open("sqlite", path)
@@ -170,6 +170,46 @@ func TestOpenIsIdempotent(t *testing.T) {
 	d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
 	if n != 1 {
 		t.Fatalf("users = %d after reopen, want 1", n)
+	}
+}
+
+func TestOpenRefusesNewerSchemaVersion(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer := schemaVersion + 1
+	mustExec(t, raw, fmt.Sprintf(`PRAGMA user_version = %d`, newer))
+	raw.Close()
+	if _, err := Open(path); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("schema version %d", newer)) {
+		t.Fatalf("want a schema version error, got %v", err)
+	}
+}
+
+// TestOpenUpgradesVersion3InPlace mirrors production: a v3 database holding real rows is migrated, never recreated.
+func TestLimitColumnsAndUsageTables(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	mustExec(t, d, `INSERT INTO ai_settings (user_id, api_key_enc, key_hint) VALUES (1, x'0102', '1234')`)
+	for _, col := range []string{"daily_limit_cents", "monthly_limit_cents"} {
+		mustExec(t, d, `UPDATE ai_settings SET `+col+` = 500 WHERE user_id = 1`)
+		for _, bad := range []string{"0", "-1"} {
+			if _, err := d.Exec(`UPDATE ai_settings SET ` + col + ` = ` + bad + ` WHERE user_id = 1`); err == nil {
+				t.Errorf("%s = %s should violate the CHECK", col, bad)
+			}
+		}
+	}
+	mustExec(t, d, `INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (1, '2026-10-17', 1, 2, 3)`)
+	mustExec(t, d, `INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, 5063100, '2026-10-17T00:00:00Z')`)
+	if _, err := d.Exec(`INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (2, 1, 'x')`); err == nil {
+		t.Error("fx_rate should hold a single row")
+	}
+	mustExec(t, d, `DELETE FROM users WHERE id = 1`)
+	var usage int
+	d.QueryRow(`SELECT COUNT(*) FROM ai_usage`).Scan(&usage)
+	if usage != 0 {
+		t.Error("ai_usage should cascade on user delete")
 	}
 }
 

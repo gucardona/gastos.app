@@ -190,7 +190,10 @@ CREATE TABLE ai_settings (
   model          TEXT NOT NULL DEFAULT 'claude-sonnet-5-5' CHECK (model IN ('claude-haiku-5-5','claude-sonnet-5-5','claude-opus-5-5')),
   enabled        INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0,1)),
   retention_days INTEGER NOT NULL DEFAULT 7 CHECK (retention_days BETWEEN 1 AND 30),
-  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+  -- Optional spending limits in centavos of real (NULL = no limit).
+  daily_limit_cents   INTEGER CHECK (daily_limit_cents IS NULL OR daily_limit_cents > 0),
+  monthly_limit_cents INTEGER CHECK (monthly_limit_cents IS NULL OR monthly_limit_cents > 0),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
 CREATE TABLE chat_messages (
@@ -207,3 +210,20 @@ CREATE TABLE chat_messages (
 );
 CREATE INDEX chat_messages_thread ON chat_messages(user_id, wallet_id, id);
 CREATE INDEX chat_messages_created ON chat_messages(created_at);
+
+-- Estimated spend per user and local day ('YYYY-MM-DD'); micro-reais (1e-6 R$) keep fractions of a centavo.
+CREATE TABLE ai_usage (
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  day            TEXT NOT NULL,
+  cost_micro_brl INTEGER NOT NULL DEFAULT 0,
+  input_tokens   INTEGER NOT NULL DEFAULT 0,
+  output_tokens  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, day)
+);
+
+-- The last USD->BRL rate fetched (a single row), in micro: 5.0631 => 5063100.
+CREATE TABLE fx_rate (
+  id            INTEGER PRIMARY KEY CHECK (id = 1),
+  usd_brl_micro INTEGER NOT NULL CHECK (usd_brl_micro > 0),
+  fetched_at    TEXT NOT NULL
+);

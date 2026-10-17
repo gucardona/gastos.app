@@ -181,6 +181,7 @@ describe("Chat", () => {
   it.each([
     [409, "Aguarde a resposta anterior terminar."],
     [429, "Muitas mensagens seguidas, aguarde um minuto."],
+    [429, "Limite diário do assistente atingido (R$ 5,00). Volta amanhã ou aumente o limite em Ajustes."],
   ])("a %i before the stream shows the server's message as the consultant's", async (status, message) => {
     fakeApi([], { status, body: { error: { code: "x", message } } });
     renderChat();

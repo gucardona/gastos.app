@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"gastos/internal/config"
 )
@@ -25,6 +27,13 @@ type aiSettings struct {
 	Enabled       bool    `json:"enabled"`
 	RetentionDays int     `json:"retentionDays"`
 	Warning       *string `json:"warning"`
+
+	DailyLimitCents   int64    `json:"dailyLimitCents"`
+	MonthlyLimitCents int64    `json:"monthlyLimitCents"`
+	UsedTodayCents    int64    `json:"usedTodayCents"`
+	UsedMonthCents    int64    `json:"usedMonthCents"`
+	UsdBrl            *float64 `json:"usdBrl"`
+	UsdBrlAt          *string  `json:"usdBrlAt"`
 }
 
 // newAIApp starts a server wired to a fake Anthropic API whose reply status can be changed through the returned counter.
@@ -249,5 +258,111 @@ func TestSettingsArePerUser(t *testing.T) {
 	bia.do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Configured || got.Enabled || got.KeyHint != "" {
 		t.Fatalf("bia sees %+v", got)
+	}
+}
+
+func TestAILimitsSetClearAndValidate(t *testing.T) {
+	app, _ := newAIApp(t, true)
+	ana := app.register("Ana", "ana@example.com")
+	bia := app.register("Bia", "bia@example.com")
+
+	// No key is needed to save a limit.
+	var got aiSettings
+	ana.do("PUT", "/api/me/ai", map[string]any{"dailyLimitCents": 500, "monthlyLimitCents": 10000}, 200, &got)
+	if got.DailyLimitCents != 500 || got.MonthlyLimitCents != 10000 || got.Configured {
+		t.Fatalf("put: %+v", got)
+	}
+	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	if got.DailyLimitCents != 500 || got.MonthlyLimitCents != 10000 {
+		t.Fatalf("not persisted: %+v", got)
+	}
+
+	// Omitted fields stay; 0 removes the limit.
+	ana.do("PUT", "/api/me/ai", map[string]any{"dailyLimitCents": 0, "retentionDays": 10}, 200, &got)
+	if got.DailyLimitCents != 0 || got.MonthlyLimitCents != 10000 || got.RetentionDays != 10 {
+		t.Fatalf("clear daily: %+v", got)
+	}
+	var stored sql.NullInt64
+	app.s.db.QueryRow(`SELECT daily_limit_cents FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&stored)
+	if stored.Valid {
+		t.Fatalf("a removed limit should be NULL, got %v", stored)
+	}
+
+	for _, field := range []string{"dailyLimitCents", "monthlyLimitCents"} {
+		for _, bad := range []int64{-1, 10_000_001} {
+			var e struct {
+				Error apiError `json:"error"`
+			}
+			if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{field: bad}, &e); st != 400 || e.Error.Fields[field] != "use um valor entre R$ 0,01 e R$ 100.000,00" {
+				t.Fatalf("%s=%d: status %d, %+v", field, bad, st, e.Error)
+			}
+		}
+		for _, ok := range []int64{1, 10_000_000} {
+			ana.do("PUT", "/api/me/ai", map[string]any{field: ok}, 200, &got)
+		}
+	}
+	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	if got.DailyLimitCents != 10_000_000 || got.MonthlyLimitCents != 10_000_000 {
+		t.Fatalf("bounds: %+v", got)
+	}
+
+	bia.do("GET", "/api/me/ai", nil, 200, &got)
+	if got.DailyLimitCents != 0 || got.MonthlyLimitCents != 0 {
+		t.Fatalf("bia sees ana's limits: %+v", got)
+	}
+}
+
+func seedFX(t *testing.T, app *testApp, micro int64, at string) {
+	t.Helper()
+	if _, err := app.s.db.Exec(`INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)`, micro, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedUsage(t *testing.T, app *testApp, c *client, day string, micro int64) {
+	t.Helper()
+	if _, err := app.s.db.Exec(`INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (?, ?, ?, 777, 888)`,
+		c.user.ID, day, micro); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAISettingsReportUsageAndRate(t *testing.T) {
+	app, _ := newAIApp(t, true)
+	// 01:00 UTC on the 18th is still the 17th in São Paulo.
+	app.s.now = func() time.Time { return time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC) }
+	ana := app.register("Ana", "ana@example.com")
+	bia := app.register("Bia", "bia@example.com")
+
+	var raw json.RawMessage
+	ana.do("GET", "/api/me/ai", nil, 200, &raw)
+	if !strings.Contains(string(raw), `"usdBrl":null`) || !strings.Contains(string(raw), `"usdBrlAt":null`) {
+		t.Fatalf("unknown rate should be null: %s", raw)
+	}
+
+	seedFX(t, app, 5063100, "2026-10-17T09:30:00Z")
+	seedUsage(t, app, ana, "2026-10-17", 123_456)   // today: 12,3456 centavos
+	seedUsage(t, app, ana, "2026-10-01", 1_005_000) // this month: 100,5 centavos
+	seedUsage(t, app, ana, "2026-09-30", 9_000_000) // last month
+	seedUsage(t, app, ana, "2026-10-18", 7_000_000) // tomorrow in São Paulo (cannot happen; proves the local day is used)
+	seedUsage(t, app, bia, "2026-10-17", 5_000_000)
+
+	ana.do("GET", "/api/me/ai", nil, 200, &raw)
+	var got aiSettings
+	json.Unmarshal(raw, &got)
+	if got.UsedTodayCents != 12 || got.UsedMonthCents != 113 { // 1.128.456 micro = 112,8456 centavos, half up
+		t.Fatalf("used: %+v", got)
+	}
+	if got.UsdBrl == nil || *got.UsdBrl != 5.0631 || got.UsdBrlAt == nil || *got.UsdBrlAt != "2026-10-17T09:30:00Z" {
+		t.Fatalf("rate: %s", raw)
+	}
+	for _, leak := range []string{"123456", "777", "888", "micro", "okens"} {
+		if strings.Contains(string(raw), leak) {
+			t.Fatalf("GET exposes %q: %s", leak, raw)
+		}
+	}
+	bia.do("GET", "/api/me/ai", nil, 200, &got)
+	if got.UsedTodayCents != 500 || got.UsedMonthCents != 500 {
+		t.Fatalf("bia: %+v", got)
 	}
 }

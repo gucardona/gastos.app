@@ -62,6 +62,7 @@ O servidor sobe em `:8000`. Teste com `curl localhost:8000/healthz`.
 | `GASTOS_INVITE_CODE` | vazio | código exigido no cadastro depois da primeira conta (mínimo de 8 caracteres). Sem ele, o cadastro fecha depois do primeiro usuário |
 | `GASTOS_SECRET_KEY` | vazio | chave mestra (32 bytes em base64) que cifra as chaves da Anthropic guardadas. Sem ela o assistente fica indisponível. Veja [Assistente de consulta](docs/assistente.md) |
 | `GASTOS_ANTHROPIC_URL` | `https://api.anthropic.com` | só para testes (e2e): aponta o assistente para um servidor falso |
+| `GASTOS_FX_URL` | `https://economia.awesomeapi.com.br/last/USD-BRL` | cotação do dólar (AwesomeAPI) usada para estimar o gasto do assistente em reais; só se muda em testes |
 
 ## Testes
 
@@ -81,7 +82,7 @@ O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
 
 ## Banco de dados
 
-O `internal/db/schema.sql` é o schema único, na versão 3 (`PRAGMA user_version`). O servidor só abre um banco novo (versão 0, criado na hora) ou já na versão 3; qualquer outra versão faz o app recusar subir. Para mudar o schema, aumente a versão esperada em `internal/db/db.go` e recrie o banco ou reintroduza migrações de propósito.
+O `internal/db/schema.sql` é a única definição do schema, hoje na versão 4 (`PRAGMA user_version`). Ao subir, o servidor cria o schema num banco vazio (versão 0); um banco já na versão 4 abre normalmente; qualquer outra versão faz o app recusar subir, sem alterar o banco ("database is at schema version N, this binary expects 4: recreate it"). Toda mudança de schema exige subir a versão (`schemaVersion` em `internal/db/db.go`) e recriar o banco, a menos que migrações sejam reintroduzidas de propósito.
 
 ## API
 

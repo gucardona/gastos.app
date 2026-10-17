@@ -10,9 +10,13 @@ const sse = (res, events) => {
   res.end();
 };
 
-const start = { type: "message_start", message: { id: "msg_fake", type: "message", role: "assistant", content: [], model: "fake", usage: { input_tokens: 10, output_tokens: 0 } } };
+let calls = 0; // /v1/messages requests that got past the key check, so a test can tell a blocked question reached us or not
+// the exchange's token usage is large on purpose: even the smallest limit (R$ 0,01) is crossed by one answer
+const FX = { USDBRL: { code: "USD", codein: "BRL", name: "Dólar Americano/Real Brasileiro", high: "5.098", low: "5.0613", varBid: "-0.0353", pctChange: "-0.692429", bid: "5.0627", ask: "5.0631", timestamp: "1792184472", create_date: "2026-10-16 18:01:12" } };
+
+const start = { type: "message_start", message: { id: "msg_fake", type: "message", role: "assistant", content: [], model: "fake", usage: { input_tokens: 1000, output_tokens: 0 } } };
 const end = (reason) => [
-  { type: "message_delta", delta: { stop_reason: reason }, usage: { output_tokens: 5 } },
+  { type: "message_delta", delta: { stop_reason: reason }, usage: { output_tokens: 1000 } },
   { type: "message_stop" },
 ];
 const text = (t) => [start,
@@ -27,6 +31,8 @@ const toolUse = (id, name, input) => [start,
 const blocks = (m) => (Array.isArray(m?.content) ? m.content : [{ type: "text", text: String(m?.content ?? "") }]);
 
 createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/fx") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(FX)); return; }
+  if (req.method === "GET" && req.url === "/calls") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ calls })); return; }
   if (req.method === "GET") { res.writeHead(200).end("ok"); return; }
   let raw = "";
   req.on("data", (c) => (raw += c));
@@ -36,6 +42,7 @@ createServer((req, res) => {
       res.end(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }));
       return;
     }
+    calls++;
     let body;
     try { body = JSON.parse(raw); } catch { res.writeHead(400).end("bad json"); return; }
     const msgs = body.messages ?? [];

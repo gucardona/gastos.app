@@ -40,7 +40,7 @@ func Open(path string) (*sql.DB, error) {
 }
 
 // schemaVersion is the user_version of the single schema.sql. Bump it when the schema changes.
-const schemaVersion = 3
+const schemaVersion = 4
 
 // applySchema runs schema.sql on an empty database (user_version 0) and accepts a current one;
 // any other version is refused so the server fails to start instead of running on a missing schema.

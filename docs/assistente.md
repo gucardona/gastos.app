@@ -27,6 +27,7 @@ GASTOS_SECRET_KEY=<saída do comando acima>
 - Faça uma cópia da chave mestra em local seguro (gerenciador de senhas).
 - Se a chave mestra **mudar** (ou for perdida), as chaves guardadas deixam de poder ser lidas: o chat pede para informar a chave de novo e Ajustes mostra a chave como não configurada. Nada mais é perdido; cada pessoa só precisa colar a própria chave outra vez.
 - `GASTOS_ANTHROPIC_URL` (padrão `https://api.anthropic.com`) existe só para testes automatizados; não defina em produção.
+- `GASTOS_FX_URL` (padrão `https://economia.awesomeapi.com.br/last/USD-BRL`) é a cotação USD-BRL buscada uma vez por dia para estimar o gasto em reais; existe para testes, não defina em produção.
 
 ## Privacidade
 
@@ -36,11 +37,23 @@ Ao perguntar, o servidor envia à Anthropic a sua pergunta, a conversa recente e
 
 O uso é cobrado na conta da Anthropic dona de cada chave, não pelo app. Modelos maiores (Opus) custam mais que os menores (Haiku). O modelo e a retenção da conversa se ajustam em Ajustes > Assistente. Há um limite de mensagens por minuto por pessoa.
 
+## Limite de gasto
+
+Em Ajustes > Assistente há dois campos, **Limite diário (R$)** e **Limite mensal (R$)**. Digite o valor em reais (por exemplo `5`, `5,50` ou `5.50`, de R$ 0,01 a R$ 100.000,00) e toque em **Salvar**; deixe o campo vazio (ou `0`) para remover o limite. Abaixo dos campos aparecem o gasto de hoje e do mês, e a cotação usada.
+
+- **É uma estimativa.** O servidor calcula o custo pelos tokens de cada resposta, pela tabela de preços do modelo e pela cotação do dólar (AwesomeAPI, buscada uma vez por dia), com uma margem de 5% para cima. O valor pode variar um pouco do que a Anthropic cobra, e uma resposta pode passar do limite por uma fração, porque o gasto só é conhecido depois dela. Por isso os campos têm asterisco.
+- **O teto real é o da Anthropic.** Defina também um limite de gasto da conta no console da Anthropic.
+- **Ao atingir o limite**, a pergunta seguinte não é enviada à Anthropic: o chat mostra "Limite diário (ou mensal) do assistente atingido" e volta a funcionar no dia (ou mês) seguinte, ou quando você aumenta o limite. O dia e o mês seguem o fuso configurado em `GASTOS_TZ` (padrão `America/Sao_Paulo`).
+- **Respostas canceladas ou com erro** contam só os tokens de entrada, porque os de saída só chegam ao fim da resposta; a estimativa pode ficar um pouco abaixo nesses casos.
+- **Sem cotação** (por exemplo, a AwesomeAPI fora do ar desde que o servidor subiu), os limites não valem até a cotação ser obtida; a tela avisa.
+- **Rede:** o servidor faz uma requisição por dia a `economia.awesomeapi.com.br` para obter a cotação. `GASTOS_FX_URL` só existe para testes.
+- **Banco novo:** esta versão usa o schema na versão 4 e exige um banco novo; veja o roteiro de deploy abaixo.
+
 ## Roteiro de deploy (versão com assistente)
 
-Esta versão usa o schema na versão 3 e cria um banco novo. O banco atual (versão 2) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
+Esta versão usa o schema na versão 4 (`internal/db/schema.sql`, a única definição; não há migrações) e um banco **novo**. O banco atual (versão 3) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
 
-**Os passos 1 a 4 acontecem ANTES de fazer o merge do PR**, porque o merge na `master` já é o deploy de produção. Se o merge vier antes, a nova versão se recusa a abrir o banco antigo ("database is at schema version 2, this binary expects 3"), o `/healthz` falha e o deploy volta sozinho para a versão anterior. Nada se perde, mas refaça a ordem certa.
+**Os passos 1 a 4 acontecem ANTES de fazer o merge do PR**, porque o merge na `master` já é o deploy de produção. Se o merge vier antes, a nova versão se recusa a abrir o banco antigo ("database is at schema version 3, this binary expects 4"), o `/healthz` falha e o deploy volta sozinho para a versão anterior. Nada se perde, mas refaça a ordem certa.
 
 1. Gere a chave mestra na VPS (`openssl rand -base64 32`) e coloque `GASTOS_SECRET_KEY` em `/etc/gastos/production.env`.
 2. **Backup** do banco atual (veja [docs/ops/backup.md](ops/backup.md)): baixe **uma cópia verificada** para o seu computador (`scp`) e confira que ela abre. O app novo rotaciona a pasta `GASTOS_BACKUP_DIR` (mantém 14) e o script off-site força o push só dos 14 mais novos, então em cerca de 14 dias toda cópia dos dados antigos sumiria, menos a que está no mesmo disco. Tire também os backups antigos dessa pasta (por exemplo para `/var/lib/gastos/antigo/`).

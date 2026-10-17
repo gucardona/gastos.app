@@ -74,6 +74,17 @@ func TestLoadSecretKey(t *testing.T) {
 	}
 }
 
+func TestLoadFXURL(t *testing.T) {
+	c, err := Load(env(nil))
+	if err != nil || c.FXURL != "https://economia.awesomeapi.com.br/last/USD-BRL" {
+		t.Fatalf("default FXURL: %q, %v", c.FXURL, err)
+	}
+	c, err = Load(env(map[string]string{"GASTOS_FX_URL": "http://127.0.0.1:9998/fx"}))
+	if err != nil || c.FXURL != "http://127.0.0.1:9998/fx" {
+		t.Fatalf("overridden FXURL: %q, %v", c.FXURL, err)
+	}
+}
+
 func TestLoadAnthropicURL(t *testing.T) {
 	c, err := Load(env(nil))
 	if err != nil || c.AnthropicURL != "https://api.anthropic.com" {

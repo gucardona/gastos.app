@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -816,4 +817,222 @@ func TestChatInStreamAnthropicErrorsBecomeEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---- Spending limits ----
+
+var spLoc, _ = time.LoadLocation("America/Sao_Paulo")
+
+// limitApp is a chat app frozen at the given time, with Ana's assistant enabled.
+func limitApp(t *testing.T, at time.Time, script func(int, anthropicReq, http.ResponseWriter, *http.Request)) (*testApp, *fakeAnthropic, *client) {
+	t.Helper()
+	app, fake := newChatApp(t, script)
+	app.s.now = func() time.Time { return at }
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	return app, fake, ana
+}
+
+func setLimits(c *client, limits map[string]any) { c.do("PUT", "/api/me/ai", limits, 200, nil) }
+
+// askBlocked asks and expects a 429 "limit" refusal with the given message, no Anthropic call and nothing saved.
+func askBlocked(t *testing.T, fake *fakeAnthropic, c *client, want string) {
+	t.Helper()
+	calls := len(fake.requests())
+	before := len(c.history(c.walletID))
+	st, raw, _ := c.ask("oi")
+	var e struct {
+		Error apiError `json:"error"`
+	}
+	json.Unmarshal([]byte(raw), &e)
+	if st != 429 || e.Error.Code != "limit" || e.Error.Message != want {
+		t.Fatalf("status %d, body %s", st, raw)
+	}
+	if len(fake.requests()) != calls || len(c.history(c.walletID)) != before {
+		t.Fatal("a blocked question reached Anthropic or was saved")
+	}
+}
+
+func askOK(t *testing.T, c *client) {
+	t.Helper()
+	if st, raw, evs := c.ask("oi"); st != 200 || len(evs) == 0 || evs[len(evs)-1].Name != "done" {
+		t.Fatalf("status %d, body %s", st, raw)
+	}
+}
+
+const (
+	dailyMsg   = "Limite diário do assistente atingido (R$ 1,00). Volta amanhã ou aumente o limite em Ajustes."
+	monthlyMsg = "Limite mensal do assistente atingido (R$ 1.234,56). Volta no mês que vem ou aumente o limite em Ajustes."
+)
+
+func TestChatDailyLimit(t *testing.T) {
+	app, fake, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), replyText("ok"))
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	setLimits(ana, map[string]any{"dailyLimitCents": 100})
+	seedUsage(t, app, ana, "2026-10-17", 999_999)
+	askOK(t, ana) // under the limit by a fraction of a centavo: allowed, and this answer may overshoot it
+	askBlocked(t, fake, ana, dailyMsg)
+
+	// Removing the limit lets her ask again.
+	setLimits(ana, map[string]any{"dailyLimitCents": 0})
+	askOK(t, ana)
+}
+
+func TestChatMonthlyLimit(t *testing.T) {
+	app, fake, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), replyText("ok"))
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	setLimits(ana, map[string]any{"monthlyLimitCents": 123456, "dailyLimitCents": 10_000_000})
+	seedUsage(t, app, ana, "2026-09-30", 5_000_000_000) // last month does not count
+	seedUsage(t, app, ana, "2026-10-01", 1_000_000_000)
+	askOK(t, ana)
+	seedUsage(t, app, ana, "2026-10-02", 234_560_000) // with the answer above, the month is now past R$ 1.234,56
+	askBlocked(t, fake, ana, monthlyMsg)
+}
+
+func TestChatDailyLimitIsCheckedFirst(t *testing.T) {
+	app, fake, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), replyText("ok"))
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	setLimits(ana, map[string]any{"dailyLimitCents": 100, "monthlyLimitCents": 100})
+	seedUsage(t, app, ana, "2026-10-17", 1_000_000)
+	askBlocked(t, fake, ana, dailyMsg)
+}
+
+func TestChatWithoutLimitsIsNotBlocked(t *testing.T) {
+	app, _, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), replyText("ok"))
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	seedUsage(t, app, ana, "2026-10-17", 1_000_000_000_000)
+	askOK(t, ana)
+}
+
+func TestChatLimitsNeedARate(t *testing.T) {
+	app, _, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), replyText("ok"))
+	setLimits(ana, map[string]any{"dailyLimitCents": 1, "monthlyLimitCents": 1})
+	seedUsage(t, app, ana, "2026-10-17", 1_000_000_000)
+	askOK(t, ana) // no USD-BRL rate yet: spend cannot be priced, so limits are not enforced
+}
+
+func usageOf(t *testing.T, app *testApp, c *client, day string) (cost int64, in, out int) {
+	t.Helper()
+	err := app.s.db.QueryRow(`SELECT cost_micro_brl, input_tokens, output_tokens FROM ai_usage WHERE user_id = ? AND day = ?`, c.user.ID, day).
+		Scan(&cost, &in, &out)
+	if err != nil {
+		t.Fatalf("usage %s: %v", day, err)
+	}
+	return
+}
+
+func TestChatRecordsUsage(t *testing.T) {
+	// 01:00 UTC on the 18th is still the 17th in São Paulo.
+	app, _, ana := limitApp(t, time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC), replyText("ok"))
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	askOK(t, ana)
+	// Sonnet, 10 in + 5 out = 70000 nano-USD x R$ 5,00 = 350 micro-BRL, +5% = 367.5, rounded up.
+	if cost, in, out := usageOf(t, app, ana, "2026-10-17"); cost != 368 || in != 10 || out != 5 {
+		t.Fatalf("usage %d %d %d", cost, in, out)
+	}
+	askOK(t, ana)
+	if cost, in, out := usageOf(t, app, ana, "2026-10-17"); cost != 736 || in != 20 || out != 10 {
+		t.Fatalf("accumulated usage %d %d %d", cost, in, out)
+	}
+}
+
+func TestChatRecordsTokensWithoutRate(t *testing.T) {
+	app, _, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), replyText("ok"))
+	askOK(t, ana)
+	if cost, in, out := usageOf(t, app, ana, "2026-10-17"); cost != 0 || in != 10 || out != 5 {
+		t.Fatalf("usage %d %d %d", cost, in, out)
+	}
+}
+
+func TestChatRecordsUsageOfAFailedAnswer(t *testing.T) {
+	app, _, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), func(_ int, _ anthropicReq, w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, sseFrames(`{"type":"message_start","message":{"usage":{"input_tokens":7}}}`))
+		fmt.Fprint(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"x\"}}\n\n")
+	})
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	if _, _, evs := ana.ask("oi"); errorEvent(t, evs) == "" {
+		t.Fatal("want an error event")
+	}
+	if cost, in, _ := usageOf(t, app, ana, "2026-10-17"); in != 7 || cost != costMicroBRL("claude-sonnet-5-5", 7, 0, 5_000_000) {
+		t.Fatalf("usage %d %d", cost, in)
+	}
+}
+
+func TestChatCancelStillRecordsUsage(t *testing.T) {
+	upstreamGone := make(chan struct{})
+	app, _, ana := limitApp(t, time.Date(2026, 10, 17, 15, 0, 0, 0, spLoc), func(_ int, _ anthropicReq, w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, sseFrames(
+			`{"type":"message_start","message":{"usage":{"input_tokens":42}}}`,
+			`{"type":"content_block_start","index":0,"content_block":{"type":"text"}}`,
+			`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"parcial"}}`,
+		))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+		close(upstreamGone)
+	})
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	ctx, cancel := context.WithCancel(t.Context())
+	b, _ := json.Marshal(map[string]any{"wallet": ana.walletID, "wallets": []int64{ana.walletID}, "text": "oi"})
+	req, _ := http.NewRequestWithContext(ctx, "POST", app.srv.URL+"/api/chat", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := ana.http.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 4096)
+	var got strings.Builder
+	for !strings.Contains(got.String(), "event: delta") {
+		n, err := res.Body.Read(buf)
+		got.Write(buf[:n])
+		if err != nil {
+			t.Fatalf("read: %v (%q)", err, got.String())
+		}
+	}
+	cancel()
+	res.Body.Close()
+	<-upstreamGone
+	for deadline := time.Now().Add(5 * time.Second); app.s.busy(ana.user.ID); {
+		if time.Now().After(deadline) {
+			t.Fatal("handler did not finish")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if cost, in, _ := usageOf(t, app, ana, "2026-10-17"); in != 42 || cost == 0 {
+		t.Fatalf("usage %d %d", cost, in)
+	}
+}
+
+func TestChatLimitDayRollover(t *testing.T) {
+	app, fake := newChatApp(t, replyText("ok"))
+	var now atomic.Int64
+	now.Store(time.Date(2026, 10, 17, 23, 30, 0, 0, spLoc).UnixNano())
+	app.s.now = func() time.Time { return time.Unix(0, now.Load()) }
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	setLimits(ana, map[string]any{"dailyLimitCents": 100})
+	seedUsage(t, app, ana, "2026-10-17", 1_000_000)
+	askBlocked(t, fake, ana, dailyMsg)
+
+	now.Store(time.Date(2026, 10, 18, 0, 30, 0, 0, spLoc).UnixNano()) // yesterday's spend does not count today
+	askOK(t, ana)
+	if _, in, _ := usageOf(t, app, ana, "2026-10-18"); in != 10 {
+		t.Fatalf("today's usage: %d input tokens", in)
+	}
+}
+
+func TestChatLimitMonthRollover(t *testing.T) {
+	app, fake := newChatApp(t, replyText("ok"))
+	var now atomic.Int64
+	now.Store(time.Date(2026, 10, 31, 23, 30, 0, 0, spLoc).UnixNano())
+	app.s.now = func() time.Time { return time.Unix(0, now.Load()) }
+	ana := app.register("Ana", "ana@example.com")
+	enableAI(ana)
+	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
+	setLimits(ana, map[string]any{"monthlyLimitCents": 123456})
+	seedUsage(t, app, ana, "2026-10-05", 1_234_560_000)
+	askBlocked(t, fake, ana, monthlyMsg)
+
+	now.Store(time.Date(2026, 11, 1, 0, 30, 0, 0, spLoc).UnixNano())
+	askOK(t, ana)
 }
