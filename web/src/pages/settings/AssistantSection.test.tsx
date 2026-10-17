@@ -204,6 +204,28 @@ describe("Assistant screen", () => {
     expect(writes(fetch)).toHaveLength(0);
   });
 
+
+  it("links both limit inputs to the footnote", async () => {
+    serve(withKey);
+    renderApp(<AssistantSection />);
+    const note = (await screen.findByText(/^\* Valor aproximado/)).id;
+    expect(note).not.toBe("");
+    expect(screen.getByLabelText("Limite diário (R$) *").getAttribute("aria-describedby")).toBe(note);
+    expect(screen.getByLabelText("Limite mensal (R$) *").getAttribute("aria-describedby")).toBe(note);
+  });
+
+  it("a valid edit of one limit does not clear the other limit's error", async () => {
+    serve(withKey);
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    await user.type(await screen.findByLabelText("Limite diário (R$) *"), "abc");
+    await user.click(screen.getByRole("button", { name: "Salvar limite diário" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    await user.type(screen.getByLabelText("Limite mensal (R$) *"), "100");
+    await user.click(screen.getByRole("button", { name: "Salvar limite mensal" }));
+    await waitFor(() => expect(screen.getByLabelText("Limite mensal (R$) *")).toBeTruthy());
+    expect(screen.getByRole("alert").textContent).toContain("R$ 0,01 a R$ 100.000,00");
+  });
   it("shows the server's error for a limit", async () => {
     serve(withKey, { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { dailyLimitCents: "limite fora do intervalo" } } } });
     const user = userEvent.setup();

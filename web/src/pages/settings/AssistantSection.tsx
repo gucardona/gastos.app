@@ -27,8 +27,8 @@ function parseLimit(text: string): number | null {
   return c !== null && c <= MAX_LIMIT_CENTS ? c : null;
 }
 
-function LimitRow({ id, label, saveLabel, cents, busy, onInvalid, onSave }: {
-  id: string; label: string; saveLabel: string; cents: number; busy: boolean;
+function LimitRow({ id, label, saveLabel, cents, busy, describedBy, onInvalid, onSave }: {
+  id: string; label: string; saveLabel: string; cents: number; busy: boolean; describedBy: string;
   onInvalid: (message: string) => void; onSave: (cents: number) => Promise<boolean>;
 }) {
   const [text, setText] = useState<string>();
@@ -43,7 +43,7 @@ function LimitRow({ id, label, saveLabel, cents, busy, onInvalid, onSave }: {
       void onSave(n).then((ok) => ok && setText(undefined));
     }}>
       <label htmlFor={id} className="lr-label">{label} <span style={{ whiteSpace: "nowrap" }}>(R$) *</span></label>
-      <input id={id} className="desc-input" type="text" inputMode="decimal" placeholder="sem limite" autoComplete="off" value={value} onChange={(e) => setText(e.target.value)} />
+      <input id={id} className="desc-input" type="text" inputMode="decimal" placeholder="sem limite" autoComplete="off" aria-describedby={describedBy} value={value} onChange={(e) => setText(e.target.value)} />
       {value !== current && <button type="submit" className="chip" disabled={busy}>{saveLabel}</button>}
     </form>
   );
@@ -58,6 +58,8 @@ export function AssistantSection() {
   const [replacing, setReplacing] = useState(false);
   const [days, setDays] = useState<string>();
   const [daysError, setDaysError] = useState("");
+  const [limitErrors, setLimitErrors] = useState<Record<string, string>>({});
+  const limitError = (id: string) => (message: string) => setLimitErrors((e) => ({ ...e, [id]: message }));
   const [warning, setWarning] = useState("");
 
   if (!data) return null;
@@ -111,13 +113,13 @@ export function AssistantSection() {
           <input id="ai-days" className="desc-input" type="number" inputMode="numeric" value={retention} onChange={(e) => setDays(e.target.value)} />
           {retention !== String(data.retentionDays) && <button type="submit" className="chip" disabled={prefs.busy}>Salvar prazo</button>}
         </form>
-        <LimitRow id="ai-daily" label="Limite diário" saveLabel="Salvar limite diário" cents={data.dailyLimitCents} busy={prefs.busy}
-          onInvalid={setDaysError} onSave={(dailyLimitCents) => put(prefs, { dailyLimitCents })} />
-        <LimitRow id="ai-monthly" label="Limite mensal" saveLabel="Salvar limite mensal" cents={data.monthlyLimitCents} busy={prefs.busy}
-          onInvalid={setDaysError} onSave={(monthlyLimitCents) => put(prefs, { monthlyLimitCents })} />
+        <LimitRow id="ai-daily" label="Limite diário" saveLabel="Salvar limite diário" cents={data.dailyLimitCents} busy={prefs.busy} describedBy="ai-limit-note"
+          onInvalid={limitError("ai-daily")} onSave={(dailyLimitCents) => put(prefs, { dailyLimitCents })} />
+        <LimitRow id="ai-monthly" label="Limite mensal" saveLabel="Salvar limite mensal" cents={data.monthlyLimitCents} busy={prefs.busy} describedBy="ai-limit-note"
+          onInvalid={limitError("ai-monthly")} onSave={(monthlyLimitCents) => put(prefs, { monthlyLimitCents })} />
       </ListGroup>
-      {(daysError || prefs.error) && <p className="error" role="alert">{daysError || prefs.error}</p>}
-      <p className="muted lead">* Valor aproximado: o custo é estimado com a cotação do dólar e pode variar um pouco do que a Anthropic cobra. O limite real é o da sua conta no console da Anthropic.</p>
+      {Object.entries({ days: daysError, daily: limitErrors["ai-daily"], monthly: limitErrors["ai-monthly"], save: prefs.error }).map(([k, m]) => m && <p key={k} className="error" role="alert">{m}</p>)}
+      <p id="ai-limit-note" className="muted lead">* Valor aproximado: o custo é estimado com a cotação do dólar e pode variar um pouco do que a Anthropic cobra. O limite real é o da sua conta no console da Anthropic.</p>
       <p className="muted lead">{usage("Hoje", data.usedTodayCents, data.dailyLimitCents)}</p>
       <p className="muted lead">{usage("Este mês", data.usedMonthCents, data.monthlyLimitCents)}</p>
       <p className="muted lead">
