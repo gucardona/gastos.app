@@ -63,7 +63,7 @@ func TestRefreshFXKeepsPreviousRateOnBadAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, before := storedFX(t, app)
-	for _, body := range []string{"500", "not json", `{"USDBRL":{}}`, awesomeBody("0"), awesomeBody("-1"), awesomeBody("abc"), awesomeBody("100.5"), awesomeBody("NaN"), awesomeBody("1e300")} {
+	for _, body := range []string{"500", "not json", `{"USDBRL":{}}`, awesomeBody("0"), awesomeBody("-1"), awesomeBody("abc"), awesomeBody("100.5"), awesomeBody("0.5"), awesomeBody("25"), awesomeBody("NaN"), awesomeBody("1e300")} {
 		reply.Store(body)
 		if err := app.s.refreshFX(t.Context()); err == nil {
 			t.Errorf("%.40s: want an error", body)

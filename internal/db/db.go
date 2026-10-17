@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -32,7 +33,7 @@ func Open(path string) (*sql.DB, error) {
 		d.Close()
 		return nil, err
 	}
-	if err := applySchema(d); err != nil {
+	if err := applySchema(d, path); err != nil {
 		d.Close()
 		return nil, err
 	}
@@ -53,7 +54,10 @@ func latestVersion() int { return baseVersion + len(migrations) }
 // applySchema builds an empty database (user_version 0) from schema.sql and brings a baseline-or-later one
 // up to date, one step per transaction so a failed step leaves the previous version intact. Any other
 // version is refused so the server fails to start instead of running on an unknown schema.
-func applySchema(d *sql.DB) error {
+func applySchema(d *sql.DB, path string) error {
+	if err := preMigrationCopy(d, path); err != nil {
+		return err
+	}
 	for {
 		done, err := applyStep(d)
 		if err != nil || done {
@@ -95,4 +99,25 @@ func applyStep(d *sql.DB) (done bool, err error) {
 		return false, err
 	}
 	return false, tx.Commit()
+}
+
+// preMigrationCopy saves <path>.pre-v<from>.bak before the first pending migration of a non-empty database, so a
+// deploy that rolls back to the previous binary (which refuses a newer schema) can restore it. An existing copy is
+// kept; failing to copy aborts the start, since migrating without a way back is worse than not starting.
+func preMigrationCopy(d *sql.DB, path string) error {
+	var version int
+	if err := d.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return err
+	}
+	if version < baseVersion || version >= latestVersion() {
+		return nil
+	}
+	dst := fmt.Sprintf("%s.pre-v%d.bak", path, version)
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	}
+	if _, err := d.Exec(`VACUUM INTO '` + strings.ReplaceAll(dst, "'", "''") + `'`); err != nil {
+		return fmt.Errorf("copy database before migrating from version %d to %s: %w", version, dst, err)
+	}
+	return nil
 }

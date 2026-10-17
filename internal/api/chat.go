@@ -306,7 +306,8 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	var answer strings.Builder
 	charts := []chartDTO{}
 	var inTok, outTok int
-	// Every exit below counts what was spent: completed, failed after tokens, or cancelled by the client.
+	// Every exit below records the tokens known so far. Output tokens only arrive at the end of the stream, so a
+	// cancelled or failed answer counts its input tokens but not the output generated before it stopped.
 	defer func() { s.recordUsage(ctx, uid, model, inTok, outTok) }()
 	write := func(t string) {
 		answer.WriteString(t)

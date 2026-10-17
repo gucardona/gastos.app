@@ -43,10 +43,15 @@ Em Ajustes > Assistente há dois campos, **Limite diário (R$)** e **Limite mens
 
 - **É uma estimativa.** O servidor calcula o custo pelos tokens de cada resposta, pela tabela de preços do modelo e pela cotação do dólar (AwesomeAPI, buscada uma vez por dia), com uma margem de 5% para cima. O valor pode variar um pouco do que a Anthropic cobra, e uma resposta pode passar do limite por uma fração, porque o gasto só é conhecido depois dela. Por isso os campos têm asterisco.
 - **O teto real é o da Anthropic.** Defina também um limite de gasto da conta no console da Anthropic.
-- **Ao atingir o limite**, a pergunta seguinte não é enviada à Anthropic: o chat mostra "Limite diário (ou mensal) do assistente atingido" e volta a funcionar no dia (ou mês) seguinte, ou quando você aumenta o limite. O dia e o mês seguem o fuso do servidor.
+- **Ao atingir o limite**, a pergunta seguinte não é enviada à Anthropic: o chat mostra "Limite diário (ou mensal) do assistente atingido" e volta a funcionar no dia (ou mês) seguinte, ou quando você aumenta o limite. O dia e o mês seguem o fuso configurado em `GASTOS_TZ` (padrão `America/Sao_Paulo`).
+- **Respostas canceladas ou com erro** contam só os tokens de entrada, porque os de saída só chegam ao fim da resposta; a estimativa pode ficar um pouco abaixo nesses casos.
 - **Sem cotação** (por exemplo, a AwesomeAPI fora do ar desde que o servidor subiu), os limites não valem até a cotação ser obtida; a tela avisa.
 - **Rede:** o servidor faz uma requisição por dia a `economia.awesomeapi.com.br` para obter a cotação. `GASTOS_FX_URL` só existe para testes.
 - **Atualização:** esta versão atualiza o banco existente no lugar (versão 3 para 4) ao subir o servidor; não é preciso recriar o banco nem as contas.
+
+## Voltar para a versão anterior
+
+A migração só adiciona coisas (tabelas e colunas novas), mas a versão anterior do programa recusa um banco marcado como versão 4. Antes de migrar, o servidor guarda uma cópia ao lado do banco (`gastos.db.pre-v3.bak`). Para voltar, com o serviço parado: baixe a marca com `sqlite3 /var/lib/gastos/production/gastos.db 'PRAGMA user_version=3'` (ou restaure a cópia `.pre-v3.bak` no lugar do banco) e reinicie a versão anterior.
 
 ## Roteiro de deploy (versão com assistente)
 

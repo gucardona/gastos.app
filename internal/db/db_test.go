@@ -296,3 +296,64 @@ func TestAISettingsConstraints(t *testing.T) {
 		}
 	}
 }
+
+func seedV3(t *testing.T, path string) {
+	t.Helper()
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	mustExec(t, raw, schemaSQL)
+	mustExec(t, raw, `PRAGMA user_version = 3`)
+	mustExec(t, raw, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+}
+
+func TestUpgradeMakesPreMigrationCopy(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV3(t, path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	cp, err := sql.Open("sqlite", path+".pre-v3.bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cp.Close()
+	var v, users int
+	cp.QueryRow(`PRAGMA user_version`).Scan(&v)
+	cp.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
+	if v != 3 || users != 1 {
+		t.Fatalf("copy: version %d, users %d, want 3 and 1", v, users)
+	}
+}
+
+func TestFreshDatabaseMakesNoCopy(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	if m, _ := filepath.Glob(path + ".pre-v*.bak"); len(m) != 0 {
+		t.Fatalf("unexpected copies %v", m)
+	}
+}
+
+func TestExistingPreMigrationCopyIsKept(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV3(t, path)
+	if err := os.WriteFile(path+".pre-v3.bak", []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	if b, _ := os.ReadFile(path + ".pre-v3.bak"); string(b) != "keep" {
+		t.Fatal("existing copy was overwritten")
+	}
+}

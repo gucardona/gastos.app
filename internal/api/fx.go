@@ -39,7 +39,7 @@ func (s *Server) refreshFX(ctx context.Context) error {
 		return fmt.Errorf("fx: decode: %w", err)
 	}
 	ask, err := strconv.ParseFloat(body.USDBRL.Ask, 64)
-	if err != nil || !(ask > 0 && ask <= 100) { // also rejects NaN
+	if err != nil || !(ask >= 1 && ask <= 20) { // also rejects NaN
 		return fmt.Errorf("fx: implausible ask %q", body.USDBRL.Ask)
 	}
 	_, err = s.db.ExecContext(ctx, `INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)
