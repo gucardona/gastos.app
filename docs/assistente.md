@@ -47,17 +47,13 @@ Em Ajustes > Assistente há dois campos, **Limite diário (R$)** e **Limite mens
 - **Respostas canceladas ou com erro** contam só os tokens de entrada, porque os de saída só chegam ao fim da resposta; a estimativa pode ficar um pouco abaixo nesses casos.
 - **Sem cotação** (por exemplo, a AwesomeAPI fora do ar desde que o servidor subiu), os limites não valem até a cotação ser obtida; a tela avisa.
 - **Rede:** o servidor faz uma requisição por dia a `economia.awesomeapi.com.br` para obter a cotação. `GASTOS_FX_URL` só existe para testes.
-- **Atualização:** esta versão atualiza o banco existente no lugar (versão 3 para 4) ao subir o servidor; não é preciso recriar o banco nem as contas.
-
-## Voltar para a versão anterior
-
-A migração só adiciona coisas (tabelas e colunas novas), mas a versão anterior do programa recusa um banco marcado como versão 4. Antes de migrar, o servidor guarda uma cópia ao lado do banco (`gastos.db.pre-v3.bak`). Para voltar, com o serviço parado: baixe a marca com `sqlite3 /var/lib/gastos/production/gastos.db 'PRAGMA user_version=3'` (ou restaure a cópia `.pre-v3.bak` no lugar do banco) e reinicie a versão anterior.
+- **Banco novo:** esta versão usa o schema na versão 4 e exige um banco novo; veja o roteiro de deploy abaixo.
 
 ## Roteiro de deploy (versão com assistente)
 
-Este roteiro vale só para a primeira versão com assistente, que introduziu o schema na versão 3 (a base do `internal/db/schema.sql`). Daqui em diante as mudanças de schema são migrações aplicadas no lugar ao subir o servidor, sem recriar o banco nem perder dados (veja "Banco de dados" no README). Aquela versão criou um banco novo. O banco atual (versão 2) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
+Esta versão usa o schema na versão 4 (`internal/db/schema.sql`, a única definição; não há migrações) e um banco **novo**. O banco atual (versão 3) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
 
-**Os passos 1 a 4 acontecem ANTES de fazer o merge do PR**, porque o merge na `master` já é o deploy de produção. Se o merge vier antes, a nova versão se recusa a abrir o banco antigo ("database is at schema version 2, this binary expects 3"), o `/healthz` falha e o deploy volta sozinho para a versão anterior. Nada se perde, mas refaça a ordem certa.
+**Os passos 1 a 4 acontecem ANTES de fazer o merge do PR**, porque o merge na `master` já é o deploy de produção. Se o merge vier antes, a nova versão se recusa a abrir o banco antigo ("database is at schema version 3, this binary expects 4"), o `/healthz` falha e o deploy volta sozinho para a versão anterior. Nada se perde, mas refaça a ordem certa.
 
 1. Gere a chave mestra na VPS (`openssl rand -base64 32`) e coloque `GASTOS_SECRET_KEY` em `/etc/gastos/production.env`.
 2. **Backup** do banco atual (veja [docs/ops/backup.md](ops/backup.md)): baixe **uma cópia verificada** para o seu computador (`scp`) e confira que ela abre. O app novo rotaciona a pasta `GASTOS_BACKUP_DIR` (mantém 14) e o script off-site força o push só dos 14 mais novos, então em cerca de 14 dias toda cópia dos dados antigos sumiria, menos a que está no mesmo disco. Tire também os backups antigos dessa pasta (por exemplo para `/var/lib/gastos/antigo/`).

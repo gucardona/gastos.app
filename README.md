@@ -82,7 +82,7 @@ O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
 
 ## Banco de dados
 
-O `internal/db/schema.sql` é a base congelada, na versão 3 (`PRAGMA user_version`). Toda mudança depois dela é uma migração em `internal/db/migrations/` (a `0004_...` leva o banco da versão 3 para a 4, e assim por diante), registrada na lista `migrations` de `internal/db/db.go`. Ao subir, o servidor cria um banco novo (versão 0) com o `schema.sql` e todas as migrações; um banco entre a versão 3 e a mais recente recebe só as migrações que faltam, no lugar e sem perder dados, cada uma na sua transação. Versões 1 e 2, ou mais novas do que o binário conhece, fazem o app recusar subir. Para mudar o schema, crie a próxima migração; nunca edite o `schema.sql` nem uma migração já publicada.
+O `internal/db/schema.sql` é a única definição do schema, hoje na versão 4 (`PRAGMA user_version`). Ao subir, o servidor cria o schema num banco vazio (versão 0); um banco já na versão 4 abre normalmente; qualquer outra versão faz o app recusar subir, sem alterar o banco ("database is at schema version N, this binary expects 4: recreate it"). Toda mudança de schema exige subir a versão (`schemaVersion` em `internal/db/db.go`) e recriar o banco, a menos que migrações sejam reintroduzidas de propósito.
 
 ## API
 

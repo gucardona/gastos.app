@@ -119,13 +119,13 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != latestVersion() {
-		t.Errorf("user_version = %d, want %d", v, latestVersion())
+	if v != schemaVersion {
+		t.Errorf("user_version = %d, want %d", v, schemaVersion)
 	}
 }
 
 func TestOpenRefusesOldSchemaVersions(t *testing.T) {
-	for _, old := range []int{1, 2} {
+	for _, old := range []int{1, 2, 3} {
 		path := filepath.Join(testutil.TempDir(t), "t.db")
 		raw, err := sql.Open("sqlite", path)
 		if err != nil {
@@ -136,7 +136,7 @@ func TestOpenRefusesOldSchemaVersions(t *testing.T) {
 		raw.Close()
 
 		_, err = Open(path)
-		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("schema version %d", old)) {
+		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("database is at schema version %d, this binary expects %d: recreate it", old, schemaVersion)) {
 			t.Fatalf("v%d: want a schema version error, got %v", old, err)
 		}
 		raw, err = sql.Open("sqlite", path)
@@ -179,7 +179,7 @@ func TestOpenRefusesNewerSchemaVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newer := latestVersion() + 1
+	newer := schemaVersion + 1
 	mustExec(t, raw, fmt.Sprintf(`PRAGMA user_version = %d`, newer))
 	raw.Close()
 	if _, err := Open(path); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("schema version %d", newer)) {
@@ -188,52 +188,16 @@ func TestOpenRefusesNewerSchemaVersion(t *testing.T) {
 }
 
 // TestOpenUpgradesVersion3InPlace mirrors production: a v3 database holding real rows is migrated, never recreated.
-func TestOpenUpgradesVersion3InPlace(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	raw, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mustExec(t, raw, schemaSQL)
-	mustExec(t, raw, `PRAGMA user_version = 3`)
-	mustExec(t, raw, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h'), (2, 'B', 'b@x', 'h')`)
-	mustExec(t, raw, `INSERT INTO wallets (id, name) VALUES (1, 'W')`)
-	mustExec(t, raw, `INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 1, 'owner')`)
-	mustExec(t, raw, `INSERT INTO ai_settings (user_id, api_key_enc, key_hint, model, enabled, retention_days) VALUES (1, x'0102', '1234', 'claude-opus-5-5', 1, 9)`)
-	mustExec(t, raw, `INSERT INTO chat_messages (user_id, wallet_id, role, content) VALUES (1, 1, 'user', 'oi')`)
-	raw.Close()
-
-	d, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
-	var v, users, wallets, msgs int
-	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 4 {
-		t.Fatalf("user_version = %d, want 4", v)
-	}
-	d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
-	d.QueryRow(`SELECT COUNT(*) FROM wallet_members`).Scan(&wallets)
-	d.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`).Scan(&msgs)
-	if users != 2 || wallets != 1 || msgs != 1 {
-		t.Fatalf("rows lost: users %d, members %d, messages %d", users, wallets, msgs)
-	}
-	var enc []byte
-	var model string
-	var retention int
-	var daily, monthly sql.NullInt64
-	if err := d.QueryRow(`SELECT api_key_enc, model, retention_days, daily_limit_cents, monthly_limit_cents FROM ai_settings WHERE user_id = 1`).
-		Scan(&enc, &model, &retention, &daily, &monthly); err != nil {
-		t.Fatal(err)
-	}
-	if string(enc) != "\x01\x02" || model != "claude-opus-5-5" || retention != 9 || daily.Valid || monthly.Valid {
-		t.Fatalf("ai_settings after upgrade: %x %s %d %v %v", enc, model, retention, daily, monthly)
-	}
-	mustExec(t, d, `UPDATE ai_settings SET daily_limit_cents = 500, monthly_limit_cents = 10000 WHERE user_id = 1`)
+func TestLimitColumnsAndUsageTables(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	mustExec(t, d, `INSERT INTO ai_settings (user_id, api_key_enc, key_hint) VALUES (1, x'0102', '1234')`)
 	for _, col := range []string{"daily_limit_cents", "monthly_limit_cents"} {
-		if _, err := d.Exec(`UPDATE ai_settings SET ` + col + ` = 0 WHERE user_id = 1`); err == nil {
-			t.Errorf("%s = 0 should violate the CHECK", col)
+		mustExec(t, d, `UPDATE ai_settings SET `+col+` = 500 WHERE user_id = 1`)
+		for _, bad := range []string{"0", "-1"} {
+			if _, err := d.Exec(`UPDATE ai_settings SET ` + col + ` = ` + bad + ` WHERE user_id = 1`); err == nil {
+				t.Errorf("%s = %s should violate the CHECK", col, bad)
+			}
 		}
 	}
 	mustExec(t, d, `INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (1, '2026-10-17', 1, 2, 3)`)
@@ -246,32 +210,6 @@ func TestOpenUpgradesVersion3InPlace(t *testing.T) {
 	d.QueryRow(`SELECT COUNT(*) FROM ai_usage`).Scan(&usage)
 	if usage != 0 {
 		t.Error("ai_usage should cascade on user delete")
-	}
-}
-
-func TestFailedMigrationKeepsVersion(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	raw, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mustExec(t, raw, schemaSQL)
-	mustExec(t, raw, `CREATE TABLE ai_usage (x INTEGER)`) // collides with migration 0004
-	mustExec(t, raw, `PRAGMA user_version = 3`)
-	raw.Close()
-	if _, err := Open(path); err == nil {
-		t.Fatal("the colliding migration should fail")
-	}
-	raw, err = sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer raw.Close()
-	var v, cols int
-	raw.QueryRow(`PRAGMA user_version`).Scan(&v)
-	raw.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ai_settings') WHERE name = 'daily_limit_cents'`).Scan(&cols)
-	if v != 3 || cols != 0 {
-		t.Fatalf("partial migration: version %d, new columns %d", v, cols)
 	}
 }
 
@@ -294,66 +232,5 @@ func TestAISettingsConstraints(t *testing.T) {
 		if err := ins(r, "claude-opus-5-5"); err != nil {
 			t.Errorf("retention %d: %v", r, err)
 		}
-	}
-}
-
-func seedV3(t *testing.T, path string) {
-	t.Helper()
-	raw, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer raw.Close()
-	mustExec(t, raw, schemaSQL)
-	mustExec(t, raw, `PRAGMA user_version = 3`)
-	mustExec(t, raw, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
-}
-
-func TestUpgradeMakesPreMigrationCopy(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	seedV3(t, path)
-	d, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.Close()
-	cp, err := sql.Open("sqlite", path+".pre-v3.bak")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cp.Close()
-	var v, users int
-	cp.QueryRow(`PRAGMA user_version`).Scan(&v)
-	cp.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
-	if v != 3 || users != 1 {
-		t.Fatalf("copy: version %d, users %d, want 3 and 1", v, users)
-	}
-}
-
-func TestFreshDatabaseMakesNoCopy(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	d, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.Close()
-	if m, _ := filepath.Glob(path + ".pre-v*.bak"); len(m) != 0 {
-		t.Fatalf("unexpected copies %v", m)
-	}
-}
-
-func TestExistingPreMigrationCopyIsKept(t *testing.T) {
-	path := filepath.Join(testutil.TempDir(t), "t.db")
-	seedV3(t, path)
-	if err := os.WriteFile(path+".pre-v3.bak", []byte("keep"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	d, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d.Close()
-	if b, _ := os.ReadFile(path + ".pre-v3.bak"); string(b) != "keep" {
-		t.Fatal("existing copy was overwritten")
 	}
 }
