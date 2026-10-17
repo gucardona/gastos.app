@@ -37,6 +37,8 @@ Ao perguntar, o servidor envia à Anthropic a sua pergunta, a conversa recente e
 
 O uso é cobrado na conta da Anthropic dona de cada chave, não pelo app. Modelos maiores (Opus) custam mais que os menores (Haiku). O modelo e a retenção da conversa se ajustam em Ajustes > Assistente. Há um limite de mensagens por minuto por pessoa.
 
+Cada pessoa pode definir em Ajustes um limite diário e um mensal em reais. O servidor estima o gasto pelos tokens de cada resposta, pela tabela de preços dos modelos (mais 5% de margem) e pela cotação do dólar buscada uma vez por dia; ao atingir um limite, novas perguntas são recusadas até o dia (ou mês) seguinte. É uma estimativa: a última resposta pode passar um pouco do limite, e enquanto não houver cotação os limites não valem. O teto real é o limite de gasto da conta no console da Anthropic.
+
 ## Roteiro de deploy (versão com assistente)
 
 Este roteiro vale só para a primeira versão com assistente, que introduziu o schema na versão 3 (a base do `internal/db/schema.sql`). Daqui em diante as mudanças de schema são migrações aplicadas no lugar ao subir o servidor, sem recriar o banco nem perder dados (veja "Banco de dados" no README). Aquela versão criou um banco novo. O banco atual (versão 2) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.

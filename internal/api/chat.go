@@ -247,6 +247,9 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	case keyErr != nil && !errors.Is(keyErr, errAIKeyUnreadable):
 		return keyErr
 	}
+	if err := s.checkAILimit(ctx, uid); err != nil {
+		return err
+	}
 	s.chatMu.Lock()
 	if s.chatInFlight[uid] {
 		s.chatMu.Unlock()
@@ -303,6 +306,8 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	var answer strings.Builder
 	charts := []chartDTO{}
 	var inTok, outTok int
+	// Every exit below counts what was spent: completed, failed after tokens, or cancelled by the client.
+	defer func() { s.recordUsage(ctx, uid, model, inTok, outTok) }()
 	write := func(t string) {
 		answer.WriteString(t)
 		send("delta", map[string]string{"text": t})
@@ -316,6 +321,7 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 			}
 			write(t)
 		})
+		inTok, outTok = inTok+res.InputTokens, outTok+res.OutputTokens // partial on failure, still billed
 		if ctx.Err() != nil {
 			return nil // client went away: the answer is incomplete, keep nothing
 		}
@@ -324,7 +330,6 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 			fail(chatErrorMessage(err))
 			return nil
 		}
-		inTok, outTok = inTok+res.InputTokens, outTok+res.OutputTokens
 
 		var blocks, results []anthropic.Block
 		for _, b := range res.Blocks {
