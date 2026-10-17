@@ -37,7 +37,16 @@ Ao perguntar, o servidor envia à Anthropic a sua pergunta, a conversa recente e
 
 O uso é cobrado na conta da Anthropic dona de cada chave, não pelo app. Modelos maiores (Opus) custam mais que os menores (Haiku). O modelo e a retenção da conversa se ajustam em Ajustes > Assistente. Há um limite de mensagens por minuto por pessoa.
 
-Cada pessoa pode definir em Ajustes um limite diário e um mensal em reais. O servidor estima o gasto pelos tokens de cada resposta, pela tabela de preços dos modelos (mais 5% de margem) e pela cotação do dólar buscada uma vez por dia; ao atingir um limite, novas perguntas são recusadas até o dia (ou mês) seguinte. É uma estimativa: a última resposta pode passar um pouco do limite, e enquanto não houver cotação os limites não valem. O teto real é o limite de gasto da conta no console da Anthropic.
+## Limite de gasto
+
+Em Ajustes > Assistente há dois campos, **Limite diário (R$)** e **Limite mensal (R$)**. Digite o valor em reais (por exemplo `5`, `5,50` ou `5.50`, de R$ 0,01 a R$ 100.000,00) e toque em **Salvar**; deixe o campo vazio (ou `0`) para remover o limite. Abaixo dos campos aparecem o gasto de hoje e do mês, e a cotação usada.
+
+- **É uma estimativa.** O servidor calcula o custo pelos tokens de cada resposta, pela tabela de preços do modelo e pela cotação do dólar (AwesomeAPI, buscada uma vez por dia), com uma margem de 5% para cima. O valor pode variar um pouco do que a Anthropic cobra, e uma resposta pode passar do limite por uma fração, porque o gasto só é conhecido depois dela. Por isso os campos têm asterisco.
+- **O teto real é o da Anthropic.** Defina também um limite de gasto da conta no console da Anthropic.
+- **Ao atingir o limite**, a pergunta seguinte não é enviada à Anthropic: o chat mostra "Limite diário (ou mensal) do assistente atingido" e volta a funcionar no dia (ou mês) seguinte, ou quando você aumenta o limite. O dia e o mês seguem o fuso do servidor.
+- **Sem cotação** (por exemplo, a AwesomeAPI fora do ar desde que o servidor subiu), os limites não valem até a cotação ser obtida; a tela avisa.
+- **Rede:** o servidor faz uma requisição por dia a `economia.awesomeapi.com.br` para obter a cotação. `GASTOS_FX_URL` só existe para testes.
+- **Atualização:** esta versão atualiza o banco existente no lugar (versão 3 para 4) ao subir o servidor; não é preciso recriar o banco nem as contas.
 
 ## Roteiro de deploy (versão com assistente)
 
