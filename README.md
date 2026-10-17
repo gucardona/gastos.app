@@ -62,6 +62,7 @@ O servidor sobe em `:8000`. Teste com `curl localhost:8000/healthz`.
 | `GASTOS_INVITE_CODE` | vazio | código exigido no cadastro depois da primeira conta (mínimo de 8 caracteres). Sem ele, o cadastro fecha depois do primeiro usuário |
 | `GASTOS_SECRET_KEY` | vazio | chave mestra (32 bytes em base64) que cifra as chaves da Anthropic guardadas. Sem ela o assistente fica indisponível. Veja [Assistente de consulta](docs/assistente.md) |
 | `GASTOS_ANTHROPIC_URL` | `https://api.anthropic.com` | só para testes (e2e): aponta o assistente para um servidor falso |
+| `GASTOS_FX_URL` | `https://economia.awesomeapi.com.br/last/USD-BRL` | cotação do dólar (AwesomeAPI) usada para estimar o gasto do assistente em reais; só se muda em testes |
 
 ## Testes
 

@@ -14,6 +14,9 @@ const minInviteCodeLen = 8
 // DefaultAnthropicURL is the Anthropic API base URL used unless GASTOS_ANTHROPIC_URL overrides it.
 const DefaultAnthropicURL = "https://api.anthropic.com"
 
+// DefaultFXURL is the USD-BRL quote endpoint used unless GASTOS_FX_URL overrides it.
+const DefaultFXURL = "https://economia.awesomeapi.com.br/last/USD-BRL"
+
 type Config struct {
 	Addr         string
 	DBPath       string
@@ -28,6 +31,8 @@ type Config struct {
 	SecretKey []byte
 	// AnthropicURL is the Anthropic API base URL; tests point it at a local fake.
 	AnthropicURL string
+	// FXURL returns the USD-BRL quote (AwesomeAPI shape) used to price assistant usage; tests point it at a fake.
+	FXURL string
 }
 
 // Load reads the configuration from getenv (os.Getenv in production) and fails early on invalid values.
@@ -37,6 +42,7 @@ func Load(getenv func(string) string) (Config, error) {
 		DBPath:       or(getenv("GASTOS_DB_PATH"), "./data/gastos.db"),
 		BackupDir:    or(getenv("GASTOS_BACKUP_DIR"), "./data/backups"),
 		AnthropicURL: or(getenv("GASTOS_ANTHROPIC_URL"), DefaultAnthropicURL),
+		FXURL:        or(getenv("GASTOS_FX_URL"), DefaultFXURL),
 	}
 
 	keep, err := strconv.Atoi(or(getenv("GASTOS_BACKUP_KEEP"), "14"))

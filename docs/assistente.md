@@ -27,6 +27,7 @@ GASTOS_SECRET_KEY=<saída do comando acima>
 - Faça uma cópia da chave mestra em local seguro (gerenciador de senhas).
 - Se a chave mestra **mudar** (ou for perdida), as chaves guardadas deixam de poder ser lidas: o chat pede para informar a chave de novo e Ajustes mostra a chave como não configurada. Nada mais é perdido; cada pessoa só precisa colar a própria chave outra vez.
 - `GASTOS_ANTHROPIC_URL` (padrão `https://api.anthropic.com`) existe só para testes automatizados; não defina em produção.
+- `GASTOS_FX_URL` (padrão `https://economia.awesomeapi.com.br/last/USD-BRL`) é a cotação USD-BRL buscada uma vez por dia para estimar o gasto em reais; existe para testes, não defina em produção.
 
 ## Privacidade
 

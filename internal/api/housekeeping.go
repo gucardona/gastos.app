@@ -7,7 +7,7 @@ import (
 	"gastos/internal/db"
 )
 
-// Housekeeping removes expired sessions and ensures a daily backup, until ctx is cancelled.
+// Housekeeping removes expired sessions and chat, ensures a daily backup and refreshes the USD-BRL rate daily, until ctx is cancelled.
 func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 	run := func() {
 		now := s.now().UTC()
@@ -26,6 +26,12 @@ func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 				}
 			} else {
 				s.log.Info("backup", "path", p)
+			}
+		}
+		// Last, so a slow quote service (10s timeout) never delays the steps above. An empty URL (tests) skips it.
+		if s.cfg.FXURL != "" && s.fxStale(ctx) {
+			if err := s.refreshFX(ctx); err != nil && ctx.Err() == nil {
+				s.log.Warn("refresh usd-brl rate", "err", err)
 			}
 		}
 	}
