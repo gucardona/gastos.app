@@ -17,7 +17,14 @@ export default defineConfig({
     { name: "desktop" },
     { name: "mobile", use: { ...devices["Pixel 5"] } },
   ],
+  // the fake goes first: the Go server fetches the exchange rate from it as soon as it starts
   webServer: [{
+    // stands in for api.anthropic.com; a real key never enters tests
+    command: "node e2e/fake-anthropic.mjs",
+    url: `http://127.0.0.1:${fakePort}/`,
+    reuseExistingServer: false,
+    env: { PORT: String(fakePort) },
+  }, {
     command: "go run ./cmd/gastos",
     cwd: "..",
     url: `http://127.0.0.1:${port}/healthz`,
@@ -31,12 +38,7 @@ export default defineConfig({
       GASTOS_INVITE_CODE: "e2e-invite-code",
       GASTOS_SECRET_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", // test-only master key
       GASTOS_ANTHROPIC_URL: `http://127.0.0.1:${fakePort}`,
+      GASTOS_FX_URL: `http://127.0.0.1:${fakePort}/fx`, // never the real AwesomeAPI
     },
-  }, {
-    // stands in for api.anthropic.com; a real key never enters tests
-    command: "node e2e/fake-anthropic.mjs",
-    url: `http://127.0.0.1:${fakePort}/`,
-    reuseExistingServer: false,
-    env: { PORT: String(fakePort) },
   }],
 });

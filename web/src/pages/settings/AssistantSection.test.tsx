@@ -6,7 +6,8 @@ import { bodyOf, mockFetch, renderApp } from "../../test/fixtures";
 import { AssistantSection } from "./AssistantSection";
 
 const KEY = "sk-ant-test-key-1234";
-const base: AISettings = { available: true, configured: false, keyHint: "", model: "claude-sonnet-5-5", enabled: false, retentionDays: 7 };
+const base: AISettings = { available: true, configured: false, keyHint: "", model: "claude-sonnet-5-5", enabled: false, retentionDays: 7,
+  dailyLimitCents: 0, monthlyLimitCents: 0, usedTodayCents: 0, usedMonthCents: 0, usdBrl: null, usdBrlAt: null };
 const withKey: AISettings = { ...base, configured: true, keyHint: "1234" };
 
 const writes = (f: ReturnType<typeof mockFetch>) => f.mock.calls.filter((c) => c[1]?.method && c[1].method !== "GET");
@@ -143,5 +144,98 @@ describe("Assistant screen", () => {
     serve(base);
     renderApp(<AssistantSection />);
     expect(await screen.findByText("Os dados dos lançamentos consultados são enviados à Anthropic com a sua chave.")).toBeTruthy();
+  });
+
+  it("shows the asterisks and the exact footnote even with no limit set", async () => {
+    serve(withKey);
+    renderApp(<AssistantSection />);
+    expect(await screen.findByLabelText("Limite diário (R$) *")).toBeTruthy();
+    expect(screen.getByLabelText("Limite mensal (R$) *")).toBeTruthy();
+    expect(screen.getByText("* Valor aproximado: o custo é estimado com a cotação do dólar e pode variar um pouco do que a Anthropic cobra. O limite real é o da sua conta no console da Anthropic.")).toBeTruthy();
+  });
+
+  it.each([
+    ["5", 500],
+    ["5,00", 500],
+    ["5.50", 550],
+    ["5,5", 550],
+    ["", 0],
+    ["0", 0],
+  ])("saving a daily limit of %j sends { dailyLimitCents: %i }", async (text, cents) => {
+    const fetch = serve({ ...withKey, dailyLimitCents: cents === 0 ? 300 : 0 });
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    const input = await screen.findByLabelText("Limite diário (R$) *");
+    await user.clear(input);
+    if (text) await user.type(input, text);
+    await user.click(screen.getByRole("button", { name: "Salvar limite diário" }));
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(bodyAt(fetch)).toEqual({ dailyLimitCents: cents });
+  });
+
+  it("the monthly limit is sent on its own", async () => {
+    const fetch = serve(withKey);
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    await user.type(await screen.findByLabelText("Limite mensal (R$) *"), "100");
+    await user.click(screen.getByRole("button", { name: "Salvar limite mensal" }));
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(bodyAt(fetch)).toEqual({ monthlyLimitCents: 10000 });
+  });
+
+  it("the save chip only appears once the value changed", async () => {
+    serve({ ...withKey, dailyLimitCents: 500 });
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    const input = (await screen.findByLabelText("Limite diário (R$) *")) as HTMLInputElement;
+    expect(input.value).toBe("5,00");
+    expect(screen.queryByRole("button", { name: "Salvar limite diário" })).toBeNull();
+    await user.type(input, "1");
+    expect(screen.getByRole("button", { name: "Salvar limite diário" })).toBeTruthy();
+  });
+
+  it.each(["abc", "-5", "100000,01", "1,234"])("an invalid limit %j shows an error and sends nothing", async (text) => {
+    const fetch = serve(withKey);
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    await user.type(await screen.findByLabelText("Limite diário (R$) *"), text);
+    await user.click(screen.getByRole("button", { name: "Salvar limite diário" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Use um valor de R$ 0,01 a R$ 100.000,00, ou deixe vazio para não ter limite.");
+    expect(writes(fetch)).toHaveLength(0);
+  });
+
+  it("shows the server's error for a limit", async () => {
+    serve(withKey, { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { dailyLimitCents: "limite fora do intervalo" } } } });
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    await user.type(await screen.findByLabelText("Limite diário (R$) *"), "5");
+    await user.click(screen.getByRole("button", { name: "Salvar limite diário" }));
+    expect(await screen.findByText("limite fora do intervalo")).toBeTruthy();
+  });
+
+  it("shows today's and this month's usage against the limits", async () => {
+    serve({ ...withKey, dailyLimitCents: 500, monthlyLimitCents: 10000, usedTodayCents: 12, usedMonthCents: 345 });
+    renderApp(<AssistantSection />);
+    expect(await screen.findByText("Hoje: R$ 0,12 de R$ 5,00")).toBeTruthy();
+    expect(screen.getByText("Este mês: R$ 3,45 de R$ 100,00")).toBeTruthy();
+  });
+
+  it("shows just the usage when there is no limit", async () => {
+    serve({ ...withKey, usedTodayCents: 12, usedMonthCents: 345 });
+    renderApp(<AssistantSection />);
+    expect(await screen.findByText("Hoje: R$ 0,12")).toBeTruthy();
+    expect(screen.getByText("Este mês: R$ 3,45")).toBeTruthy();
+  });
+
+  it("shows the rate in use and when it was updated", async () => {
+    serve({ ...withKey, usdBrl: 5.0631, usdBrlAt: "2026-10-16T15:00:00Z" });
+    renderApp(<AssistantSection />);
+    expect(await screen.findByText("Cotação usada: US$ 1 = R$ 5,06 (atualizada em 16/10)")).toBeTruthy();
+  });
+
+  it("says so when there is no rate yet", async () => {
+    serve(withKey);
+    renderApp(<AssistantSection />);
+    expect(await screen.findByText("Cotação do dólar indisponível: os limites em reais só passam a valer quando ela for obtida.")).toBeTruthy();
   });
 });

@@ -7,6 +7,7 @@ const fakeIP = () => ({ "X-Forwarded-For": `10.${Math.floor(Math.random() * 250)
 test.beforeEach(async ({ context }) => context.setExtraHTTPHeaders(fakeIP()));
 
 const inviteCode = "e2e-invite-code";
+const fakeCalls = async (page: Page) => ((await (await page.request.get("http://127.0.0.1:18081/calls")).json()) as { calls: number }).calls;
 const fakeKey = "sk-ant-e2e-fake-key-0000"; // the only key the fake Anthropic server accepts
 
 async function signUpAndEnter(page: Page, name: string) {
@@ -71,4 +72,22 @@ test("assistente: setup, chat with a chart, reload, new conversation, wrong key"
   await page.getByLabel("Mensagem").fill("oi");
   await page.getByRole("button", { name: "Enviar" }).click();
   await expect(page.getByText("Posso ajudar com os seus gastos.")).toBeVisible();
+
+  // spending limit: shown with the asterisk footnote, then tiny enough to block the next question before it reaches Anthropic
+  await openAssistantSettings(page);
+  await expect(page.getByText("* Valor aproximado: o custo é estimado com a cotação do dólar")).toBeVisible();
+  await expect(page.getByText("Cotação usada: US$ 1 = R$ 5,06")).toBeVisible();
+  await page.getByLabel("Limite diário (R$) *").fill("5,00");
+  await page.getByRole("button", { name: "Salvar limite diário" }).click();
+  await expect(page.getByText(/^Hoje: R\$\s\d+,\d\d de R\$\s5,00$/)).toBeVisible();
+  await page.getByLabel("Limite diário (R$) *").fill("0,01");
+  await page.getByRole("button", { name: "Salvar limite diário" }).click();
+  await expect(page.getByText(/^Hoje: R\$\s\d+,\d\d de R\$\s0,01$/)).toBeVisible();
+
+  await chatTab.first().click();
+  const before = await fakeCalls(page);
+  await page.getByLabel("Mensagem").fill("e agora?");
+  await page.getByRole("button", { name: "Enviar" }).click();
+  await expect(page.getByText("Limite diário do assistente atingido (R$ 0,01)")).toBeVisible();
+  expect(await fakeCalls(page)).toBe(before);
 });

@@ -172,6 +172,12 @@ export interface AISettings {
   model: string;
   enabled: boolean;
   retentionDays: number;
+  dailyLimitCents: number; // 0 = no limit
+  monthlyLimitCents: number;
+  usedTodayCents: number;
+  usedMonthCents: number;
+  usdBrl: number | null;
+  usdBrlAt: string | null;
   warning?: string;
 }
 
