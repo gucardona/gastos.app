@@ -106,7 +106,8 @@ async function pairUp(browser: Browser) {
   await bia.reload();
   const biaWallets = await (await bia.request.get("/api/me")).json();
   const shared = biaWallets.wallets.find((w: { ownerName: string }) => w.ownerName.startsWith("Ana"));
-  await bia.locator("select[aria-label=Carteira]:visible").selectOption(String(shared.id)); // the other layout's selector is in the DOM but hidden
+  await bia.locator("button[aria-label^=Carteira]:visible").click(); // the other layout's switcher is in the DOM but hidden
+  await bia.getByRole("dialog").getByRole("button", { name: new RegExp(`, de ${shared.ownerName.split(" ")[0]}`) }).click();
   await ana.reload();
   await expect(ana.locator("small:visible", { hasText: /com Bia/ })).toHaveCount(1); // the wallet label also exists, hidden, in the other layout
   return { ana, bia };
@@ -303,7 +304,7 @@ test("navigation: three destinations, one way to Ajustes, and the + button", asy
   await signUpAndEnter(page, "Nina");
   const nav = page.getByRole("navigation", { name: "Navegação" });
   await expect(nav.getByRole("link")).toHaveText([/Visão/, /Lançamentos/, /Caixa/]); // no Divisão without splitting, no Recorrentes
-  await expect(page.locator("select[aria-label=Carteira]:visible")).toHaveCount(1);
+  await expect(page.locator(".wallet-name:visible")).toHaveCount(1); // one wallet switcher per layout, the other is hidden
   await expect(page.getByRole("link", { name: "Ajustes" })).toHaveCount(1);
 
   await page.getByRole("button", { name: "Novo lançamento" }).click();
