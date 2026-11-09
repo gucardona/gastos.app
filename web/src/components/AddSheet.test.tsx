@@ -34,8 +34,18 @@ describe("AddSheet: new transaction", () => {
     const { user } = open();
     await user.click(save());
     expect(await screen.findByText("Informe um valor maior que zero.")).toBeTruthy();
-    expect(screen.getByText("Descreva o lançamento.")).toBeTruthy();
+    expect(screen.queryByText("Descreva o lançamento.")).toBeNull(); // the description is optional
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("saves without a description", async () => {
+    const fetch = mockFetch({ status: 201, body: tx({ description: "" }) });
+    const { user, onClose } = open();
+    await user.type(screen.getByRole("textbox", { name: "Valor" }), "48,90");
+    await pickCategory(user, /Restaurante/);
+    await user.click(save());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(bodyOf(fetch)).toMatchObject({ amountCents: 4890, description: "" });
   });
 
   it("creates the expense with the default payment method and closes", async () => {

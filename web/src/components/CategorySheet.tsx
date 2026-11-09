@@ -10,7 +10,7 @@ import { Sheet } from "./Sheet";
 
 const ESSENTIALITY = [
   { value: "essential", label: "Essencial" },
-  { value: "nonessential", label: "Supérfluo" },
+  { value: "nonessential", label: "Não essencial" },
   { value: "investment", label: "Investimento" },
 ];
 

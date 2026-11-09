@@ -29,6 +29,13 @@ describe("TransactionList", () => {
     expect(screen.getByText(/^Ontem,/)).toBeTruthy();
   });
 
+  it("a transaction without a description is titled by its category, which is not repeated underneath", () => {
+    renderApp(<TransactionList items={[tx({ description: "" })]} />);
+    expect(screen.getByText("Mercado").className).toBe("desc");
+    expect(screen.getByText("Pix")).toBeTruthy(); // the payment method still shows, alone
+    expect(screen.queryByText(/Mercado, Pix/)).toBeNull();
+  });
+
   it("shows category, payment method and the recurring badge", () => {
     renderApp(<TransactionList items={[tx({ recurrenceId: 7 })]} />);
     expect(screen.getByText(/Mercado, Pix/)).toBeTruthy();

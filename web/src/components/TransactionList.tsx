@@ -37,9 +37,9 @@ export function TransactionList({ items }: { items: Transaction[] }) {
               <button type="button" className="row" key={t.id} disabled={!canEdit} onClick={() => openAdd(t)} style={{ cursor: canEdit ? "pointer" : "default" }}>
                 <span className="emoji" aria-hidden>{c?.icon}</span>
                 <span>
-                  <span className="desc">{t.description}</span>
+                  <span className="desc">{t.description || c?.name}</span>
                   <span className="meta" style={{ display: "block" }}>
-                    {[c?.name, method?.name].filter(Boolean).join(", ")}
+                    {[t.description ? c?.name : undefined, method?.name].filter(Boolean).join(", ")}
                     {t.recurrenceId && <> <span className="tag">recorrente</span></>}
                     {t.splits.length > 0 && <><br />{name(t.paidByUserId)} pagou{others.length > 0 && `, dividido com ${others.join(", ")}`}</>}
                   </span>
