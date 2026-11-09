@@ -79,11 +79,7 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 		if in.CategoryID == nil || in.ToUserID != nil {
 			return errValidation(map[string]string{"categoryId": "obrigatória para gastos e entradas"})
 		}
-		desc := in.Description
-		if desc == "" {
-			desc = "-" // the description is optional on recurrences (it becomes the category name)
-		}
-		ti := transactionInput{Kind: in.Kind, AmountCents: in.AmountCents, Description: desc, CategoryID: *in.CategoryID,
+		ti := transactionInput{Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description, CategoryID: *in.CategoryID,
 			PaymentMethodID: in.PaymentMethodID, Date: in.StartDate, PaidByUserID: in.PaidByUserID, Splits: in.Splits}
 		if err := ti.validate(ctx, q, walletID, userID, currentCategoryID); err != nil {
 			var ae *apiError

@@ -60,7 +60,6 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   async function save(again: boolean) {
     const errs: Record<string, string> = {};
     if (!cents) errs.amountCents = "Informe um valor maior que zero.";
-    if (!description.trim()) errs.description = "Descreva o lançamento.";
     if (!category) errs.categoryId = "Escolha uma categoria.";
     let splits: { userId: number; shareBp: number }[] | undefined;
     if (splitting && percents) {
@@ -169,7 +168,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
         {methods.length > 0 && <ListRow id="row-method" label="Pago com" value={method?.name ?? "Nenhuma"} onClick={() => choose("method")} chevron />}
         <div className="list-row">
           <label htmlFor="desc" className="lr-label">Descrição</label>
-          <input id="desc" className="desc-input" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <input id="desc" className="desc-input" placeholder="opcional" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         {splitting && <ListRow id="row-paidBy" label="Quem pagou" value={nameOf(paidBy)} onClick={() => choose("paidBy")} chevron />}
         {!tx && <ListRow label="Repetir todo mês" trailing={<Switch checked={repeat} onChange={setRepeat} label="Repetir todo mês" />} />}
