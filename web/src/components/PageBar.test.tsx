@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { appCtx, renderApp, wallet } from "../test/fixtures";
@@ -7,7 +7,7 @@ import { MonthSwitcher, PageBar } from "./PageBar";
 describe("PageBar", () => {
   it("shows the active wallet, who it is shared with, and the user's initial", () => {
     renderApp(<PageBar />);
-    expect((screen.getByLabelText("Carteira") as HTMLSelectElement).value).toBe("1");
+    expect(screen.getByText("Casa")).toBeTruthy();
     expect(screen.getByText("com Bia")).toBeTruthy();
     const avatar = screen.getByRole("link", { name: "Ajustes" });
     expect(avatar.textContent).toBe("A");
@@ -19,10 +19,11 @@ describe("PageBar", () => {
     expect(screen.queryByText(/^com /)).toBeNull();
   });
 
-  it("switches wallet through the selector", async () => {
+  it("switches wallet through the list that the wallet name opens", async () => {
     const ctx = appCtx({ wallets: [wallet, { ...wallet, id: 7, name: "Viagem" }] });
     renderApp(<PageBar />, ctx);
-    await userEvent.selectOptions(screen.getByLabelText("Carteira"), "7");
+    await userEvent.click(screen.getByRole("button", { name: /Carteira/ }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Viagem/ }));
     expect(ctx.setWalletId).toHaveBeenCalledWith(7);
   });
 });
