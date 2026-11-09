@@ -5,7 +5,7 @@ import { ListGroup, ListRow } from "../../components/ListGroup";
 import { Segmented } from "../../components/Segmented";
 import { useApp } from "../../context";
 
-const ESSENTIALITY = { essential: "Essencial", nonessential: "Supérfluo", investment: "Investimento" } as const;
+const ESSENTIALITY = { essential: "Essencial", nonessential: "Não essencial", investment: "Investimento" } as const;
 
 export function CategoriesSection() {
   const { categories, canEdit } = useApp();

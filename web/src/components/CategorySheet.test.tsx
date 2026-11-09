@@ -28,7 +28,7 @@ describe("CategorySheet: new", () => {
     await user.click(screen.getByRole("button", { name: "Outros" }));
     await user.click(screen.getByRole("button", { name: "🐶" }));
     await user.click(screen.getByRole("button", { name: "Cor #D4568B" }));
-    await user.click(screen.getByRole("button", { name: "Supérfluo" }));
+    await user.click(screen.getByRole("button", { name: "Não essencial" }));
     await user.click(screen.getByRole("button", { name: "Criar categoria" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/categories");

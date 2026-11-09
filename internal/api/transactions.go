@@ -68,8 +68,8 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 	if in.AmountCents <= 0 {
 		fe.add("amountCents", "deve ser maior que zero")
 	}
-	if in.Description == "" || len([]rune(in.Description)) > 200 {
-		fe.add("description", "obrigatória, até 200 caracteres")
+	if len([]rune(in.Description)) > 200 {
+		fe.add("description", "use até 200 caracteres")
 	}
 	if !validDate(in.Date) {
 		fe.add("date", "data inválida")
