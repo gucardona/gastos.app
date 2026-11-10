@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Summary, Transaction } from "../api/types";
@@ -324,15 +324,22 @@ describe("Overview: suggested settlement", () => {
     expect(screen.queryByText("Acerto entre vocês")).toBeNull();
   });
 
-  it("shows who owes whom and registers with today's date", async () => {
+  it("'Registrar acerto' opens the sheet with the suggestion and today's date; nothing is sent until it is confirmed there", async () => {
     const fetch = serve(withSuggestion(), [tx()]);
     const user = userEvent.setup();
     renderApp(<Overview />, splitting());
     expect(await screen.findByText("Você deve esse valor para Bia.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Registrar acerto" }));
+    const sheet = within(screen.getByRole("dialog"));
+    expect(sheet.getByRole("button", { name: /^Quem pagou/ }).textContent).toContain("Ana (você)");
+    expect(sheet.getByRole("button", { name: /^Quem recebeu/ }).textContent).toContain("Bia");
+    expect((sheet.getByLabelText("Valor do acerto") as HTMLInputElement).value).toBe("190,00");
+    expect((sheet.getByLabelText("Data do acerto") as HTMLInputElement).value).toBe(today());
+    expect(writes(fetch)).toHaveLength(0);
+    await user.click(sheet.getByRole("button", { name: "Registrar" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/settlements");
-    expect(bodyOf(fetch, fetch.mock.calls.indexOf(writes(fetch)[0]))).toEqual({ fromUserId: 1, toUserId: 2, amountCents: 19000, date: today() });
+    expect(bodyOf(fetch, fetch.mock.calls.indexOf(writes(fetch)[0]))).toEqual({ fromUserId: 1, toUserId: 2, amountCents: 19000, date: today(), note: "" });
   });
 
   it("when the debt is to you, it says 'a você'", async () => {
@@ -355,7 +362,7 @@ describe("Overview: suggested settlement", () => {
     expect(screen.queryByRole("button", { name: "Registrar acerto" })).toBeNull();
   });
 
-  it("shows the API error when registering", async () => {
+  it("shows the API error in the sheet, which stays open", async () => {
     mockFetch((url, init) => {
       if (init.method === "POST") return { status: 400, body: { error: { code: "validation", message: "Acertos exigem a divisão de gastos ativa na carteira" } } };
       return { body: url.includes("/summary") ? withSuggestion() : [tx()] };
@@ -363,7 +370,8 @@ describe("Overview: suggested settlement", () => {
     const user = userEvent.setup();
     renderApp(<Overview />, splitting());
     await user.click(await screen.findByRole("button", { name: "Registrar acerto" }));
-    expect(await screen.findByText(/Acertos exigem a divisão/)).toBeTruthy();
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Registrar" }));
+    expect(await within(screen.getByRole("dialog")).findByText(/Acertos exigem a divisão/)).toBeTruthy();
   });
 });
 

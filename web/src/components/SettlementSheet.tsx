@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { Settlement } from "../api/types";
+import type { Settlement, Transfer } from "../api/types";
 import { firstName, useApp } from "../context";
 import { useAction, useUndo } from "../hooks/useAction";
 import { today } from "../lib/dates";
@@ -10,26 +10,28 @@ import { OptionList, PickerView } from "./pickers";
 import { Sheet } from "./Sheet";
 import { useToast } from "./Toast";
 
-/** Register (`"new"`) or edit a settlement between two people; closed while `settlement` is null. */
-export function SettlementSheet({ settlement, onClose }: { settlement: Settlement | "new" | null; onClose: () => void }) {
+/** Register (`"new"`, or a suggested `Transfer` to check and confirm) or edit a settlement between two people; closed while `settlement` is null. */
+export function SettlementSheet({ settlement, onClose }: { settlement: Settlement | Transfer | "new" | null; onClose: () => void }) {
+  const saved = settlement && settlement !== "new" && "id" in settlement ? settlement : undefined;
   return (
-    <Sheet open={settlement !== null} onClose={onClose} label={settlement === "new" ? "Registrar acerto" : "Editar acerto"}>
-      {settlement && <SettlementForm key={settlement === "new" ? "new" : settlement.id} settlement={settlement === "new" ? undefined : settlement} onClose={onClose} />}
+    <Sheet open={settlement !== null} onClose={onClose} label={saved ? "Editar acerto" : "Registrar acerto"}>
+      {settlement && <SettlementForm key={saved?.id ?? "new"} settlement={saved} draft={saved || settlement === "new" ? undefined : settlement} onClose={onClose} />}
     </Sheet>
   );
 }
 
 type Picking = "from" | "to" | null;
 
-function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onClose: () => void }) {
+function SettlementForm({ settlement, draft, onClose }: { settlement?: Settlement; draft?: Transfer; onClose: () => void }) {
   const { wallet, members, user } = useApp();
   const { run, busy, error } = useAction();
   const toast = useToast();
   const undo = useUndo();
   const other = members.find((m) => m.userId !== user.id)?.userId ?? user.id;
-  const [from, setFrom] = useState(settlement?.fromUserId ?? other);
-  const [to, setTo] = useState(settlement?.toUserId ?? user.id);
-  const [amount, setAmount] = useState(settlement ? centsToInput(settlement.amountCents) : "");
+  const start = settlement ?? draft;
+  const [from, setFrom] = useState(start?.fromUserId ?? other);
+  const [to, setTo] = useState(start?.toUserId ?? user.id);
+  const [amount, setAmount] = useState(start ? centsToInput(start.amountCents) : "");
   const [date, setDate] = useState(settlement?.date ?? today());
   const [note, setNote] = useState(settlement?.note ?? "");
   const [problem, setProblem] = useState("");

@@ -1,22 +1,19 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { api } from "../api/client";
 import { useSettlements, useSummary } from "../api/queries";
-import type { Settlement } from "../api/types";
+import type { Settlement, Transfer } from "../api/types";
 import { ListGroup, ListRow } from "../components/ListGroup";
 import { PageBar } from "../components/PageBar";
 import { SettlementSheet } from "../components/SettlementSheet";
 import { firstName, useApp } from "../context";
-import { useAction } from "../hooks/useAction";
-import { dayLabel, today } from "../lib/dates";
+import { dayLabel } from "../lib/dates";
 import { formatBRL } from "../lib/money";
 
 export function Division() {
   const { wallet, month, members, user, canEdit } = useApp();
   const summary = useSummary(wallet.id, month);
   const history = useSettlements(wallet.id);
-  const register = useAction();
-  const [sheet, setSheet] = useState<Settlement | "new" | null>(null);
+  const [sheet, setSheet] = useState<Settlement | Transfer | "new" | null>(null);
 
   const who = (id: number) => (id === user.id ? "Você" : firstName(members.find((m) => m.userId === id)?.name ?? "Alguém"));
 
@@ -54,15 +51,11 @@ export function Division() {
             <div className="settle" key={`${t.fromUserId}-${t.toUserId}`}>
               <p className="big">{who(t.fromUserId)} deve {formatBRL(t.amountCents)} {t.toUserId === user.id ? "a você" : `para ${who(t.toUserId)}`}.</p>
               {canEdit && (
-                <button type="button" className="btn full" disabled={register.busy}
-                  onClick={() => void register.run(() => api.post(`/wallets/${wallet.id}/settlements`, { fromUserId: t.fromUserId, toUserId: t.toUserId, amountCents: t.amountCents, date: today() }))}>
-                  Registrar acerto
-                </button>
+                <button type="button" className="btn full" onClick={() => setSheet(t)}>Registrar acerto</button>
               )}
             </div>
           ))
         )}
-        {register.error && <p className="error" role="alert">{register.error}</p>}
         {canEdit && <button type="button" className="btn ghost full" onClick={() => setSheet("new")}>Registrar outro acerto</button>}
       </section>
 

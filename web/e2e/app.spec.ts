@@ -139,8 +139,15 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
   await expect(ana.getByText(/Você deve R\$\s*190,00 para Bia\./)).toBeVisible();
   await expect(ana.getByText(/−R\$\s*190,00/).first()).toBeVisible();
 
-  // Ana settles up: the balance goes to zero and the settlement enters the history
+  // Ana settles up: the sheet opens with the suggestion to check, and only its button records it
   await ana.getByRole("button", { name: "Registrar acerto" }).click();
+  const check = ana.getByRole("dialog");
+  await expect(check.getByLabel("Valor do acerto")).toHaveValue("190,00");
+  await expect(check.getByRole("button", { name: /^Quem pagou/ })).toContainText("Ana (você)");
+  await expect(check.getByRole("button", { name: /^Quem recebeu/ })).toContainText("Bia");
+  await check.getByRole("button", { name: "Registrar", exact: true }).click();
+  await expect(check).toBeHidden();
+  // the balance goes to zero and the settlement enters the history
   await expect(ana.getByText("Vocês estão quites.")).toBeVisible();
   await expect(ana.getByText(/Você pagou Bia/)).toBeVisible();
 
