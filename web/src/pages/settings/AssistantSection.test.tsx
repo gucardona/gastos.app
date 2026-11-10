@@ -263,3 +263,19 @@ describe("Assistant screen", () => {
     expect(await screen.findByText("Cotação do dólar indisponível: os limites em reais só passam a valer quando ela for obtida.")).toBeTruthy();
   });
 });
+
+describe("Assistant screen: long labels", () => {
+  it("stack above their fields, still naming them", async () => {
+    serve(withKey);
+    renderApp(<AssistantSection />);
+    for (const label of ["Guardar conversas por (dias)", "Limite diário (R$) *", "Limite mensal (R$) *"]) {
+      expect((await screen.findByLabelText(label)).closest(".list-row")!.classList.contains("stacked"), label).toBe(true);
+    }
+  });
+
+  it("the key field stacks too", async () => {
+    serve(base);
+    renderApp(<AssistantSection />);
+    expect((await screen.findByLabelText("Chave da API")).closest(".list-row")!.classList.contains("stacked")).toBe(true);
+  });
+});

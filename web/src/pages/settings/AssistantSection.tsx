@@ -36,7 +36,7 @@ function LimitRow({ id, label, saveLabel, cents, busy, describedBy, onInvalid, o
   const current = cents > 0 ? centsToInput(cents) : "";
   const value = text ?? current;
   return (
-    <form className="list-row" onSubmit={(e) => {
+    <form className="list-row stacked" onSubmit={(e) => {
       e.preventDefault();
       const n = parseLimit(value);
       if (n === null) { onInvalid(LIMIT_ERROR); return; }
@@ -81,7 +81,7 @@ export function AssistantSection() {
     <div className="screen">
       <ListGroup>
         {showKeyForm ? (
-          <form className="list-row" onSubmit={async (e) => {
+          <form className="list-row stacked" onSubmit={async (e) => {
             e.preventDefault();
             if (await put(keyAct, { apiKey: key }, "Chave salva")) { setKey(""); setReplacing(false); }
           }}>
@@ -90,7 +90,7 @@ export function AssistantSection() {
             <button type="submit" className="chip" disabled={keyAct.busy || !key.trim()}>Salvar chave</button>
           </form>
         ) : (
-          <div className="list-row">
+          <div className="list-row stacked">
             <span className="lr-label">Chave da API</span> <span className="lr-value">•••• {data.keyHint}</span>
             <button type="button" className="chip" onClick={() => setReplacing(true)}>Trocar</button>
             <ConfirmButton className="chip" confirmClassName="chip danger" disabled={keyAct.busy} label="Remover" confirmLabel="Confirmar remoção"
@@ -104,7 +104,7 @@ export function AssistantSection() {
       <Segmented label="Modelo" value={data.model} options={MODELS} onChange={(model) => void put(prefs, { model }, "Modelo alterado")} />
       <ListGroup>
         <ListRow label="Ativar chat" trailing={<Switch checked={data.enabled} disabled={!data.configured || prefs.busy} label="Ativar chat" onChange={(enabled) => void put(prefs, { enabled }, enabled ? "Chat ativado" : "Chat desativado")} />} />
-        <form className="list-row" onSubmit={(e) => {
+        <form className="list-row stacked" onSubmit={(e) => {
           e.preventDefault();
           const n = Number(retention);
           if (!Number.isInteger(n) || n < 1 || n > 30) { setDaysError("Use de 1 a 30 dias."); return; }

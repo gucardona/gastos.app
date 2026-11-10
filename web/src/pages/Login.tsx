@@ -43,10 +43,10 @@ export function Login() {
   }
 
   const error = (k: string) => errors[k] && <p className="error" role="alert">{errors[k]}</p>;
-  /** One labelled row; the error of the field sits right under it. */
-  const row = (id: string, label: string, input: React.ReactNode, key?: string) => (
+  /** One labelled row; the error of the field sits right under it. A long label goes above the field (`stacked`), so it does not wrap beside it on a phone. */
+  const row = (id: string, label: string, input: React.ReactNode, key?: string, stacked = false) => (
     <div className="auth-field">
-      <div className="field-row"><label htmlFor={id} className="lr-label">{label}</label>{input}</div>
+      <div className={stacked ? "field-row stacked" : "field-row"}><label htmlFor={id} className="lr-label">{label}</label>{input}</div>
       {key && error(key)}
     </div>
   );
@@ -55,11 +55,11 @@ export function Login() {
     <div className="auth">
       <form onSubmit={submit}>
         <h1>gastos</h1>
-        {register && row("name", "Como você gostaria de ser chamado?", <input id="name" className="desc-input" placeholder="seu nome" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />, "name")}
+        {register && row("name", "Como você gostaria de ser chamado?", <input id="name" className="desc-input" placeholder="seu nome" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />, "name", true)}
         {row("email", "E-mail", <input id="email" className="desc-input" type="email" placeholder="voce@exemplo.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />, "email")}
         {row("password", "Senha", <input id="password" className="desc-input" type="password" placeholder={register ? "8 ou mais caracteres" : "sua senha"} autoComplete={register ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />, "password")}
-        {register && row("confirm", "Repita a senha", <input id="confirm" className="desc-input" type="password" placeholder="a mesma senha" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />, "confirm")}
-        {register && mode === "code" && row("invite", "Código de convite", <input id="invite" className="desc-input" placeholder="recebido de quem convidou" autoComplete="off" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />, "inviteCode")}
+        {register && row("confirm", "Repita a senha", <input id="confirm" className="desc-input" type="password" placeholder="a mesma senha" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />, "confirm", true)}
+        {register && mode === "code" && row("invite", "Código de convite", <input id="invite" className="desc-input" placeholder="recebido de quem convidou" autoComplete="off" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />, "inviteCode", true)}
         {general && <p className="error" role="alert">{general}</p>}
         <button type="submit" className="btn full" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
         {/* the toggle waits for the mode so a closed sign-up never flashes an option that cannot work */}
