@@ -1,19 +1,14 @@
 import { Link } from "react-router";
-import { firstName, useApp } from "../context";
+import { useApp } from "../context";
 import { addMonths, monthLabel } from "../lib/dates";
+import { WalletSwitcher } from "./WalletSwitcher";
 
 /** Top of the screens: active wallet and avatar. */
 export function PageBar() {
-  const { user, wallet, wallets, setWalletId, members } = useApp();
-  const others = members.filter((m) => m.userId !== user.id).map((m) => firstName(m.name));
+  const { user } = useApp();
   return (
     <div className="bar">
-      <label className="wallet">
-        <select aria-label="Carteira" value={wallet.id} onChange={(e) => setWalletId(Number(e.target.value))}>
-          {wallets.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-        </select>
-        {others.length > 0 && <small>com {others.join(", ")}</small>}
-      </label>
+      <WalletSwitcher />
       <Link className="avatar" to="/ajustes" aria-label="Ajustes">{user.name[0]?.toUpperCase()}</Link>
     </div>
   );
