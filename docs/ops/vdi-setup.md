@@ -43,6 +43,13 @@ GASTOS_SECRET_KEY=<saída do openssl rand -base64 32>
 
 `GASTOS_COOKIE_SECURE` fica no padrão (`true`), então o acesso precisa ser por HTTPS (passo 4).
 
+O arquivo guarda segredos (código de convite, chave mestra). Deixe-o legível só pelo root; o systemd o lê como root antes de iniciar o app com o usuário `gastos`, então o app continua recebendo as variáveis:
+
+```bash
+chown root:root /etc/gastos/production.env
+chmod 600 /etc/gastos/production.env
+```
+
 ## 3. systemd
 
 ```bash
@@ -56,6 +63,30 @@ Permissão mínima para o usuário de deploy reiniciar só esse serviço, em `/e
 ```
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart gastos@production
 ```
+
+A unit já vem endurecida: o app só escreve em `/var/lib/gastos/production`, não enxerga a chave nem a cópia do backup fora do servidor (`/var/lib/gastos/.ssh` e `/var/lib/gastos/offsite`), não tem capacidades de root, só abre sockets de rede IPv4/IPv6 e locais e só pode fazer chamadas de sistema comuns de serviços. Nada disso atrapalha o que ele faz: servir HTTP, ler e gravar o SQLite e chamar APIs externas por HTTPS.
+
+### O que o dono do servidor precisa aplicar
+
+O deploy pelo CI troca só o binário; **a unit e as permissões não são atualizadas sozinhas**. Num servidor instalado antes desta versão, rode uma vez, como root, a partir de um clone atualizado do repositório:
+
+```bash
+# 1. segredos legíveis só pelo root (o systemd lê o arquivo como root)
+chown root:root /etc/gastos/production.env
+chmod 600 /etc/gastos/production.env
+
+# 2. unit nova (isolamento do backup e endurecimento)
+install -m 644 deploy/gastos@.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl restart gastos@production
+
+# 3. conferir
+systemctl status gastos@production --no-pager
+curl -fsS http://127.0.0.1:8000/healthz; echo
+systemd-analyze security gastos@production | tail -1   # a nota deve cair em relação à anterior
+```
+
+Se o serviço não subir, `journalctl -u gastos@production -n 50 --no-pager` mostra o motivo; para voltar atrás, reinstale a unit anterior (`git log --oneline -- deploy/gastos@.service` mostra o commit; `git show <commit>~1:deploy/gastos@.service` traz o arquivo) e repita `daemon-reload` e `restart`. O serviço de backup fora do servidor não muda.
 
 ## 4. HTTPS (Caddy)
 

@@ -66,6 +66,8 @@ journalctl -u gastos-offsite-backup -n 20 --no-pager
 
 A última linha do log deve ser `enviado: gastos-AAAAMMDD-HHMMSS.db.gpg (1 arquivos no repositório)`.
 
+A chave de acesso (`/var/lib/gastos/.ssh`) e a cópia de trabalho (`/var/lib/gastos/offsite`) são só deste serviço. O serviço do app (`gastos@.service`) roda com o mesmo usuário `gastos`, mas não enxerga essas duas pastas (`InaccessiblePaths`): se o app for invadido, a chave com escrita no repositório de backup não vaza. Isso não muda nada no serviço de backup. Se o seu servidor foi instalado antes dessa regra, aplique o passo [O que o dono do servidor precisa aplicar](vdi-setup.md#o-que-o-dono-do-servidor-precisa-aplicar).
+
 ## 2. Conferir de vez em quando
 
 ```bash
