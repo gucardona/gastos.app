@@ -272,8 +272,9 @@ func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	s.notifyUsers(uid) // their other tabs, even with no wallet left
 	for _, wl := range wallets {
-		s.bus.Notify(wl.ID, uid)
+		s.notifyWallet(r.Context(), wl.ID)
 	}
 	writeJSON(w, http.StatusOK, u)
 	return nil

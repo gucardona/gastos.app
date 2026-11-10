@@ -59,9 +59,27 @@ func (m *Materializer) Run(ctx context.Context, walletID int64) error {
 		}
 	}
 	for wid := range changed {
-		m.bus.Notify(wid, 0)
+		m.notifyMembers(ctx, wid)
 	}
 	return nil
+}
+
+// notifyMembers tells every member of the wallet; the occurrences are saved already, so a failure is only logged.
+func (m *Materializer) notifyMembers(ctx context.Context, walletID int64) {
+	rows, err := m.db.QueryContext(ctx, `SELECT user_id FROM wallet_members WHERE wallet_id = ?`, walletID)
+	if err != nil {
+		m.log.Error("notify wallet members", "wallet", walletID, "err", err)
+		return
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	m.bus.Notify(ids...)
 }
 
 func (m *Materializer) load(ctx context.Context, walletID int64) ([]template, error) {
