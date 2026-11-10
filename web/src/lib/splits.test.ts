@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { equalPercents, sharesFromPercents } from "./splits";
+import { defaultPercents, equalPercents, sharesFromPercents } from "./splits";
 
 describe("sharesFromPercents", () => {
   it("converts percentages to basis points and requires a 100% total", () => {
@@ -23,5 +23,23 @@ describe("equalPercents", () => {
   it("splits equally and the remainder goes to the first", () => {
     expect(equalPercents([1, 2])).toEqual({ 1: "50", 2: "50" });
     expect(equalPercents([1, 2, 3])).toEqual({ 1: "33,34", 2: "33,33", 3: "33,33" });
+  });
+});
+
+describe("defaultPercents", () => {
+  const m = (userId: number, defaultShareBp: number) => ({ userId, splitsByDefault: true, defaultShareBp });
+  it("uses the members' shares when every id has one", () => {
+    expect(defaultPercents([m(1, 6000), m(2, 4000)], [1, 2])).toEqual({ 1: "60", 2: "40" });
+  });
+  it("normalizes to exactly 100% with the largest remainder, ordered by userId", () => {
+    expect(defaultPercents([m(2, 2000), m(1, 7000)], [2, 1])).toEqual({ 1: "77,78", 2: "22,22" });
+    expect(defaultPercents([m(1, 5000), m(2, 2500), m(3, 2500)], [1, 2, 3])).toEqual({ 1: "50", 2: "25", 3: "25" });
+  });
+  it("falls back to an equal split when any id has no share", () => {
+    expect(defaultPercents([m(1, 6000), m(2, 0)], [1, 2])).toEqual({ 1: "50", 2: "50" });
+    expect(defaultPercents([m(1, 6000)], [1, 2])).toEqual({ 1: "50", 2: "50" });
+  });
+  it("a single id is 100%", () => {
+    expect(defaultPercents([m(1, 3000)], [1])).toEqual({ 1: "100" });
   });
 });

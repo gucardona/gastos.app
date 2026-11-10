@@ -4,12 +4,13 @@ import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
 import { dayLabel, today, yesterday } from "../lib/dates";
-import { centsToInput, formatBRL, parseCents } from "../lib/money";
-import { equalPercents, sharesFromPercents } from "../lib/splits";
+import { centsToInput, parseCents } from "../lib/money";
+import { percentsFromSplits } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
 import { CategoryGrid, DatePicker, OptionList, PickerView } from "./pickers";
 import { Segmented } from "./Segmented";
 import { Sheet } from "./Sheet";
+import { resolveSplits, SplitEditor, type Percents } from "./SplitEditor";
 import { Switch } from "./Switch";
 
 /** Quick-add sheet: new transaction, or editing one when `state.tx` is set. */
@@ -35,9 +36,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const [methodId, setMethodId] = useState<number | null>(tx?.paymentMethodId ?? null);
   const [date, setDate] = useState(tx?.date ?? today());
   const [paidBy, setPaidBy] = useState(tx?.paidByUserId ?? user.id);
-  const [percents, setPercents] = useState<Record<number, string> | null>(
-    tx?.splits.length ? Object.fromEntries(tx.splits.map((s) => [s.userId, String(s.shareBp / 100).replace(".", ",")])) : null,
-  );
+  const [percents, setPercents] = useState<Percents | null>(tx?.splits.length ? percentsFromSplits(tx.splits) : null);
   const [repeat, setRepeat] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
   const openedFrom = useRef<Picker | null>(null);
@@ -53,7 +52,6 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const method = methods.find((p) => p.id === methodId) ?? (tx ? undefined : methods[0]);
 
   const splitting = wallet.splittingEnabled && kind === "expense" && members.length > 1;
-  const defaultIds = members.filter((m) => m.splitsByDefault).map((m) => m.userId);
   const nameOf = (id: number) => members.find((m) => m.userId === id)?.name.split(" ")[0] ?? "";
   const cents = parseCents(amount);
 
@@ -61,11 +59,8 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     const errs: Record<string, string> = {};
     if (!cents) errs.amountCents = "Informe um valor maior que zero.";
     if (!category) errs.categoryId = "Escolha uma categoria.";
-    let splits: { userId: number; shareBp: number }[] | undefined;
-    if (splitting && percents) {
-      splits = sharesFromPercents(percents) ?? undefined;
-      if (!splits) errs.splits = "As partes precisam somar 100%.";
-    }
+    const { splits, error: splitsError } = splitting ? resolveSplits(percents) : {};
+    if (splitsError) errs.splits = splitsError;
     setErrors(errs);
     setGeneral("");
     if (Object.keys(errs).length > 0 || !cents || !category) return;
@@ -177,32 +172,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       {err("description")}
       {err("date")}
 
-      {splitting && (
-        <>
-          <ListGroup className="split-group">
-            <ListRow
-              label={percents ? "Divisão personalizada" : `Dividir com ${defaultIds.filter((id) => id !== paidBy).map(nameOf).join(", ") || "ninguém"}`}
-              value={percents ? undefined : cents ? `${formatBRL(Math.floor(cents / Math.max(defaultIds.length, 1)))} para cada` : undefined}
-              trailing={
-                <button type="button" className="chip" onClick={() => setPercents(percents ? null : equalPercents(defaultIds.length ? defaultIds : members.map((m) => m.userId)))}>
-                  {percents ? "Igualar" : "Ajustar"}
-                </button>
-              }
-            />
-            {percents && (
-              <div className="split-edit">
-                {members.map((m) => (
-                  <label key={m.userId}>
-                    {m.name.split(" ")[0]}
-                    <span><input inputMode="decimal" aria-label={`Porcentagem de ${m.name}`} value={percents[m.userId] ?? ""} onChange={(e) => setPercents({ ...percents, [m.userId]: e.target.value })} /> %</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </ListGroup>
-          {err("splits")}
-        </>
-      )}
+      {splitting && <SplitEditor value={percents} onChange={setPercents} paidBy={paidBy} cents={cents} error={errors.splits} />}
 
       {general && <p className="error" role="alert">{general}</p>}
       <div className="actions">
