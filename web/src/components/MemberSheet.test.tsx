@@ -110,7 +110,7 @@ describe("MemberSheet: default share", () => {
     expect(saveChip()).toBeNull();
   });
 
-  it("is empty when no share is set, and hidden without splitting, for non-owners and when out of the default split", () => {
+  it("is empty when no share is set", () => {
     open(bia, ctx());
     expect(field().value).toBe("");
   });

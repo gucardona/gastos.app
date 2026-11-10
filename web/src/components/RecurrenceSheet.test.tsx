@@ -147,6 +147,17 @@ describe("RecurrenceSheet", () => {
       expect(writes(fetch)).toHaveLength(0);
     });
 
+    it("with default shares the way back is labelled 'Padrão' and sends no splits", async () => {
+      const fetch = serve();
+      const shared = appCtx({ wallet: { ...wallet, splittingEnabled: true }, members: members.map((m) => ({ ...m, defaultShareBp: m.userId === 1 ? 7000 : 3000 })) });
+      const { user, onClose } = open(netflix, shared);
+      expect(screen.queryByRole("button", { name: "Igualar" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Padrão" }));
+      await user.click(screen.getByRole("button", { name: "Salvar" }));
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+      expect(lastBody(fetch)).not.toHaveProperty("splits");
+    });
+
     it("'Igualar' goes back to the default split: no splits are sent", async () => {
       const fetch = serve();
       const { user, onClose } = open(netflix, splitting());
