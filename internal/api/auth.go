@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/mail"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -275,6 +276,60 @@ func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
 		s.bus.Notify(wl.ID, uid)
 	}
 	writeJSON(w, http.StatusOK, u)
+	return nil
+}
+
+// changePassword replaces the caller's password after checking the current one, and ends their other sessions
+// (the one that made the request stays signed in), so a leaked provisional password stops working.
+func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	uid := userIDFrom(r.Context())
+	if !s.limiter.allow("password:user:" + strconv.FormatInt(uid, 10)) { // stops guessing the current password
+		return errRateLimited
+	}
+	fe := fieldErrors{}
+	switch {
+	case len(in.NewPassword) < 8:
+		fe.add("newPassword", "mínimo de 8 caracteres")
+	case len(in.NewPassword) > 72: // bcrypt ignores everything after 72 bytes
+		fe.add("newPassword", "máximo de 72 caracteres")
+	case in.NewPassword == in.CurrentPassword:
+		fe.add("newPassword", "use uma senha diferente da atual")
+	}
+	var hash string
+	if err := s.db.QueryRowContext(r.Context(), `SELECT password_hash FROM users WHERE id = ?`, uid).Scan(&hash); err != nil {
+		return err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.CurrentPassword)) != nil {
+		fe.add("currentPassword", "senha atual incorreta")
+	}
+	if err := fe.err(); err != nil {
+		return err
+	}
+	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), bcryptCost)
+	if err != nil {
+		return err
+	}
+	keep := sha256.Sum256(nil)
+	if c, err := r.Cookie(sessionCookie); err == nil {
+		keep = sha256.Sum256([]byte(c.Value))
+	}
+	if err := s.inTx(r.Context(), func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(r.Context(), `UPDATE users SET password_hash = ? WHERE id = ?`, string(newHash), uid); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(r.Context(), `DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`, uid, keep[:])
+		return err
+	}); err != nil {
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 

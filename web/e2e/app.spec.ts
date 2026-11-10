@@ -519,3 +519,30 @@ test("you can change your own name, and it shows everywhere", async ({ page }) =
   await page.reload();
   await expect(page.getByLabel("Seu nome")).toHaveValue("Lia Maria");
 });
+
+test("a person changes the provisional password and signs in with the new one", async ({ page }) => {
+  const email = await signUpAndEnter(page, "Nina");
+  await page.goto("/ajustes/perfil");
+  await page.getByRole("button", { name: /Alterar senha/ }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("Senha atual", { exact: true }).fill("errada-errada");
+  await sheet.getByLabel("Nova senha", { exact: true }).fill("minha-senha-nova");
+  await sheet.getByLabel("Repetir a nova senha").fill("minha-senha-nova");
+  await sheet.getByRole("button", { name: "Alterar senha" }).click();
+  await expect(sheet.getByRole("alert")).toBeVisible(); // wrong current password: the sheet stays open
+
+  await sheet.getByLabel("Senha atual", { exact: true }).fill(password);
+  await sheet.getByRole("button", { name: "Alterar senha" }).click();
+  await expect(page.getByText("Senha alterada.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Ajustes" }).first().click();
+  await page.getByRole("button", { name: "Sair" }).click();
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByText("E-mail ou senha incorretos")).toBeVisible(); // the old password is gone
+
+  await page.getByLabel("Senha", { exact: true }).fill("minha-senha-nova");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByText("Saldo do mês")).toBeVisible();
+});

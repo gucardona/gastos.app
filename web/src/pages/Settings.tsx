@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../api/client";
-import { ListGroup } from "../components/ListGroup";
+import { ListGroup, ListRow } from "../components/ListGroup";
+import { PasswordSheet } from "../components/PasswordSheet";
 import { PageBar } from "../components/PageBar";
 import { RecurringSection } from "../components/RecurringSection";
 import { Segmented } from "../components/Segmented";
@@ -113,6 +114,8 @@ function Profile() {
   const { user, wallet } = useApp();
   const rename = useAction();
   const [name, setName] = useState(user.name);
+  const [changing, setChanging] = useState(false);
+  const [changed, setChanged] = useState(false);
   return (
     <div className="screen">
       <ListGroup>
@@ -122,9 +125,12 @@ function Profile() {
           {name.trim() !== user.name && <button type="submit" className="chip" disabled={rename.busy}>Salvar nome</button>}
         </form>
         <div className="list-row"><span className="lr-label">E-mail</span> <span className="lr-value">{user.email}</span></div>
+        <ListRow id="row-password" label="Alterar senha" onClick={() => { setChanged(false); setChanging(true); }} chevron />
         <div className="list-row"><span className="lr-label">Carteira ativa</span> <span className="lr-value">{wallet.name}, {ROLE_TEXT[wallet.role]}</span></div>
       </ListGroup>
       {rename.error && <p className="error" role="alert">{rename.error}</p>}
+      {changed && <p className="muted lead" role="status">Senha alterada.</p>}
+      <PasswordSheet open={changing} onClose={() => setChanging(false)} onChanged={() => setChanged(true)} />
     </div>
   );
 }
