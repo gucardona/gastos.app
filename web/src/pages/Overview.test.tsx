@@ -169,8 +169,8 @@ describe("Overview: budget rails", () => {
     serve(summary(), [tx()]);
     renderApp(<Overview />);
     await screen.findByText("Para onde foi");
-    expect(screen.getByText("Mercado")).toBeTruthy();
-    expect(screen.getByText("Restaurante")).toBeTruthy();
+    expect(screen.getAllByText("Mercado").length).toBeGreaterThan(0); // the pie legend repeats the names
+    expect(screen.getAllByText("Restaurante").length).toBeGreaterThan(0);
     expect(screen.queryByText("Salário")).toBeNull(); // income is excluded
     expect(screen.getByText(/de R\$\s1\.500,00/)).toBeTruthy();
   });
@@ -200,6 +200,65 @@ describe("Overview: budget rails", () => {
     await screen.findByText("Para onde foi");
     expect(container.querySelector(".limit")).toBeNull();
     expect((container.querySelector(".fill") as HTMLElement).style.width).toBe("100%");
+  });
+});
+
+describe("Overview: shares and pie", () => {
+  const many = (n: number) => {
+    const cats = Array.from({ length: n }, (_, i) => ({ id: 100 + i, kind: "expense" as const, name: `Cat ${i + 1}`, icon: "x" }));
+    const by = cats.map((c, i) => ({ categoryId: c.id, kind: "expense" as const, cents: (i + 1) * 1000, budgetCents: null }));
+    return { ctx: appCtx({ categories: cats as never }), s: summary({ byCategory: by }) };
+  };
+
+  it("shows each category's share of the month's expenses next to the amount", async () => {
+    serve(summary(), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    const amts = Array.from(container.querySelectorAll(".rail .amt")).map((e) => e.textContent);
+    expect(amts[0]).toMatch(/1\.042,30.*62%/); // 104230 / 168230
+    expect(amts[1]).toMatch(/640,00.*38%/);
+  });
+
+  it("shows <1% for a tiny category", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 100000, budgetCents: null }, { categoryId: 2, kind: "expense", cents: 10, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    expect(container.querySelectorAll(".rail .amt")[1].textContent).toMatch(/<1%/);
+  });
+
+  it("draws the pie below the list, with the points in the aria-label", async () => {
+    serve(summary(), [tx()]);
+    renderApp(<Overview />);
+    const pie = await screen.findByRole("img", { name: /^Gastos por categoria\./ });
+    expect(pie.getAttribute("aria-label")).toMatch(/Mercado: R\$\s1\.042,30, 62%; Restaurante: R\$\s640,00, 38%/);
+  });
+
+  it("has no pie without expenses", async () => {
+    serve(summary({ byCategory: [{ categoryId: 3, kind: "income", cents: 850000, budgetCents: null }], expenseCents: 0 }), [tx({ kind: "income", categoryId: 3 })]);
+    renderApp(<Overview />);
+    await screen.findByRole("heading", { name: "Recentes" });
+    expect(screen.queryByText("Gastos por categoria")).toBeNull();
+  });
+
+  it("with 8 categories keeps all of them in the pie", async () => {
+    const { ctx, s } = many(8);
+    serve(s, [tx()]);
+    renderApp(<Overview />, ctx);
+    const pie = await screen.findByRole("img", { name: /^Gastos por categoria/ });
+    expect(pie.getAttribute("aria-label")).not.toMatch(/Outros/);
+    expect(pie.getAttribute("aria-label")!.split(";")).toHaveLength(8);
+  });
+
+  it("with more than 8 categories groups the smallest as Outros", async () => {
+    const { ctx, s } = many(10);
+    serve(s, [tx()]);
+    renderApp(<Overview />, ctx);
+    const pie = await screen.findByRole("img", { name: /^Gastos por categoria/ });
+    const label = pie.getAttribute("aria-label")!;
+    expect(label.split(";")).toHaveLength(8);
+    expect(label).toMatch(/Outros: R\$\s60,00/); // 1000 + 2000 + 3000
+    expect(label).toMatch(/Cat 10: R\$\s100,00/);
+    expect(label).not.toMatch(/Cat 1:/);
   });
 });
 
