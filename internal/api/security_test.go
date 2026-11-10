@@ -99,7 +99,7 @@ func TestSecurityHeaders(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", app.srv.URL+ana.wpath("/events"), nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", app.srv.URL+"/api/events", nil)
 	sse, err := ana.http.Do(req)
 	if err != nil {
 		t.Fatal(err)
