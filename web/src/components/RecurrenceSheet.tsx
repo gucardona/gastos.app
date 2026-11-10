@@ -89,8 +89,8 @@ function RecurrenceForm({ r, onClose }: { r: Recurrence; onClose: () => void }) 
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>Salvar</button>
         {confirmDelete
-          ? <button type="button" className="btn danger full" disabled={busy} onClick={() => void run(() => api.del(path)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
-          : <button type="button" className="btn ghost full" onClick={() => setConfirmDelete(true)}>Excluir recorrência</button>}
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
+          : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirmDelete(true)}>Excluir recorrência</button>}
       </div>
     </form>
   );

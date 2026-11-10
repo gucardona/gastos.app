@@ -179,8 +179,8 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
         <button type="submit" className="btn full" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</button>
         {!tx && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void save(true)}>Salvar e lançar outro</button>}
         {tx && (confirmDelete
-          ? <button type="button" className="btn danger full" disabled={busy} onClick={() => void remove()}>Confirmar exclusão</button>
-          : <button type="button" className="btn ghost full" onClick={() => setConfirmDelete(true)}>Excluir lançamento</button>)}
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void remove()}>Confirmar exclusão</button>
+          : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirmDelete(true)}>Excluir lançamento</button>)}
       </div>
     </form>
   );

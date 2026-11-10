@@ -495,6 +495,9 @@ test("a real double click on Excluir does not confirm the deletion", async ({ pa
     const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
     const w = (await j("/api/me")).wallets[0].id;
     await j(`/api/wallets/${w}/payment-methods`, "POST", { name: "Cheque", icon: "🧾" });
+    const cats = await j(`/api/wallets/${w}/categories`);
+    const iso = new Date().toISOString().slice(0, 10);
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 1990, description: "Padaria", categoryId: cats.find((c: { kind: string }) => c.kind === "expense").id, date: iso, paymentMethodId: null });
   });
   await page.goto("/ajustes/pagamentos");
   await page.getByRole("button", { name: /Cheque/ }).click();
@@ -504,6 +507,14 @@ test("a real double click on Excluir does not confirm the deletion", async ({ pa
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: /Cheque/ })).toBeVisible();
+
+  // the same for a transaction
+  await page.goto("/lancamentos");
+  await page.getByRole("button", { name: /Padaria/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Excluir lançamento" }).dblclick();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Confirmar exclusão" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Padaria/ })).toBeVisible();
 });
 
 test("you can change your own name, and it shows everywhere", async ({ page }) => {

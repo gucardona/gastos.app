@@ -179,6 +179,14 @@ describe("RecurrenceSheet", () => {
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/recurrences/5");
   });
 
+  it("a double click on Excluir does not confirm the deletion", async () => {
+    const fetch = serve();
+    const { user } = open();
+    await user.dblClick(screen.getByRole("button", { name: "Excluir recorrência" }));
+    expect(writes(fetch)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Confirmar exclusão" })).toBeTruthy();
+  });
+
   it("an end date is sent, and clearing it sends null", async () => {
     const fetch = serve();
     const { user } = open({ ...netflix, endDate: "2027-01-05" });

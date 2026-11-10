@@ -361,6 +361,14 @@ describe("AddSheet: editing", () => {
     expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/transactions/10");
   });
 
+  it("a double click on Excluir does not confirm the deletion", async () => {
+    const fetch = mockFetch({ status: 204 });
+    const { user } = open({ tx: tx() });
+    await user.dblClick(screen.getByRole("button", { name: "Excluir lançamento" }));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Confirmar exclusão" })).toBeTruthy();
+  });
+
   it("does not offer 'Repetir todo mês' or 'lançar outro' when editing", () => {
     open({ tx: tx() });
     expect(screen.queryByRole("switch", { name: "Repetir todo mês" })).toBeNull();
