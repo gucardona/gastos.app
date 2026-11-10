@@ -5,17 +5,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEvents } from "./queries";
 
 class FakeEventSource {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 2;
   static all: FakeEventSource[] = [];
   onmessage: (() => void) | null = null;
   onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  readyState = 0;
   closed = false;
   constructor(readonly url: string, readonly init?: EventSourceInit) {
     FakeEventSource.all.push(this);
   }
   close() {
     this.closed = true;
+    this.readyState = 2;
+  }
+  open() {
+    this.readyState = 1;
+    this.onopen?.();
+  }
+  /** What the browser does when a reconnect gets a non-200 (a 502 during a deploy): it gives up for good. */
+  fail() {
+    this.readyState = 2;
+    this.onerror?.();
   }
 }
+
+const latest = () => FakeEventSource.all[FakeEventSource.all.length - 1];
 
 function setup(enabled = true) {
   const qc = new QueryClient();
@@ -99,6 +116,69 @@ describe("useEvents", () => {
     act(() => setHidden(false));
     await act(() => vi.advanceTimersByTimeAsync(200));
     expect(meRefreshes()).toBe(1);
+  });
+
+  it("a transient error leaves the reconnect to the browser", async () => {
+    const { es } = setup();
+    act(() => es.open());
+    act(() => { es.readyState = 0; es.onerror?.(); });
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(FakeEventSource.all).toHaveLength(1);
+  });
+
+  it("a stream the browser gave up on is reopened after 5 s, and opening it refreshes everything", async () => {
+    const { es, meRefreshes } = setup();
+    act(() => es.open());
+    act(() => es.fail());
+    expect(es.closed).toBe(true);
+    await act(() => vi.advanceTimersByTimeAsync(4_999));
+    expect(FakeEventSource.all).toHaveLength(1);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(FakeEventSource.all).toHaveLength(2);
+    expect(latest().url).toBe("/api/events");
+    act(() => latest().open());
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    expect(meRefreshes()).toBe(1);
+  });
+
+  it("the wait grows on repeated failures, up to 30 s, and resets after a successful open", async () => {
+    setup();
+    const waits: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const before = FakeEventSource.all.length;
+      act(() => latest().fail());
+      let waited = 0;
+      while (FakeEventSource.all.length === before && waited < 60_000) {
+        await act(() => vi.advanceTimersByTimeAsync(1_000));
+        waited += 1_000;
+      }
+      waits.push(waited);
+    }
+    expect(waits).toEqual([5_000, 10_000, 20_000, 30_000, 30_000]);
+
+    act(() => latest().open());
+    act(() => latest().fail());
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(FakeEventSource.all).toHaveLength(7);
+  });
+
+  it("coming back to the page reopens a stream the browser gave up on, without waiting", async () => {
+    const { es } = setup();
+    act(() => es.open());
+    act(() => setHidden(true));
+    act(() => es.fail());
+    act(() => setHidden(false));
+    expect(FakeEventSource.all).toHaveLength(2);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(FakeEventSource.all).toHaveLength(2); // the pending retry was dropped
+  });
+
+  it("unmounting cancels a pending reopen", async () => {
+    const { es, unmount } = setup();
+    act(() => es.fail());
+    unmount();
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(FakeEventSource.all).toHaveLength(1);
   });
 
   it("nothing fires after unmount", async () => {
