@@ -29,6 +29,8 @@ export interface Member {
   email: string;
   role: Role;
   splitsByDefault: boolean;
+  /** Basis points; 0 = not set. */
+  defaultShareBp: number;
 }
 
 export interface Category {

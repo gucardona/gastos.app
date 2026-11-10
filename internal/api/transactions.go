@@ -134,22 +134,25 @@ func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, 
 		return nil, nil
 	}
 
-	rows, err := q.QueryContext(ctx, `SELECT user_id, splits_by_default FROM wallet_members WHERE wallet_id = ? ORDER BY user_id`, walletID)
+	rows, err := q.QueryContext(ctx, `SELECT user_id, splits_by_default, COALESCE(default_share_bp, 0) FROM wallet_members WHERE wallet_id = ? ORDER BY user_id`, walletID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	members := map[int64]bool{}
-	var defaults []int64
+	var defaults, defaultShares []int64
+	allShared := true
 	for rows.Next() {
-		var id int64
+		var id, share int64
 		var byDefault bool
-		if err := rows.Scan(&id, &byDefault); err != nil {
+		if err := rows.Scan(&id, &byDefault, &share); err != nil {
 			return nil, err
 		}
 		members[id] = true
 		if byDefault {
 			defaults = append(defaults, id)
+			defaultShares = append(defaultShares, share)
+			allShared = allShared && share > 0
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -160,10 +163,16 @@ func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, 
 		if len(defaults) == 0 {
 			return nil, nil
 		}
+		// Every flagged member's default share, normalized to 100%; equal split if any of them has none.
 		shares := money.EqualShares(len(defaults))
-		out := make([]split, len(defaults))
+		if allShared {
+			shares = money.Allocate(money.FullShare, defaultShares)
+		}
+		var out []split
 		for i, id := range defaults {
-			out[i] = split{UserID: id, ShareBP: shares[i]}
+			if shares[i] > 0 { // a tiny share can round to 0%: that member does not take part
+				out = append(out, split{UserID: id, ShareBP: shares[i]})
+			}
 		}
 		return out, nil
 	}

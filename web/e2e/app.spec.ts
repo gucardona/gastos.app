@@ -158,6 +158,56 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
   await expect(ana.getByText(/Pix de teste/)).toBeVisible();
 });
 
+test("default share per person drives the split of a new expense", async ({ browser }) => {
+  const { ana } = await pairUp(browser);
+  await ana.goto("/ajustes/pessoas");
+  for (const [row, pct] of [[/Bia/, "40"], [/Ana.*você/, "60"]] as const) {
+    await ana.getByRole("button", { name: row }).click();
+    const sheet = ana.getByRole("dialog");
+    await sheet.getByLabel(/^Parte padrão de/).fill(pct);
+    await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: "Salvar", exact: true })).toBeHidden();
+    await sheet.getByRole("button", { name: "Fechar" }).click();
+    await expect(sheet).toBeHidden();
+  }
+
+  await ana.getByRole("link", { name: "Visão" }).first().click();
+  await addExpense(ana, "100,00", "Aluguel do mês"); // the split is not touched
+  await ana.getByRole("link", { name: /Divisão/ }).first().click();
+  await expect(ana.getByText(/Bia deve R\$\s*40,00 a você\./)).toBeVisible();
+});
+
+test("a recurring expense keeps its own percentages, editable in Recorrentes", async ({ browser }) => {
+  const { ana } = await pairUp(browser);
+  await ana.getByRole("button", { name: "Novo lançamento" }).first().click();
+  const sheet = ana.getByRole("dialog");
+  await sheet.getByRole("textbox", { name: "Valor" }).fill("200,00");
+  await sheet.getByLabel("Descrição").fill("Financiamento");
+  await pickCategory(sheet, "Mercado");
+  await sheet.getByRole("button", { name: "Ajustar" }).click();
+  await sheet.getByLabel("Porcentagem de Ana").fill("70");
+  await sheet.getByLabel("Porcentagem de Bia").fill("30");
+  await sheet.getByRole("switch", { name: "Repetir todo mês" }).click();
+  await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(sheet).toBeHidden();
+
+  await ana.getByRole("link", { name: /Lançamentos/ }).first().click();
+  const repeating = ana.locator("section", { has: ana.getByRole("heading", { name: "Repetem todo mês" }) });
+  await repeating.getByRole("button", { name: /Financiamento/ }).click();
+  const edit = ana.getByRole("dialog");
+  await expect(edit.getByText("Divisão personalizada")).toBeVisible();
+  await expect(edit.getByLabel("Porcentagem de Ana")).toHaveValue("70");
+  await expect(edit.getByLabel("Porcentagem de Bia")).toHaveValue("30");
+  await edit.getByLabel("Porcentagem de Ana").fill("50");
+  await edit.getByLabel("Porcentagem de Bia").fill("50");
+  await edit.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(edit).toBeHidden();
+
+  const me = await (await ana.request.get("/api/me")).json();
+  const list = await (await ana.request.get(`/api/wallets/${me.wallets[0].id}/recurrences`)).json();
+  expect(list[0].splits.map((x: { shareBp: number }) => x.shareBp)).toEqual([5000, 5000]);
+});
+
 test("sign-in works from the keyboard alone", async ({ page }) => {
   const email = await signUpAndEnter(page, "Kleber");
   await page.getByRole("link", { name: "Ajustes" }).first().click();
