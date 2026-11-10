@@ -413,3 +413,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 /* ---------- the Caixa sheet, line after line ---------- */
 .sheet .inbox-notice:empty { margin: 0; } /* the live region stays mounted, empty until a decision */
 .sheet .actions > .meta { margin: 0; }
+/* on a desktop the sheet is a 440px panel on the right: the message centers on the page beside it, not under its edge */
+@media (min-width: 900px) { dialog .toast-region { right: 454px; } }
+/* while a sheet is open the page's own message would show dimmed under it, next to the sheet's: only the sheet's shows */
+:has(dialog[open]) > .toast-region { visibility: hidden; }
