@@ -735,7 +735,6 @@ func TestInboxChangesNotifyOtherMembers(t *testing.T) {
 	bia := app.register("Bia", "bia@example.com")
 	shareWallet(ana, bia, "editor")
 	stream := openStream(t, bia)
-	time.Sleep(100 * time.Millisecond) // make sure the subscription on the bus is in place
 
 	importFile(t, ana, newAccount(t, ana, "Conta").ID, monthStatement, 200)
 	deadline := time.After(2 * time.Second)

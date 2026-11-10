@@ -131,8 +131,9 @@ func pathID(r *http.Request, name string) (int64, error) {
 	return id, nil
 }
 
+// mutated tells every member of the request's wallet (the one who made the change included, for their other tabs).
 func (s *Server) mutated(r *http.Request) {
-	s.bus.Notify(walletIDFrom(r.Context()), userIDFrom(r.Context()))
+	s.notifyWallet(r.Context(), walletIDFrom(r.Context()))
 }
 
 func asAPIError(err error, target **apiError) bool { return errors.As(err, target) }

@@ -271,15 +271,18 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	d.Warning = warning
+	s.notifyUsers(uid) // the user's other tabs see whether the assistant is on
 	writeJSON(w, http.StatusOK, d)
 	return nil
 }
 
 func (s *Server) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
+	uid := userIDFrom(r.Context())
 	if _, err := s.db.ExecContext(r.Context(),
-		`UPDATE ai_settings SET api_key_enc = x'', key_hint = '', enabled = 0 WHERE user_id = ?`, userIDFrom(r.Context())); err != nil {
+		`UPDATE ai_settings SET api_key_enc = x'', key_hint = '', enabled = 0 WHERE user_id = ?`, uid); err != nil {
 		return err
 	}
+	s.notifyUsers(uid)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
