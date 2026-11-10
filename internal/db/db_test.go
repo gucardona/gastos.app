@@ -117,10 +117,14 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	if !strings.Contains(ddl, "source") || !strings.Contains(ddl, "'manual','recurring','bank'") {
 		t.Errorf("transactions.source with its CHECK missing: %s", ddl)
 	}
-	var v int
+	var v, col int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != schemaVersion {
-		t.Errorf("user_version = %d, want %d", v, schemaVersion)
+	if v != latestVersion() || v != 5 {
+		t.Errorf("user_version = %d, want latest %d (5)", v, latestVersion())
+	}
+	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&col)
+	if col != 1 {
+		t.Error("wallet_members.default_share_bp missing")
 	}
 }
 
@@ -136,7 +140,7 @@ func TestOpenRefusesOldSchemaVersions(t *testing.T) {
 		raw.Close()
 
 		_, err = Open(path)
-		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("database is at schema version %d, this binary expects %d: recreate it", old, schemaVersion)) {
+		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("database is at schema version %d, this binary knows versions 4 to %d", old, latestVersion())) {
 			t.Fatalf("v%d: want a schema version error, got %v", old, err)
 		}
 		raw, err = sql.Open("sqlite", path)
@@ -179,7 +183,7 @@ func TestOpenRefusesNewerSchemaVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newer := schemaVersion + 1
+	newer := latestVersion() + 1
 	mustExec(t, raw, fmt.Sprintf(`PRAGMA user_version = %d`, newer))
 	raw.Close()
 	if _, err := Open(path); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("schema version %d", newer)) {
@@ -187,7 +191,6 @@ func TestOpenRefusesNewerSchemaVersion(t *testing.T) {
 	}
 }
 
-// TestOpenUpgradesVersion3InPlace mirrors production: a v3 database holding real rows is migrated, never recreated.
 func TestLimitColumnsAndUsageTables(t *testing.T) {
 	d := openTemp(t)
 	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
@@ -232,5 +235,194 @@ func TestAISettingsConstraints(t *testing.T) {
 		if err := ins(r, "claude-opus-5-5"); err != nil {
 			t.Errorf("retention %d: %v", r, err)
 		}
+	}
+}
+
+// seedV4 builds a database exactly as the v4 binary left it (schema.sql, user_version 4) with real-looking rows.
+func seedV4(t *testing.T, path string) {
+	t.Helper()
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	mustExec(t, raw, schemaSQL)
+	mustExec(t, raw, `PRAGMA user_version = 4`)
+	mustExec(t, raw, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h'), (2, 'B', 'b@x', 'h')`)
+	mustExec(t, raw, `INSERT INTO wallets (id, name, splitting_enabled) VALUES (1, 'W', 1)`)
+	mustExec(t, raw, `INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 1, 'owner'), (1, 2, 'editor')`)
+	mustExec(t, raw, `INSERT INTO ai_settings (user_id, api_key_enc, key_hint, model, enabled, retention_days, daily_limit_cents) VALUES (1, x'0102', '1234', 'claude-opus-5-5', 1, 9, 500)`)
+	mustExec(t, raw, `INSERT INTO chat_messages (user_id, wallet_id, role, content) VALUES (1, 1, 'user', 'oi')`)
+	mustExec(t, raw, `INSERT INTO categories (id, wallet_id, kind, name, icon, color, essentiality) VALUES (1, 1, 'expense', 'C', 'x', '#000000', 'essential')`)
+	mustExec(t, raw, `INSERT INTO transactions (id, wallet_id, kind, amount_cents, description, category_id, date, paid_by_user_id, created_by) VALUES (1, 1, 'expense', 1000, 'd', 1, '2026-10-01', 1, 1)`)
+	mustExec(t, raw, `INSERT INTO transaction_splits (transaction_id, user_id, share_bp) VALUES (1, 1, 7000), (1, 2, 3000)`)
+}
+
+// TestOpenUpgradesVersion4InPlace mirrors production: a v4 database holding real rows is migrated, never recreated.
+func TestOpenUpgradesVersion4InPlace(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV4(t, path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var v int
+	d.QueryRow(`PRAGMA user_version`).Scan(&v)
+	if v != 5 {
+		t.Fatalf("user_version = %d, want 5", v)
+	}
+	for q, want := range map[string]int{
+		`SELECT COUNT(*) FROM users`:                                                               2,
+		`SELECT COUNT(*) FROM wallets`:                                                             1,
+		`SELECT COUNT(*) FROM wallet_members WHERE default_share_bp IS NULL`:                       2,
+		`SELECT COUNT(*) FROM ai_settings WHERE daily_limit_cents = 500 AND api_key_enc = x'0102'`: 1,
+		`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`:                                  1,
+		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:                              1,
+		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`:                    10000,
+	} {
+		var n int
+		if err := d.QueryRow(q).Scan(&n); err != nil || n != want {
+			t.Errorf("%s = %d (%v), want %d", q, n, err, want)
+		}
+	}
+}
+
+func TestDefaultShareCheck(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	mustExec(t, d, `INSERT INTO wallets (id, name) VALUES (1, 'W')`)
+	mustExec(t, d, `INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (1, 1, 'owner')`)
+	for _, ok := range []string{"1", "10000", "NULL"} {
+		mustExec(t, d, `UPDATE wallet_members SET default_share_bp = `+ok)
+	}
+	for _, bad := range []string{"0", "10001"} {
+		if _, err := d.Exec(`UPDATE wallet_members SET default_share_bp = ` + bad); err == nil {
+			t.Errorf("default_share_bp = %s should violate the CHECK", bad)
+		}
+	}
+}
+
+func TestFailedMigrationKeepsVersion(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, raw, schemaSQL)
+	mustExec(t, raw, `ALTER TABLE wallet_members ADD COLUMN default_share_bp TEXT`) // collides with migration 0005
+	mustExec(t, raw, `PRAGMA user_version = 4`)
+	raw.Close()
+	if _, err := Open(path); err == nil {
+		t.Fatal("the colliding migration should fail")
+	}
+	raw, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	var v int
+	var typ string
+	raw.QueryRow(`PRAGMA user_version`).Scan(&v)
+	raw.QueryRow(`SELECT type FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&typ)
+	if v != 4 || typ != "TEXT" {
+		t.Fatalf("partial migration: version %d, column type %q", v, typ)
+	}
+}
+
+func TestUpgradeMakesPreMigrationCopy(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV4(t, path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	cp, err := sql.Open("sqlite", path+".pre-v4.bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cp.Close()
+	var v, users, cols int
+	cp.QueryRow(`PRAGMA user_version`).Scan(&v)
+	cp.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
+	cp.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&cols)
+	if v != 4 || users != 2 || cols != 0 {
+		t.Fatalf("copy: version %d, users %d, new column %d; want 4, 2, 0", v, users, cols)
+	}
+}
+
+func TestFreshDatabaseMakesNoCopy(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	if m, _ := filepath.Glob(path + ".pre-v*.bak"); len(m) != 0 {
+		t.Fatalf("unexpected copies %v", m)
+	}
+}
+
+func TestStalePreMigrationCopyIsMovedAsideAndRefreshed(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV4(t, path)
+	if err := os.WriteFile(path+".pre-v4.bak", []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+".pre-v4.bak.tmp", []byte("partial"), 0o600); err != nil { // a leftover of a killed copy
+		t.Fatal(err)
+	}
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	kept, _ := filepath.Glob(path + ".pre-v4.bak.2*")
+	if len(kept) != 1 {
+		t.Fatalf("old copy should be kept under a timestamped name, got %v", kept)
+	}
+	if b, _ := os.ReadFile(kept[0]); string(b) != "old" {
+		t.Fatal("moved copy lost its content")
+	}
+	if _, err := os.Stat(path + ".pre-v4.bak.tmp"); err == nil {
+		t.Fatal("temporary copy left behind")
+	}
+	cp, err := sql.Open("sqlite", path+".pre-v4.bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cp.Close()
+	var v int
+	if err := cp.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil || v != 4 {
+		t.Fatalf("fresh copy: version %d, err %v", v, err)
+	}
+}
+
+// The documented rollback: drop the column and set the version back to 4; the next Open migrates again.
+func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV4(t, path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, raw, `ALTER TABLE wallet_members DROP COLUMN default_share_bp; PRAGMA user_version=4;`)
+	raw.Close()
+	d, err = Open(path)
+	if err != nil {
+		t.Fatalf("reopening after the rollback: %v", err)
+	}
+	defer d.Close()
+	var v, cols int
+	d.QueryRow(`PRAGMA user_version`).Scan(&v)
+	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&cols)
+	if v != latestVersion() || cols != 1 {
+		t.Fatalf("version %d, column %d; want %d, 1", v, cols, latestVersion())
 	}
 }

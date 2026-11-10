@@ -71,7 +71,7 @@ describe("Chat", () => {
   it("asks only about the active wallet by default", async () => {
     const api = fakeApi();
     renderChat();
-    expect(screen.getByRole("button", { name: /Casa/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Casa" })).toBeTruthy();
     await userEvent.type(input(), "Quanto gastei?{Enter}");
     expect(api.posts[0].body).toEqual({ wallet: 1, wallets: [1], text: "Quanto gastei?" });
   });
@@ -231,12 +231,12 @@ describe("Chat", () => {
   it("switching the active wallet resets the selection to that wallet", async () => {
     const api = fakeApi();
     const { rerenderWith } = renderChat();
-    await userEvent.click(screen.getByRole("button", { name: /Casa/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Casa" }));
     await userEvent.click(screen.getByRole("button", { name: "Selecionar todas" }));
     await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(screen.getByRole("button", { name: /2 carteiras/ })).toBeTruthy();
     rerenderWith(appCtx({ assistantEnabled: true, wallet: viagem, wallets: [wallet, viagem] }));
-    expect(screen.getByRole("button", { name: /Viagem/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Viagem" })).toBeTruthy();
     await userEvent.type(input(), "E aqui?{Enter}");
     expect(api.posts[0].body).toEqual({ wallet: 2, wallets: [2], text: "E aqui?" });
   });

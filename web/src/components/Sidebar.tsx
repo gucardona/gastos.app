@@ -1,21 +1,16 @@
 import { Link, NavLink } from "react-router";
-import { firstName, useApp } from "../context";
+import { useApp } from "../context";
 import { Icon } from "./Icon";
 import { formatBadge, navItems } from "./nav";
+import { WalletSwitcher } from "./WalletSwitcher";
 
 /** Desktop navigation: wallet on top, destinations, the new-transaction button and the profile, which leads to Ajustes. */
 export function Sidebar({ pending, onAdd }: { pending: number; onAdd: () => void }) {
-  const { user, wallet, wallets, setWalletId, members, canEdit, assistantEnabled } = useApp();
-  const others = members.filter((m) => m.userId !== user.id).map((m) => firstName(m.name));
+  const { user, wallet, canEdit, assistantEnabled } = useApp();
   const badge = formatBadge(pending);
   return (
     <aside className="sidebar" aria-label="Barra lateral">
-      <label className="wallet">
-        <select aria-label="Carteira" value={wallet.id} onChange={(e) => setWalletId(Number(e.target.value))}>
-          {wallets.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-        </select>
-        {others.length > 0 && <small>com {others.join(", ")}</small>}
-      </label>
+      <WalletSwitcher />
       <nav aria-label="Navegação">
         {navItems(wallet.splittingEnabled, assistantEnabled).map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end}>

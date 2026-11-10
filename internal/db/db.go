@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -32,39 +34,101 @@ func Open(path string) (*sql.DB, error) {
 		d.Close()
 		return nil, err
 	}
-	if err := applySchema(d); err != nil {
+	if err := applySchema(d, path); err != nil {
 		d.Close()
 		return nil, err
 	}
 	return d, nil
 }
 
-// schemaVersion is the user_version of the single schema.sql. Bump it when the schema changes.
-const schemaVersion = 4
+// baseVersion is the user_version of schema.sql, the frozen baseline. Schema changes after it are migrations.
+const baseVersion = 4
 
-// applySchema runs schema.sql on an empty database (user_version 0) and accepts a current one;
-// any other version is refused so the server fails to start instead of running on a missing schema.
-func applySchema(d *sql.DB) error {
+//go:embed migrations/0005_member_share.sql
+var migration0005 string
+
+// migrations[i] takes the database from version baseVersion+i to baseVersion+i+1. Only append to it.
+var migrations = []string{migration0005}
+
+func latestVersion() int { return baseVersion + len(migrations) }
+
+// applySchema builds an empty database (user_version 0) from schema.sql and brings a baseline-or-later one
+// up to date, one step per transaction so a failed step leaves the previous version intact. Any other
+// version is refused so the server fails to start instead of running on an unknown schema.
+func applySchema(d *sql.DB, path string) error {
+	if err := preMigrationCopy(d, path); err != nil {
+		return err
+	}
+	for {
+		done, err := applyStep(d)
+		if err != nil || done {
+			return err
+		}
+	}
+}
+
+func applyStep(d *sql.DB) (done bool, err error) {
 	tx, err := d.Begin()
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
 	var version int
 	if err := tx.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return false, err
+	}
+	var step string
+	switch {
+	case version == latestVersion():
+		return true, nil
+	case version == 0:
+		step = schemaSQL
+	case version >= baseVersion && version < latestVersion():
+		step = migrations[version-baseVersion]
+	default:
+		return false, fmt.Errorf("database is at schema version %d, this binary knows versions %d to %d (or an empty database): refusing to open it",
+			version, baseVersion, latestVersion())
+	}
+	next := version + 1
+	if version == 0 {
+		next = baseVersion
+	}
+	if _, err := tx.Exec(step); err != nil {
+		return false, fmt.Errorf("migrate schema from version %d: %w", version, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, next)); err != nil {
+		return false, err
+	}
+	return false, tx.Commit()
+}
+
+// preMigrationCopy saves <path>.pre-v<from>.bak before the first pending migration of a non-empty database, so a
+// deploy that rolls back to the previous binary (which refuses a newer schema) can restore it. The copy is written to
+// a .tmp file and renamed, so a killed copy is never mistaken for a good one; an older copy is kept under a
+// timestamped name. Failing to copy aborts the start, since migrating without a way back is worse than not starting.
+func preMigrationCopy(d *sql.DB, path string) error {
+	var version int
+	if err := d.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return err
 	}
-	if version == schemaVersion {
+	if version < baseVersion || version >= latestVersion() {
 		return nil
 	}
-	if version != 0 {
-		return fmt.Errorf("database is at schema version %d, this binary expects %d: recreate it (see docs/assistente.md)", version, schemaVersion)
+	dst := fmt.Sprintf("%s.pre-v%d.bak", path, version)
+	if _, err := os.Stat(dst); err == nil {
+		if err := os.Rename(dst, dst+"."+time.Now().UTC().Format("20060102T150405Z")); err != nil {
+			return fmt.Errorf("keep the previous copy %s: %w", dst, err)
+		}
 	}
-	if _, err := tx.Exec(schemaSQL); err != nil {
+	tmp := dst + ".tmp"
+	if err := os.Remove(tmp); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
-		return err
+	if _, err := d.Exec(`VACUUM INTO '` + strings.ReplaceAll(tmp, "'", "''") + `'`); err != nil {
+		return fmt.Errorf("copy database before migrating from version %d to %s: %w", version, dst, err)
 	}
-	return tx.Commit()
+	if err := os.Rename(tmp, dst); err != nil {
+		return fmt.Errorf("copy database before migrating from version %d to %s: %w", version, dst, err)
+	}
+	return nil
 }

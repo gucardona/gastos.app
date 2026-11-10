@@ -96,3 +96,63 @@ describe("MemberSheet: a double click is not a confirmation", () => {
     expect(writes(fetch)).toHaveLength(0);
   });
 });
+
+describe("MemberSheet: default share", () => {
+  const ctx = () => appCtx({ wallet: { ...wallet, splittingEnabled: true } });
+  const field = () => screen.getByRole("textbox", { name: "Parte padrão de Bia Lima (%)" }) as HTMLInputElement;
+  const saveChip = () => screen.queryByRole("button", { name: "Salvar" });
+
+  it("shows the field with the stored share formatted, and the hint", () => {
+    open({ ...bia, defaultShareBp: 3333 }, ctx());
+    expect(field().value).toBe("33,33");
+    expect(field().placeholder).toBe("igual");
+    expect(screen.getByText(/Em branco, a divisão é igual/)).toBeTruthy();
+    expect(saveChip()).toBeNull();
+  });
+
+  it("is empty when no share is set", () => {
+    open(bia, ctx());
+    expect(field().value).toBe("");
+  });
+  it("hidden without splitting", () => {
+    open(bia);
+    expect(screen.queryByLabelText(/Parte padrão/)).toBeNull();
+  });
+  it("hidden when the member is not in the default split", () => {
+    open({ ...bia, splitsByDefault: false }, ctx());
+    expect(screen.queryByLabelText(/Parte padrão/)).toBeNull();
+  });
+  it("hidden for a non-owner", () => {
+    open(bia, { ...asBia(), wallet: { ...wallet, role: "editor", splittingEnabled: true } });
+    expect(screen.queryByLabelText(/Parte padrão/)).toBeNull();
+  });
+
+  it.each([["60", 6000], ["33,33", 3333], ["33.33", 3333], ["", 0], ["0", 0]])("saving %j sends %i", async (text, bp) => {
+    const fetch = serve();
+    const { user } = open({ ...bia, defaultShareBp: 5000 }, ctx());
+    await user.clear(field());
+    if (text) await user.type(field(), text);
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(writes(fetch)[0][0]).toBe("/api/wallets/1/members/2");
+    expect(bodyAt(fetch)).toEqual({ defaultShareBp: bp });
+    await waitFor(() => expect(saveChip()).toBeNull());
+  });
+
+  it.each(["-5", "abc", "101", "33,333"])("refuses %j with an inline error and sends nothing", async (text) => {
+    const fetch = serve();
+    const { user } = open(bia, ctx());
+    await user.type(field(), text);
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    expect(await screen.findByText(/Informe uma porcentagem/)).toBeTruthy();
+    expect(writes(fetch)).toHaveLength(0);
+  });
+
+  it("shows the server's field error", async () => {
+    mockFetch((_u, init) => (init.method === "PATCH" ? { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { defaultShareBp: "parte inválida" } } } } : { body: [] }));
+    const { user } = open(bia, ctx());
+    await user.type(field(), "50");
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    expect(await screen.findByText("parte inválida")).toBeTruthy();
+  });
+});

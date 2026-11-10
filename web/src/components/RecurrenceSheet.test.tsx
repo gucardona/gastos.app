@@ -1,8 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Recurrence } from "../api/types";
-import { appCtx, bodyOf, mockFetch, renderApp, wallet } from "../test/fixtures";
+import { appCtx, bodyOf, members, mockFetch, renderApp, wallet } from "../test/fixtures";
 import { RecurrenceSheet, recurrenceBody } from "./RecurrenceSheet";
 
 const netflix: Recurrence = {
@@ -90,6 +90,82 @@ describe("RecurrenceSheet", () => {
     await user.click(screen.getByRole("button", { name: "Salvar" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(bodyOf(fetch, fetch.mock.calls.indexOf(writes(fetch)[0])).splits).toEqual([{ userId: 1, shareBp: 6000 }, { userId: 2, shareBp: 4000 }]);
+  });
+
+  describe("split editor", () => {
+    const splitting = (extra: typeof members = []) => appCtx({ wallet: { ...wallet, splittingEnabled: true }, members: [...members, ...extra] });
+    const pct = (name: string) => screen.getByRole("textbox", { name: `Porcentagem de ${name}` }) as HTMLInputElement;
+    const type = async (user: ReturnType<typeof userEvent.setup>, name: string, v: string) => { await user.clear(pct(name)); await user.type(pct(name), v); };
+    const lastBody = (f: ReturnType<typeof mockFetch>) => bodyOf(f, f.mock.calls.indexOf(writes(f)[0]));
+
+    it("starts from the current splits, shown as a custom split", () => {
+      open(netflix, splitting());
+      expect(screen.getByText("Divisão personalizada")).toBeTruthy();
+      expect(pct("Ana Souza").value).toBe("60");
+      expect(pct("Bia Lima").value).toBe("40");
+    });
+
+    it("is not offered without splitting, nor for income or settlements", () => {
+      open(netflix);
+      expect(screen.queryByRole("button", { name: "Igualar" })).toBeNull();
+      cleanup();
+      open({ ...netflix, kind: "income" }, splitting());
+      expect(screen.queryByRole("button", { name: "Igualar" })).toBeNull();
+      cleanup();
+      open(settlement, splitting());
+      expect(screen.queryByRole("button", { name: "Igualar" })).toBeNull();
+    });
+
+    it("saves the edited percentages with the recurrence", async () => {
+      const fetch = serve();
+      const { user, onClose } = open(netflix, splitting());
+      await type(user, "Ana Souza", "50");
+      await type(user, "Bia Lima", "50");
+      await user.click(screen.getByRole("button", { name: "Salvar" }));
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+      expect(lastBody(fetch).splits).toEqual([{ userId: 1, shareBp: 5000 }, { userId: 2, shareBp: 5000 }]);
+    });
+
+    it("three people: 50/25/25", async () => {
+      const fetch = serve();
+      const caio = { userId: 3, name: "Caio Dias", email: "caio@example.com", role: "editor" as const, splitsByDefault: true, defaultShareBp: 0 };
+      const { user, onClose } = open(netflix, splitting([caio]));
+      await type(user, "Ana Souza", "50");
+      await type(user, "Bia Lima", "25");
+      await type(user, "Caio Dias", "25");
+      await user.click(screen.getByRole("button", { name: "Salvar" }));
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+      expect(lastBody(fetch).splits).toEqual([{ userId: 1, shareBp: 5000 }, { userId: 2, shareBp: 2500 }, { userId: 3, shareBp: 2500 }]);
+    });
+
+    it("refuses percentages that do not add up to 100%", async () => {
+      const fetch = serve();
+      const { user } = open(netflix, splitting());
+      await type(user, "Ana Souza", "50");
+      await user.click(screen.getByRole("button", { name: "Salvar" }));
+      expect(await screen.findByText("As partes precisam somar 100%.")).toBeTruthy();
+      expect(writes(fetch)).toHaveLength(0);
+    });
+
+    it("with default shares the way back is labelled 'Padrão' and sends no splits", async () => {
+      const fetch = serve();
+      const shared = appCtx({ wallet: { ...wallet, splittingEnabled: true }, members: members.map((m) => ({ ...m, defaultShareBp: m.userId === 1 ? 7000 : 3000 })) });
+      const { user, onClose } = open(netflix, shared);
+      expect(screen.queryByRole("button", { name: "Igualar" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Padrão" }));
+      await user.click(screen.getByRole("button", { name: "Salvar" }));
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+      expect(lastBody(fetch)).not.toHaveProperty("splits");
+    });
+
+    it("'Igualar' goes back to the default split: no splits are sent", async () => {
+      const fetch = serve();
+      const { user, onClose } = open(netflix, splitting());
+      await user.click(screen.getByRole("button", { name: "Igualar" }));
+      await user.click(screen.getByRole("button", { name: "Salvar" }));
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+      expect(lastBody(fetch)).not.toHaveProperty("splits");
+    });
   });
 
   it("deletes only after confirming, then closes", async () => {
