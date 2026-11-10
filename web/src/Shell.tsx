@@ -4,6 +4,7 @@ import { isUnauthenticated } from "./api/client";
 import { useCategories, useInbox, useMe, useMembers, usePaymentMethods, useWalletEvents } from "./api/queries";
 import type { Transaction } from "./api/types";
 import { AddSheet } from "./components/AddSheet";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { Ctx, type AppCtx } from "./context";
@@ -86,7 +87,7 @@ export function Shell() {
     <Ctx.Provider value={ctx}>
       <div className="app">
         <Sidebar pending={pending} onAdd={() => setAdding({})} />
-        <main className="main"><Outlet /></main>
+        <main className="main"><ErrorBoundary><Outlet /></ErrorBoundary></main>
       </div>
       <TabBar pending={pending} onAdd={() => setAdding({})} />
       <AddSheet state={adding} onClose={() => setAdding(null)} />
