@@ -157,13 +157,13 @@ describe("Assistant screen", () => {
   });
 
   it.each([
-    ["5", 500],
+    ["500", 500],
     ["5,00", 500],
-    ["5.50", 550],
-    ["5,5", 550],
+    ["550", 550],
+    ["5", 5],
     ["", 0],
     ["0", 0],
-  ])("saving a daily limit of %j sends { dailyLimitCents: %i }", async (text, cents) => {
+  ])("saving a daily limit typed as %j sends { dailyLimitCents: %i }", async (text, cents) => {
     const fetch = serve({ ...withKey, dailyLimitCents: cents === 0 ? 300 : 0 });
     const user = userEvent.setup();
     renderApp(<AssistantSection />);
@@ -179,7 +179,7 @@ describe("Assistant screen", () => {
     const fetch = serve(withKey);
     const user = userEvent.setup();
     renderApp(<AssistantSection />);
-    await user.type(await screen.findByLabelText("Limite mensal (R$) *"), "100");
+    await user.type(await screen.findByLabelText("Limite mensal (R$) *"), "10000");
     await user.click(screen.getByRole("button", { name: "Salvar limite mensal" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(bodyAt(fetch)).toEqual({ monthlyLimitCents: 10000 });
@@ -196,7 +196,18 @@ describe("Assistant screen", () => {
     expect(screen.getByRole("button", { name: "Salvar limite diário" })).toBeTruthy();
   });
 
-  it.each(["abc", "-5", "100000,01", "1,234"])("an invalid limit %j shows an error and sends nothing", async (text) => {
+  it("letters and signs never enter a limit field", async () => {
+    serve(withKey);
+    const user = userEvent.setup();
+    renderApp(<AssistantSection />);
+    const input = (await screen.findByLabelText("Limite diário (R$) *")) as HTMLInputElement;
+    await user.type(input, "abc-");
+    expect(input.value).toBe("");
+    await user.type(input, "-5");
+    expect(input.value).toBe("0,05");
+  });
+
+  it.each(["10000001", "99999999999"])("a limit above R$ 100.000,00 (typed %j) shows an error and sends nothing", async (text) => {
     const fetch = serve(withKey);
     const user = userEvent.setup();
     renderApp(<AssistantSection />);
@@ -220,10 +231,10 @@ describe("Assistant screen", () => {
     serve(withKey);
     const user = userEvent.setup();
     renderApp(<AssistantSection />);
-    await user.type(await screen.findByLabelText("Limite diário (R$) *"), "abc");
+    await user.type(await screen.findByLabelText("Limite diário (R$) *"), "10000001");
     await user.click(screen.getByRole("button", { name: "Salvar limite diário" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
-    await user.type(screen.getByLabelText("Limite mensal (R$) *"), "100");
+    await user.type(screen.getByLabelText("Limite mensal (R$) *"), "10000");
     await user.click(screen.getByRole("button", { name: "Salvar limite mensal" }));
     await waitFor(() => expect(screen.getByLabelText("Limite mensal (R$) *")).toBeTruthy());
     expect(screen.getByRole("alert").textContent).toContain("R$ 0,01 a R$ 100.000,00");

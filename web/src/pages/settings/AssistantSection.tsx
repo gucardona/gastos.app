@@ -8,7 +8,7 @@ import { ListGroup, ListRow } from "../../components/ListGroup";
 import { Segmented } from "../../components/Segmented";
 import { Switch } from "../../components/Switch";
 import { useAction } from "../../hooks/useAction";
-import { centsToInput, formatBRL, parseCents } from "../../lib/money";
+import { centsToInput, formatBRL, parseCents, typedAmount } from "../../lib/money";
 
 const MODELS = [
   { value: "claude-haiku-5-5", label: "Haiku" },
@@ -44,7 +44,7 @@ function LimitRow({ id, label, saveLabel, cents, busy, describedBy, onInvalid, o
       void onSave(n).then((ok) => ok && setText(undefined));
     }}>
       <label htmlFor={id} className="lr-label">{label} <span style={{ whiteSpace: "nowrap" }}>(R$) *</span></label>
-      <input id={id} className="desc-input" type="text" inputMode="decimal" placeholder="sem limite" autoComplete="off" aria-describedby={describedBy} value={value} onChange={(e) => setText(e.target.value)} />
+      <input id={id} className="desc-input" type="text" inputMode="numeric" placeholder="sem limite" autoComplete="off" aria-describedby={describedBy} value={value} onChange={(e) => setText(typedAmount(e.target.value))} />
       {value !== current && <button type="submit" className="chip" disabled={busy}>{saveLabel}</button>}
     </form>
   );

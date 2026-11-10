@@ -40,8 +40,20 @@ export function parseCents(input: string): number | null {
   return cents > 0 ? cents : null;
 }
 
-/** Cents as the text a person types into an amount field: 12990 becomes "129,90". */
-export const centsToInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+/**
+ * An amount field fills from the cents, like a card machine: the digits typed so far are the cents,
+ * so "587" reads "5,87" and "58700" reads "587,00". Non-digits are ignored, at most 12 digits.
+ */
+export function typedAmount(raw: string): string {
+  const digits = raw.replace(/\D/g, "").replace(/^0+/, "").slice(0, 12);
+  if (!digits) return "";
+  const padded = digits.padStart(3, "0");
+  const reais = padded.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reais},${padded.slice(-2)}`;
+}
+
+/** Cents as an amount field shows them: 12990 becomes "129,90". */
+export const centsToInput = (cents: number) => typedAmount(String(cents));
 
 /** Why an amount cannot be saved (pt-BR copy shown in the UI), or "" when it can. */
 export function amountProblem(input: string): string {
