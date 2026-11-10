@@ -128,7 +128,7 @@ test("real time: two tabs of the same person stay in sync without reloading", as
   const other = await page.context().newPage(); // same session, a second tab
   await other.goto("/");
   await expect(other.getByText("Saldo do mês")).toBeVisible();
-  const switcher = other.locator("select[aria-label=Carteira]:visible"); // the other layout's selector is in the DOM but hidden
+  const switcher = other.locator("button[aria-label^=Carteira]:visible"); // only a button with more than one wallet; the other layout's copy is hidden
 
   // a wallet created in one tab shows up in the other's switcher
   await page.goto("/ajustes/carteira");
@@ -136,10 +136,11 @@ test("real time: two tabs of the same person stay in sync without reloading", as
   await page.getByLabel("Nome da nova carteira").fill("Viagem");
   await page.getByRole("button", { name: "Criar carteira" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(switcher.locator("option", { hasText: "Viagem" })).toHaveCount(1);
+  await expect(switcher).toHaveCount(1);
 
   // an expense added in one tab shows up in the other's list
-  await switcher.selectOption({ label: "Viagem" });
+  await switcher.click();
+  await other.getByRole("dialog").getByRole("button", { name: "Viagem" }).click();
   await page.goto("/"); // this tab already switched to the new wallet when creating it
   await addExpense(page, "120,00", "Passagem de ônibus");
   await expect(other.getByText("Passagem de ônibus")).toBeVisible();
@@ -149,7 +150,7 @@ test("real time: two tabs of the same person stay in sync without reloading", as
   await page.getByRole("button", { name: "Excluir esta carteira" }).click();
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(other.getByText(/Nada lançado em Pessoal/)).toBeVisible();
-  await expect(switcher.locator("option", { hasText: "Viagem" })).toHaveCount(0);
+  await expect(switcher).toHaveCount(0); // back to a single wallet: nothing to switch to
   await expect(other.getByText(/Não foi possível carregar/)).toHaveCount(0);
 });
 

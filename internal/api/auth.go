@@ -332,6 +332,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	}); err != nil {
 		return err
 	}
+	s.notifyUsers(uid) // the sessions just ended refetch, get a 401 and go to the login right away
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
