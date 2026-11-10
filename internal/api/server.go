@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,7 +82,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("/api/", public(func(http.ResponseWriter, *http.Request) error { return errNotFound }))
 	mux.Handle("/", spaHandler(spa))
 
-	return s.logRequests(s.recoverPanic(s.devCORS(mux)))
+	return s.logRequests(s.recoverPanic(s.securityHeaders(s.devCORS(s.sameOriginWrites(mux)))))
 }
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +136,48 @@ func (s *Server) devCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// csp suits the built SPA: same-origin scripts, styles and bundled fonts; React sets inline style attributes.
+const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+	"font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+// securityHeaders goes on every response; API responses are not cached unless the handler says otherwise (SSE does).
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Content-Security-Policy", csp)
+		if s.cfg.CookieSecure {
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			h.Set("Cache-Control", "no-store") // a handler's own Set replaces it
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+var errCrossSite = &apiError{Status: 403, Code: "forbidden", Message: "Requisição de outro site bloqueada"}
+
+// sameOriginWrites refuses API writes that the browser says come from another origin, a CSRF barrier for
+// the endpoints that take no JSON body. Without the header (old browsers, curl) the request goes through.
+func (s *Server) sameOriginWrites(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			site := r.Header.Get("Sec-Fetch-Site")
+			ok := site == "" || site == "same-origin" || (s.cfg.Dev && site == "same-site") // dev: Vite on another port
+			if !ok && strings.HasPrefix(r.URL.Path, "/api/") {
+				s.writeError(w, r, errCrossSite)
 				return
 			}
 		}
