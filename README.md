@@ -11,7 +11,7 @@ Controle financeiro pessoal e compartilhado. Um único binário Go serve a API e
 - Divisão de gastos entre membros (em basis points) e acertos
 - Recorrências mensais de gastos, entradas e acertos (a divisão por porcentagem também vale para elas)
 - Orçamento mensal por categoria e resumo do mês
-- Atualização em tempo real entre membros (SSE)
+- Atualização em tempo real entre abas, aparelhos e membros, sem recarregar (SSE em `/api/events`)
 
 ### Divisão padrão por pessoa
 

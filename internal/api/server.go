@@ -50,6 +50,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("POST /api/auth/login", public(s.login))
 	mux.Handle("POST /api/auth/logout", user(s.logout))
 	mux.Handle("GET /api/me", user(s.me))
+	mux.Handle("GET /api/events", user(s.events))
 	mux.Handle("PATCH /api/me", user(s.rename))
 	mux.Handle("PUT /api/me/password", user(s.changePassword))
 	mux.Handle("GET /api/me/ai", user(s.getAI))
@@ -75,7 +76,6 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	s.budgetRoutes(mux, wallet)
 	s.bankRoutes(mux, wallet)
 	s.summaryRoutes(mux, wallet)
-	s.eventsRoutes(mux, wallet)
 
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("/api/", public(func(http.ResponseWriter, *http.Request) error { return errNotFound }))

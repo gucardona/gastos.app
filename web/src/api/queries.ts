@@ -55,15 +55,74 @@ export function useRefresh() {
   );
 }
 
-/** Updates the screen when another member changes the wallet. The browser reconnects the SSE by itself. */
-export function useWalletEvents(walletId: number) {
-  const refresh = useRefresh();
+/**
+ * Keeps every tab in sync: one stream per signed-in user tells it when anything they can see changed
+ * (in this tab, another tab, or by another member). Also catches up after a reconnect and when the page
+ * comes back after a while hidden. The browser reconnects the SSE by itself.
+ */
+export function useEvents(enabled: boolean) {
+  const qc = useQueryClient();
   useEffect(() => {
-    if (!walletId) return;
-    const es = new EventSource(`/api/wallets/${walletId}/events`, { withCredentials: true });
-    es.onmessage = () => refresh(walletId);
-    return () => es.close();
-  }, [walletId, refresh]);
+    if (!enabled) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      clearTimeout(timer); // trailing debounce: a burst of notices becomes one round of refetches
+      timer = setTimeout(async () => {
+        // the wallet list first, so a wallet deleted elsewhere is not refetched (it would only 404) while the Shell moves away from it
+        void qc.invalidateQueries({ queryKey: ["ai"] }); // the assistant settings, changed in another tab
+        await qc.invalidateQueries({ queryKey: ["me"] });
+        const ids = new Set(qc.getQueryData<Me>(["me"])?.wallets.map((w) => w.id));
+        const alive = (q: { queryKey: readonly unknown[] }) => ids.has(q.queryKey[1] as number);
+        void qc.invalidateQueries({ queryKey: ["wallet"], predicate: alive });
+        void qc.invalidateQueries({ queryKey: ["wallet"], predicate: (q) => !alive(q), refetchType: "none" });
+      }, 150);
+    };
+
+    let es: EventSource | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let wait = 5_000;
+    const connect = () => {
+      clearTimeout(retry);
+      const reopening = es !== undefined;
+      let opened = false;
+      const source = new EventSource("/api/events", { withCredentials: true });
+      es = source;
+      source.onmessage = refresh;
+      source.onopen = () => {
+        // a reconnect: whatever changed while disconnected was never announced
+        if (opened || reopening) refresh();
+        opened = true;
+        wait = 5_000;
+      };
+      source.onerror = () => {
+        // the browser retries network drops by itself, but gives up for good when a reconnect gets a non-200
+        // (a 502 during a deploy, a 401 once the session is gone); a 401 ends up at the login, which unmounts this
+        if (source.readyState !== EventSource.CLOSED) return;
+        source.close();
+        retry = setTimeout(connect, wait);
+        wait = Math.min(wait * 2, 30_000);
+      };
+    };
+    connect();
+
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (es?.readyState === EventSource.CLOSED) connect();
+      else if (hiddenAt && Date.now() - hiddenAt > 30_000) refresh(); // a sleeping device may have missed notices
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      es?.close();
+      clearTimeout(timer);
+      clearTimeout(retry);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [enabled, qc]);
 }
 
 export const useBankAccounts = (id: number) =>
