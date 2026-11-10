@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Category } from "../api/types";
 import { today, yesterday } from "../lib/dates";
-import { appCtx, bodyOf, categories, mockFetch, renderApp, tx, wallet } from "../test/fixtures";
+import { appCtx, bodyOf, categories, members, mockFetch, renderApp, tx, wallet } from "../test/fixtures";
 import { AddSheet } from "./AddSheet";
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -272,6 +272,55 @@ describe("AddSheet: splitting", () => {
     await user.click(save());
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(bodyOf(fetch)).not.toHaveProperty("splits");
+  });
+
+  const withShares = () => appCtx({ wallet: { ...wallet, splittingEnabled: true }, members: members.map((m) => ({ ...m, defaultShareBp: m.userId === 1 ? 6000 : 4000 })) });
+
+  it("summarizes the default shares as percentages instead of an amount for each", async () => {
+    const { user } = open({}, withShares());
+    await fill(user);
+    expect(screen.getByText("Ana 60%, Bia 40%")).toBeTruthy();
+    expect(screen.queryByText(/para cada/)).toBeNull();
+  });
+
+  it("without shares the summary stays the equal amount for each", async () => {
+    const { user } = open({}, splitting());
+    await fill(user, "100,00");
+    expect(screen.getByText(/R\$\s*50,00 para cada/)).toBeTruthy();
+  });
+
+  it("'Ajustar' starts from the default shares, and they are sent when kept", async () => {
+    const fetch = mockFetch({ status: 201, body: tx() });
+    const { user } = open({}, withShares());
+    await fill(user);
+    await user.click(screen.getByRole("button", { name: "Ajustar" }));
+    expect((screen.getByRole("textbox", { name: "Porcentagem de Ana Souza" }) as HTMLInputElement).value).toBe("60");
+    expect((screen.getByRole("textbox", { name: "Porcentagem de Bia Lima" }) as HTMLInputElement).value).toBe("40");
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(bodyOf(fetch).splits).toEqual([{ userId: 1, shareBp: 6000 }, { userId: 2, shareBp: 4000 }]);
+  });
+
+  it("'Ajustar' without shares starts equal", async () => {
+    const { user } = open({}, splitting());
+    await user.click(screen.getByRole("button", { name: "Ajustar" }));
+    expect((screen.getByRole("textbox", { name: "Porcentagem de Ana Souza" }) as HTMLInputElement).value).toBe("50");
+  });
+
+  it("'Repetir todo mês' sends the adjusted split with the recurrence", async () => {
+    const fetch = mockFetch({ status: 201, body: {} });
+    const { user } = open({}, splitting());
+    await fill(user);
+    await user.click(screen.getByRole("button", { name: "Ajustar" }));
+    await user.clear(screen.getByRole("textbox", { name: "Porcentagem de Ana Souza" }));
+    await user.type(screen.getByRole("textbox", { name: "Porcentagem de Ana Souza" }), "70");
+    await user.clear(screen.getByRole("textbox", { name: "Porcentagem de Bia Lima" }));
+    await user.type(screen.getByRole("textbox", { name: "Porcentagem de Bia Lima" }), "30");
+    await user.click(screen.getByRole("switch", { name: "Repetir todo mês" }));
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/recurrences");
+    expect(bodyOf(fetch).splits).toEqual([{ userId: 1, shareBp: 7000 }, { userId: 2, shareBp: 3000 }]);
   });
 
   it("lets the user choose who paid", async () => {

@@ -63,7 +63,7 @@ describe("Division", () => {
   });
 
   it("with three people each suggested transfer has its own sentence and button", async () => {
-    const caio: Member = { userId: 3, name: "Caio Dias", email: "caio@example.com", role: "editor", splitsByDefault: true };
+    const caio: Member = { userId: 3, name: "Caio Dias", email: "caio@example.com", role: "editor", splitsByDefault: true, defaultShareBp: 0 };
     const user = userEvent.setup();
     const fetch = mockFetch((url, init) => (init.method && init.method !== "GET" ? { body: {} } : { body: url.includes("/summary") ? summary({ suggestedSettlements: [{ fromUserId: 2, toUserId: 1, amountCents: 10000 }, { fromUserId: 3, toUserId: 1, amountCents: 9000 }] }) : [] }));
     renderApp(<Division />, splitting({ members: [...members, caio] }));
