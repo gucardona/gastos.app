@@ -14,7 +14,7 @@ export function TabBar({ pending, onAdd }: { pending: number; onAdd: () => void 
         {navItems(wallet.splittingEnabled, assistantEnabled).map((item) => (
           <NavLink key={item.to} to={{ pathname: item.to, search }} end={item.end}>
             <Icon name={item.icon} />
-            {item.label}
+            <span className="tab-label">{item.label}</span>
             {item.to === "/caixa" && badge && <b className="badge">{badge}</b>}
           </NavLink>
         ))}

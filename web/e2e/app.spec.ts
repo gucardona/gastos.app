@@ -407,6 +407,31 @@ test("the overview does not scroll sideways at the narrowest desktop width, even
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+test("a 360px phone with five tabs: labels do not overlap, the month fits on one line, nothing scrolls sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await signUpAndEnter(page, "Rui");
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const w = (await j("/api/me")).wallets[0].id;
+    await j(`/api/wallets/${w}`, "PATCH", { splittingEnabled: true });
+    await j("/api/me/ai", "PUT", { apiKey: "sk-ant-e2e-fake-key-0000" }); // the key the fake Anthropic server accepts
+    await j("/api/me/ai", "PUT", { enabled: true });
+  });
+  await page.goto("/?m=2026-12"); // "dezembro de 2026", the longest month title
+  const tabs = page.locator("nav.tabbar .tab-label");
+  await expect(tabs).toHaveCount(5);
+  const boxes = await tabs.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ left: r.left, right: r.right })));
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i].left, `tab ${i} starts after tab ${i - 1} ends`).toBeGreaterThanOrEqual(boxes[i - 1].right);
+  const title = page.locator(".month-title");
+  await expect(title).toHaveText(/dezembro de 2026/i);
+  expect(await title.evaluate((e) => e.scrollWidth <= e.clientWidth && e.getClientRects().length === 1)).toBe(true);
+  for (const path of ["/?m=2026-12", "/lancamentos?m=2026-12", "/divisao", "/chat"]) {
+    await page.goto(path);
+    await expect(page.locator("nav.tabbar")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), path).toBeLessThanOrEqual(0);
+  }
+});
+
 test("the old /recorrentes address lands on Lançamentos", async ({ page }) => {
   await signUpAndEnter(page, "Olga");
   await page.goto("/recorrentes");

@@ -10,7 +10,7 @@ button { cursor: pointer; }
 
 /* ---------- shell ---------- */
 .sidebar { display: none; }
-.main { padding: 20px 16px calc(112px + env(safe-area-inset-bottom)); max-width: 980px; margin: 0 auto; }
+.main { padding: calc(20px + env(safe-area-inset-top)) 16px calc(112px + env(safe-area-inset-bottom)); max-width: 980px; margin: 0 auto; }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .wallet { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 15px; }
 .wallet-btn { display: flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; max-width: 40vw; }
@@ -19,7 +19,7 @@ button { cursor: pointer; }
 .wallet small { color: var(--muted); font-weight: 400; }
 .avatar { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); display: grid; place-items: center; font-weight: 600; color: var(--ink); text-decoration: none; }
 .month { display: flex; align-items: center; gap: 4px; margin: 0 0 4px; color: var(--muted); }
-.month-title { margin: 0; min-width: 0; color: var(--ink); font-size: 32px; font-weight: 700; letter-spacing: -0.03em; }
+.month-title { margin: 0; min-width: 0; color: var(--ink); font-size: clamp(22px, 7vw, 32px); font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .month-title::first-letter { text-transform: uppercase; }
 .month button { background: none; border: 0; width: 44px; height: 44px; border-radius: 999px; color: var(--muted); font-size: 22px; }
 
@@ -93,7 +93,7 @@ button { cursor: pointer; }
 .skeleton { height: 14px; border-radius: 7px; background: var(--line); margin: 12px 0; width: 60%; }
 
 /* ---------- quick add (native dialog) ---------- */
-dialog.sheet { border: 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); background: var(--paper); color: var(--ink); position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none; max-height: 92vh; border-radius: 28px 28px 0 0; overflow: auto; }
+dialog.sheet { border: 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); background: var(--paper); color: var(--ink); position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none; max-height: 92vh; max-height: 92dvh; border-radius: 28px 28px 0 0; overflow: auto; }
 dialog.sheet::backdrop { background: var(--scrim); }
 dialog.sheet[open] { animation: rise 0.18s ease-out; }
 @keyframes rise { from { transform: translateY(24px); opacity: 0.6; } }
@@ -141,7 +141,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
   .bar { display: none; }
   .main { padding: 36px 40px 64px; width: 100%; }
   .cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 56px; align-items: start; }
-  dialog.sheet { inset: 0 0 0 auto; width: 440px; height: 100vh; max-height: none; border-radius: 0; padding: 28px; }
+  dialog.sheet { inset: 0 0 0 auto; width: 440px; height: 100vh; height: 100dvh; max-height: none; border-radius: 0; padding: 28px; }
   .grab { display: none; }
 }
 
@@ -153,7 +153,9 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .tabbar { position: fixed; left: 14px; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; z-index: 5; }
 .tabbar-pill { flex: 1; min-width: 0; height: 58px; padding: 0 4px; border-radius: 999px; display: flex; justify-content: space-around; align-items: center;
   background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(14px); box-shadow: 0 8px 28px rgba(20, 24, 27, 0.12), 0 0 0 1px rgba(20, 24, 27, 0.05); }
-.tabbar-pill a { position: relative; flex: 1; min-width: 44px; display: grid; justify-items: center; gap: 2px; padding: 6px 0; border-radius: 999px; color: var(--muted); font-size: 11px; font-weight: 500; text-decoration: none; }
+.tabbar-pill a { position: relative; flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 2px; padding: 6px 0; border-radius: 999px; color: var(--muted); font-size: clamp(10px, 2.9vw, 11px); font-weight: 500; text-decoration: none; }
+/* five tabs on a 360px phone: a long label shrinks a little, then ends in an ellipsis instead of spilling into its neighbour */
+.tab-label { max-width: 100%; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tabbar-pill a[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .tabbar .badge { position: absolute; top: 0; left: 50%; margin: 0; transform: translateX(6px); }
 .fab { flex: none; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 35%, transparent); }
