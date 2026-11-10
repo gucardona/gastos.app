@@ -58,11 +58,11 @@ func checkSettlementMembers(ctx context.Context, q querier, walletID, from, to i
 func (in *settlementInput) validate(ctx context.Context, q querier, walletID int64) error {
 	in.Note = strings.TrimSpace(in.Note)
 	fe := fieldErrors{}
-	if in.AmountCents <= 0 {
-		fe.add("amountCents", "deve ser maior que zero")
+	if msg := amountProblem(in.AmountCents); msg != "" {
+		fe.add("amountCents", msg)
 	}
-	if !validDate(in.Date) {
-		fe.add("date", "data inválida")
+	if msg := dateProblem(in.Date); msg != "" {
+		fe.add("date", msg)
 	}
 	if len([]rune(in.Note)) > 200 {
 		fe.add("note", "até 200 caracteres")
