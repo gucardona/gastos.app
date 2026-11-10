@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"net/http"
 	"strings"
+
+	"gastos/internal/money"
 )
 
 // bcryptCost is a variable so tests can use a low cost.
@@ -285,21 +287,22 @@ type memberDTO struct {
 	Email           string `json:"email"`
 	Role            string `json:"role"`
 	SplitsByDefault bool   `json:"splitsByDefault"`
+	DefaultShareBP  int    `json:"defaultShareBp"` // 0 = not set
 }
 
 func (s *Server) memberByID(ctx context.Context, walletID, userID int64) (memberDTO, error) {
 	var m memberDTO
 	err := s.db.QueryRowContext(ctx, `
-		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default
+		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0)
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ? AND wm.user_id = ?`, walletID, userID).
-		Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault)
+		Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP)
 	return m, err
 }
 
 func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(), `
-		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default
+		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0)
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ?
 		ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.name, u.id`,
@@ -311,7 +314,7 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	out := []memberDTO{}
 	for rows.Next() {
 		var m memberDTO
-		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP); err != nil {
 			return err
 		}
 		out = append(out, m)
@@ -367,9 +370,13 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Role            *string `json:"role"`
 		SplitsByDefault *bool   `json:"splitsByDefault"`
+		DefaultShareBP  *int    `json:"defaultShareBp"` // 0 clears it
 	}
 	if err := decode(w, r, &in); err != nil {
 		return err
+	}
+	if in.DefaultShareBP != nil && (*in.DefaultShareBP < 0 || *in.DefaultShareBP > money.FullShare) {
+		return errValidation(map[string]string{"defaultShareBp": "use entre 0 e 100%"})
 	}
 	walletID := walletIDFrom(r.Context())
 	cur, err := s.memberByID(r.Context(), walletID, target)
@@ -391,6 +398,12 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 	if in.SplitsByDefault != nil {
 		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallet_members SET splits_by_default = ? WHERE wallet_id = ? AND user_id = ?`,
 			*in.SplitsByDefault, walletID, target); err != nil {
+			return err
+		}
+	}
+	if in.DefaultShareBP != nil {
+		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallet_members SET default_share_bp = NULLIF(?, 0) WHERE wallet_id = ? AND user_id = ?`,
+			*in.DefaultShareBP, walletID, target); err != nil {
 			return err
 		}
 	}

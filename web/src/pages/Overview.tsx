@@ -8,6 +8,8 @@ import { TransactionList } from "../components/TransactionList";
 import { firstName, useApp } from "../context";
 import { monthOf, monthRange, today } from "../lib/dates";
 import { formatBRL, splitBRL } from "../lib/money";
+import { groupTop, pctLabel } from "../lib/share";
+import { Chart } from "../components/Chart";
 
 const RULER_HEIGHT = 72;
 
@@ -37,6 +39,9 @@ export function Overview() {
 function Content({ month, summary, txs }: { month: string; summary: NonNullable<ReturnType<typeof useSummary>["data"]>; txs: Transaction[] }) {
   const { wallet, categories } = useApp();
   const { reais, cents } = splitBRL(summary.balanceCents);
+  const expenses = summary.byCategory.filter((c) => c.kind === "expense");
+  const expenseTotal = expenses.reduce((s, c) => s + c.cents, 0);
+  const pie = groupTop(expenses.map((c) => ({ label: categories.find((x) => x.id === c.categoryId)?.name ?? "?", value: c.cents })), 7, "Outros");
   const empty = txs.length === 0 && summary.byCategory.length === 0;
 
   return (
@@ -75,8 +80,8 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                 return (
                   <div className="rail" key={c.categoryId}>
                     <div className="rail-top">
-                      <span className="name"><span aria-hidden>{cat?.icon}</span>{cat?.name}</span>
-                      <span className="amt num">{formatBRL(c.cents)}{c.budgetCents !== null && <> <small>de {formatBRL(c.budgetCents)}</small></>}</span>
+                      <span className="name"><span aria-hidden>{cat?.icon}</span><span className="name-text">{cat?.name}</span></span>
+                      <span className="amt num">{formatBRL(c.cents)} · {pctLabel(c.cents, expenseTotal)}{c.budgetCents !== null && <> <small>de {formatBRL(c.budgetCents)}</small></>}</span>
                     </div>
                     <div className={`track ${over ? "over" : ""}`}>
                       <div className="fill" style={{ width: `${(c.cents / (c.budgetCents !== null ? scale : topExpense)) * 100}%` }} />
@@ -87,6 +92,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                 );
               })}
               </div>
+              {expenseTotal > 0 && <Chart chart={{ kind: "pie", title: "Gastos por categoria", points: pie }} />}
             </section>
             )}
             <div>

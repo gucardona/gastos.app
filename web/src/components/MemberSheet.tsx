@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { Member } from "../api/types";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
+import { bpToPercent, toBp } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
 import { Segmented } from "./Segmented";
 import { Sheet } from "./Sheet";
@@ -22,11 +23,21 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
   const { run, busy, error } = useAction();
   const [role, setRole] = useState(member.role);
   const [splits, setSplits] = useState(member.splitsByDefault);
+  const [savedBp, setSavedBp] = useState(member.defaultShareBp);
+  const [share, setShare] = useState(member.defaultShareBp ? bpToPercent(member.defaultShareBp) : "");
+  const [shareError, setShareError] = useState("");
   const [confirm, setConfirm] = useState(false);
   const owner = wallet.role === "owner";
   const isMe = member.userId === user.id;
   const canRemove = member.role !== "owner" && (owner || isMe);
   const path = `/wallets/${wallet.id}/members/${member.userId}`;
+
+  const typedBp = toBp(share);
+  async function saveShare() {
+    if (typedBp === null || typedBp > 10000) return setShareError("Informe uma porcentagem entre 0 e 100, com até 2 casas.");
+    setShareError("");
+    if (await run(() => api.patch(path, { defaultShareBp: typedBp }))) setSavedBp(typedBp);
+  }
 
   return (
     <div>
@@ -49,7 +60,20 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
             label="Entra na divisão por padrão"
             trailing={<Switch checked={splits} disabled={busy} label={`Dividir gastos com ${member.name} por padrão`} onChange={async (v) => { if (await run(() => api.patch(path, { splitsByDefault: v }))) setSplits(v); }} />}
           />
+          {splits && (
+            <div className="list-row">
+              <label htmlFor="member-share" className="lr-label" style={{ whiteSpace: "nowrap" }}>Parte padrão (%)</label>
+              <input id="member-share" className="desc-input" inputMode="decimal" placeholder="igual" aria-label={`Parte padrão de ${member.name} (%)`} value={share} onChange={(e) => setShare(e.target.value)} />
+              {typedBp !== savedBp && <button type="button" className="chip" disabled={busy} onClick={() => void saveShare()}>Salvar</button>}
+            </div>
+          )}
         </ListGroup>
+      )}
+      {owner && wallet.splittingEnabled && splits && (
+        <>
+          {shareError && <p className="error" role="alert">{shareError}</p>}
+          <p className="muted lead">Em branco, a divisão é igual entre quem participa. A parte vale quando todos que dividem por padrão têm uma porcentagem; ela é ajustada para somar 100%.</p>
+        </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {canRemove && (
