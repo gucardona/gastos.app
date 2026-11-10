@@ -365,3 +365,8 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 /* a focused transaction row: the same rounded ring as a list row, and the dividers touching it hidden */
 .row:focus-visible { outline-offset: 4px; border-radius: var(--radius-control); }
 .row:focus-visible, .row:focus-visible + .row { border-top-color: transparent; }
+
+/* small controls keep their look but get a hit area of at least 44px (wallet button ~30px, chip ~36px, avatar 36px) */
+.wallet-btn, .chip, .avatar { position: relative; }
+.wallet-btn::after, .chip::after { content: ""; position: absolute; inset: -8px 0; }
+.avatar::after { content: ""; position: absolute; inset: -4px; border-radius: 999px; }

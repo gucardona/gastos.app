@@ -23,3 +23,11 @@ describe("small phones", () => {
     expect(css).toMatch(/\.main\s*\{[^}]*padding:\s*calc\(20px \+ env\(safe-area-inset-top\)\)/);
   });
 });
+
+describe("tap targets", () => {
+  it("the wallet button, chips and the avatar grow their hit area to 44px without growing their look", () => {
+    expect(css).toMatch(/\.wallet-btn::after, \.chip::after\s*\{[^}]*position:\s*absolute;\s*inset:\s*-8px 0/);
+    expect(css).toMatch(/\.avatar::after\s*\{[^}]*position:\s*absolute;\s*inset:\s*-4px/);
+    expect(css).toMatch(/\.wallet-btn, \.chip, \.avatar\s*\{[^}]*position:\s*relative/);
+  });
+});
