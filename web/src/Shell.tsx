@@ -8,7 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { Ctx, type AppCtx } from "./context";
-import { monthOf, today } from "./lib/dates";
+import { isMonth, monthOf, today } from "./lib/dates";
 
 function readWalletId() {
   try {
@@ -34,7 +34,8 @@ export function Shell() {
   useWalletEvents(walletId);
   const pending = useInbox(walletId).data?.length ?? 0;
 
-  const month = params.get("m") ?? monthOf(today());
+  const m = params.get("m");
+  const month = m && isMonth(m) ? m : monthOf(today());
   const canEdit = wallet?.role !== "reader";
 
   // the N shortcut opens quick add, as in the spec

@@ -1,17 +1,18 @@
 import { NavLink } from "react-router";
 import { useApp } from "../context";
 import { Icon } from "./Icon";
-import { formatBadge, navItems } from "./nav";
+import { formatBadge, navItems, useMonthSearch } from "./nav";
 
 /** Phone navigation: a floating bar with the destinations and, apart from it, the + button. */
 export function TabBar({ pending, onAdd }: { pending: number; onAdd: () => void }) {
   const { wallet, canEdit, assistantEnabled } = useApp();
   const badge = formatBadge(pending);
+  const search = useMonthSearch();
   return (
     <nav className="tabbar" aria-label="Navegação">
       <div className="tabbar-pill">
         {navItems(wallet.splittingEnabled, assistantEnabled).map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end}>
+          <NavLink key={item.to} to={{ pathname: item.to, search }} end={item.end}>
             <Icon name={item.icon} />
             {item.label}
             {item.to === "/caixa" && badge && <b className="badge">{badge}</b>}

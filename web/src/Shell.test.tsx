@@ -174,6 +174,26 @@ describe("Shell: active wallet and month", () => {
     await user.click(screen.getByRole("button", { name: "ir para maio" }));
     expect(await screen.findByText("mês 2026-05")).toBeTruthy();
   });
+
+  it("an invalid month in the URL falls back to the current month", async () => {
+    serve();
+    renderShell("/?m=2026-13");
+    expect(await screen.findByText(`mês ${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`)).toBeTruthy();
+  });
+
+  it("the navigation links carry the month, and only it, so switching screen keeps it", async () => {
+    serve();
+    renderShell("/?m=2026-03&x=1");
+    await screen.findByText("mês 2026-03");
+    for (const link of screen.getAllByRole("link", { name: /Lançamentos/ })) expect(link.getAttribute("href")).toBe("/lancamentos?m=2026-03");
+  });
+
+  it("the navigation links carry no invalid month", async () => {
+    serve();
+    renderShell("/?m=xx");
+    await screen.findByText("carteira Casa");
+    for (const link of screen.getAllByRole("link", { name: /Lançamentos/ })) expect(link.getAttribute("href")).toBe("/lancamentos");
+  });
 });
 
 describe("Shell: real time (SSE)", () => {
