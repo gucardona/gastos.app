@@ -76,7 +76,8 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                 const cat = categories.find((x) => x.id === c.categoryId);
                 const over = c.budgetCents !== null && c.cents > c.budgetCents;
                 const scale = Math.max(c.cents, c.budgetCents ?? 0, 1);
-                const topExpense = Math.max(...summary.byCategory.filter((x) => x.kind === "expense").map((x) => x.cents), 1);
+                // with a budget: spent against the budget; without one: the share of the month's expenses, as the percentage says
+                const fill = c.budgetCents !== null ? c.cents / scale : c.cents / Math.max(expenseTotal, 1);
                 return (
                   <div className="rail" key={c.categoryId}>
                     <div className="rail-top">
@@ -84,7 +85,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                       <span className="amt num">{formatBRL(c.cents)} · {pctLabel(c.cents, expenseTotal)}{c.budgetCents !== null && <> <small>de {formatBRL(c.budgetCents)}</small></>}</span>
                     </div>
                     <div className={`track ${over ? "over" : ""}`}>
-                      <div className="fill" style={{ width: `${(c.cents / (c.budgetCents !== null ? scale : topExpense)) * 100}%` }} />
+                      <div className="fill" style={{ width: `${fill * 100}%`, minWidth: c.budgetCents === null && c.cents > 0 ? 2 : undefined }} />
                       {c.budgetCents !== null && <div className="limit" style={{ left: `calc(${(c.budgetCents / scale) * 100}% - 1px)` }} />}
                     </div>
                     {over && <div className="warn">{formatBRL(c.cents - c.budgetCents!)} acima do orçamento</div>}

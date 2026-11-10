@@ -218,6 +218,31 @@ describe("Overview: budget rails", () => {
     expect(container.querySelector(".limit")).toBeNull();
     expect((container.querySelector(".fill") as HTMLElement).style.width).toBe("100%");
   });
+
+  it("with no budget, the bar is the category's share of the month's expenses, the same number as the percentage", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 50000, budgetCents: null }, { categoryId: 2, kind: "expense", cents: 10000, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    const widths = Array.from(container.querySelectorAll<HTMLElement>(".rail .fill")).map((f) => parseFloat(f.style.width));
+    expect(widths[0]).toBeCloseTo(83.33, 1);
+    expect(widths[1]).toBeCloseTo(16.67, 1);
+  });
+
+  it("a tiny share keeps a visible sliver", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 100000, budgetCents: null }, { categoryId: 2, kind: "expense", cents: 10, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    expect(container.querySelectorAll<HTMLElement>(".rail .fill")[1].style.minWidth).toBe("2px");
+  });
+
+  it("a budgeted category next to one without a budget keeps its spent-vs-budget bar", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 104230, budgetCents: 150000 }, { categoryId: 2, kind: "expense", cents: 64000, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    const fills = container.querySelectorAll<HTMLElement>(".rail .fill");
+    expect(fills[0].style.width).toMatch(/^69\.4/); // 104230 / 150000
+    expect(parseFloat(fills[1].style.width)).toBeCloseTo(38.04, 1); // 64000 / 168230
+  });
 });
 
 describe("Overview: shares and pie", () => {
