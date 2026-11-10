@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useToast } from "./components/Toast";
 import { useApp } from "./context";
 import { Shell } from "./Shell";
 import { ana, categories, members, mockFetch, paymentMethods, wallet } from "./test/fixtures";
@@ -23,12 +24,14 @@ const viagem = { ...wallet, id: 2, name: "Viagem" };
 
 function Probe() {
   const a = useApp();
+  const toast = useToast();
   return (
     <>
       <p>mês {a.month}</p>
       <p>carteira {a.wallet.name}</p>
       <button type="button" onClick={() => a.setWalletId(2)}>trocar de carteira</button>
       <button type="button" onClick={() => a.setMonth("2026-05")}>ir para maio</button>
+      <button type="button" onClick={() => toast("Lançamento salvo")}>avisar</button>
       <input aria-label="campo de texto" />
     </>
   );
@@ -326,5 +329,16 @@ describe("Shell: quick add", () => {
     await waitFor(() => expect(dialogOpen()).toBe(true));
     await user.click(screen.getByRole("button", { name: "Fechar" }));
     await waitFor(() => expect(dialogOpen()).toBe(false));
+  });
+});
+
+describe("Shell: toasts", () => {
+  it("pages can show a toast, in a polite live region of the shell", async () => {
+    serve();
+    const { user } = renderShell();
+    await user.click(await screen.findByRole("button", { name: "avisar" }));
+    const region = screen.getByRole("status");
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.textContent).toContain("Lançamento salvo");
   });
 });

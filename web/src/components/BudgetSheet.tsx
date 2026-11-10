@@ -27,7 +27,7 @@ function BudgetForm({ category, current, onClose }: { category: Category; curren
     const cents = parseCents(value);
     if (!cents) return setProblem(amountProblem(value));
     setProblem("");
-    if (await run(() => api.put(path, { limitCents: cents }))) onClose();
+    if (await run(() => api.put(path, { limitCents: cents }), "Orçamento salvo")) onClose();
   }
 
   return (
@@ -43,7 +43,7 @@ function BudgetForm({ category, current, onClose }: { category: Category; curren
       {(problem || error) && <p className="error" role="alert">{problem || error}</p>}
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>Definir</button>
-        {current !== undefined && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.del(path)).then((ok) => ok && onClose())}>Remover limite</button>}
+        {current !== undefined && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.del(path), "Limite removido").then((ok) => ok && onClose())}>Remover limite</button>}
       </div>
     </form>
   );

@@ -25,7 +25,7 @@ export function Inbox() {
       <h1 className="page-title">Caixa de entrada</h1>
       <p className="muted lead">Linhas dos extratos importados. Toque numa linha para criar o lançamento, ligar a um que você já fez, ou ignorar.</p>
       {canEdit && safe > 0 && (
-        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => api.post(`/wallets/${wallet.id}/inbox/accept-suggested`))}>
+        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => api.post(`/wallets/${wallet.id}/inbox/accept-suggested`), "Sugestões aceitas")}>
           Aceitar {safe} {safe === 1 ? "sugerida" : "sugeridas"}
         </button>
       )}

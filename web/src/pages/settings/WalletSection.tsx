@@ -20,14 +20,14 @@ export function WalletSection() {
   return (
     <div className="screen">
       <ListGroup>
-        <form className="list-row" onSubmit={(e) => { e.preventDefault(); void rename.run(() => api.patch(`/wallets/${wallet.id}`, { name })); }}>
+        <form className="list-row" onSubmit={(e) => { e.preventDefault(); void rename.run(() => api.patch(`/wallets/${wallet.id}`, { name }), "Nome da carteira salvo"); }}>
           <label htmlFor="wname" className="lr-label">Nome da carteira</label>
           <input id="wname" className="desc-input" value={name} disabled={!owner} onChange={(e) => setName(e.target.value)} />
           {owner && name.trim() !== wallet.name && <button type="submit" className="chip" disabled={rename.busy}>Salvar nome</button>}
         </form>
         <ListRow
           label="Dividir gastos entre os membros"
-          trailing={<Switch checked={wallet.splittingEnabled} disabled={!owner || toggle.busy} label="Dividir gastos entre os membros" onChange={(v) => void toggle.run(() => api.patch(`/wallets/${wallet.id}`, { splittingEnabled: v }))} />}
+          trailing={<Switch checked={wallet.splittingEnabled} disabled={!owner || toggle.busy} label="Dividir gastos entre os membros" onChange={(v) => void toggle.run(() => api.patch(`/wallets/${wallet.id}`, { splittingEnabled: v }), v ? "Divisão ligada" : "Divisão desligada")} />}
         />
       </ListGroup>
       <p className="muted lead">Mostra quem pagou, a divisão e o acerto entre vocês.</p>
@@ -63,7 +63,7 @@ function NewWallet({ onClose }: { onClose: () => void }) {
     <form onSubmit={async (e) => {
       e.preventDefault();
       let created: Wallet | undefined;
-      const ok = await run(async () => { created = await api.post<Wallet>("/wallets", { name, splittingEnabled: splitting }); });
+      const ok = await run(async () => { created = await api.post<Wallet>("/wallets", { name, splittingEnabled: splitting }); }, "Carteira criada");
       if (ok && created) { setWalletId(created.id); onClose(); }
     }}>
       <div className="sheet-head">

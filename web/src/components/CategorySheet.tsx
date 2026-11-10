@@ -7,6 +7,7 @@ import { ColorSwatches } from "./ColorSwatches";
 import { EmojiPicker } from "./EmojiPicker";
 import { Segmented } from "./Segmented";
 import { Sheet } from "./Sheet";
+import { useToast } from "./Toast";
 
 const ESSENTIALITY = [
   { value: "essential", label: "Essencial" },
@@ -26,6 +27,7 @@ export function CategorySheet({ category, kind, onClose }: { category: Category 
 function CategoryForm({ category, kind, onClose }: { category: Category | "new"; kind: Kind; onClose: () => void }) {
   const { wallet } = useApp();
   const { run, busy, error } = useAction();
+  const toast = useToast();
   const c = category === "new" ? null : category;
   const k = c?.kind ?? kind;
   const [name, setName] = useState(c?.name ?? "");
@@ -43,8 +45,8 @@ function CategoryForm({ category, kind, onClose }: { category: Category | "new";
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const ok = c
-      ? await run(() => api.put(path, body()))
-      : await run(() => api.post(`/wallets/${wallet.id}/categories`, { kind: k, name, icon, color, ...(k === "expense" ? { essentiality } : {}) }));
+      ? await run(() => api.put(path, body()), "Categoria salva")
+      : await run(() => api.post(`/wallets/${wallet.id}/categories`, { kind: k, name, icon, color, ...(k === "expense" ? { essentiality } : {}) }), "Categoria criada");
     if (ok) onClose();
   }
 
@@ -52,7 +54,7 @@ function CategoryForm({ category, kind, onClose }: { category: Category | "new";
     let archivedNow = false;
     if (!(await run(async () => { archivedNow = (await api.del(path)) !== undefined; }))) return;
     if (archivedNow) setArchivedNote(true); // it had transactions, so it was archived instead
-    else onClose();
+    else { toast("Categoria excluída"); onClose(); }
   }
 
   if (archivedNote) {
@@ -86,8 +88,8 @@ function CategoryForm({ category, kind, onClose }: { category: Category | "new";
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>{c ? "Salvar" : "Criar categoria"}</button>
-        {c?.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.put(path, body(false))).then((ok) => ok && onClose())}>Restaurar</button>}
-        {c && !c.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.put(path, body(true))).then((ok) => ok && onClose())}>Arquivar</button>}
+        {c?.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.put(path, body(false)), "Categoria restaurada").then((ok) => ok && onClose())}>Restaurar</button>}
+        {c && !c.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => api.put(path, body(true)), "Categoria arquivada").then((ok) => ok && onClose())}>Arquivar</button>}
         {c && !c.archived && (confirm
           ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void remove()}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir categoria</button>)}

@@ -70,6 +70,13 @@ test("sign up, add, edit and delete a transaction", async ({ page }) => {
   await page.getByRole("button", { name: "Excluir lançamento" }).click();
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(page.getByText("Nenhum lançamento neste mês.")).toBeVisible();
+
+  // the toast offers to undo it: the same transaction comes back
+  const toast = page.getByRole("status").filter({ hasText: "Lançamento excluído" });
+  await expect(toast).toBeVisible();
+  await toast.getByRole("button", { name: "Desfazer" }).click();
+  await expect(page.getByRole("button", { name: /Mercado do bairro/ })).toBeVisible();
+  await expect(page.getByText("−R$ 50,00").first()).toBeVisible();
 });
 
 test("session: sign out and back in, with a wrong password rejected", async ({ page }) => {
@@ -570,7 +577,7 @@ test("a person changes the provisional password and signs in with the new one", 
 
   await sheet.getByLabel("Senha atual", { exact: true }).fill(password);
   await sheet.getByRole("button", { name: "Alterar senha" }).click();
-  await expect(page.getByText("Senha alterada.")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Senha alterada" })).toBeVisible();
 
   await page.getByRole("link", { name: "Ajustes" }).first().click();
   await page.getByRole("button", { name: "Sair" }).click();

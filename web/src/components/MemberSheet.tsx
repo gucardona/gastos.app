@@ -36,7 +36,7 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
   async function saveShare() {
     if (typedBp === null || typedBp > 10000) return setShareError("Informe uma porcentagem entre 0 e 100, com até 2 casas.");
     setShareError("");
-    if (await run(() => api.patch(path, { defaultShareBp: typedBp }))) setSavedBp(typedBp);
+    if (await run(() => api.patch(path, { defaultShareBp: typedBp }), "Parte padrão salva")) setSavedBp(typedBp);
   }
 
   return (
@@ -50,7 +50,7 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
         <Segmented<"editor" | "reader">
           label="Permissão"
           value={role as "editor" | "reader"}
-          onChange={async (r) => { if (await run(() => api.patch(path, { role: r }))) setRole(r); }}
+          onChange={async (r) => { if (await run(() => api.patch(path, { role: r }), "Permissão alterada")) setRole(r); }}
           options={[{ value: "editor", label: "Pode editar" }, { value: "reader", label: "Só leitura" }]}
         />
       )}
@@ -58,7 +58,7 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
         <ListGroup>
           <ListRow
             label="Entra na divisão por padrão"
-            trailing={<Switch checked={splits} disabled={busy} label={`Dividir gastos com ${member.name} por padrão`} onChange={async (v) => { if (await run(() => api.patch(path, { splitsByDefault: v }))) setSplits(v); }} />}
+            trailing={<Switch checked={splits} disabled={busy} label={`Dividir gastos com ${member.name} por padrão`} onChange={async (v) => { if (await run(() => api.patch(path, { splitsByDefault: v }), v ? "Entra na divisão por padrão" : "Fora da divisão por padrão")) setSplits(v); }} />}
           />
           {splits && (
             <div className="list-row">
@@ -79,7 +79,7 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
       {canRemove && (
         <div className="actions">
           {confirm
-            ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then((ok) => ok && onClose())}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
+            ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path), isMe ? "Você saiu da carteira" : "Pessoa removida").then((ok) => ok && onClose())}>{isMe ? "Confirmar saída" : "Confirmar remoção"}</button>
             : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>{isMe ? "Sair da carteira" : "Remover"}</button>}
         </div>
       )}

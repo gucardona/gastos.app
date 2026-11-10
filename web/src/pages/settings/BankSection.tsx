@@ -46,7 +46,7 @@ function Rules() {
                 <span className="desc">“{r.pattern}”</span>
                 <span className="meta">{c ? `${c.icon} ${c.name}` : "categoria removida"}{r.renameTo ? `, renomeia para ${r.renameTo}` : ""}</span>
               </span>
-              {canEdit && <button type="button" className="chip" disabled={busy} aria-label={`Excluir regra ${r.pattern}`} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/rules/${r.id}`))}>Excluir</button>}
+              {canEdit && <button type="button" className="chip" disabled={busy} aria-label={`Excluir regra ${r.pattern}`} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/rules/${r.id}`), "Regra excluída")}>Excluir</button>}
             </div>
           );
         })}

@@ -27,7 +27,7 @@ function PaymentForm({ method, onClose }: { method: PaymentMethod | "new"; onClo
   const done = (ok: boolean) => ok && onClose();
 
   return (
-    <form onSubmit={async (e) => { e.preventDefault(); done(await run(() => (p ? put(p.archived) : api.post(`/wallets/${wallet.id}/payment-methods`, { name, icon })))); }}>
+    <form onSubmit={async (e) => { e.preventDefault(); done(await run(() => (p ? put(p.archived) : api.post(`/wallets/${wallet.id}/payment-methods`, { name, icon })), p ? "Forma de pagamento salva" : "Forma de pagamento criada")); }}>
       <div className="sheet-head">
         <h2 className="sheet-title">{p ? "Editar forma de pagamento" : "Nova forma de pagamento"}</h2>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
@@ -45,10 +45,10 @@ function PaymentForm({ method, onClose }: { method: PaymentMethod | "new"; onClo
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>{p ? "Salvar" : "Criar"}</button>
-        {p?.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => put(false)).then(done)}>Restaurar</button>}
-        {p && !p.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => put(true)).then(done)}>Arquivar</button>}
+        {p?.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => put(false), "Forma de pagamento restaurada").then(done)}>Restaurar</button>}
+        {p && !p.archived && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void run(() => put(true), "Forma de pagamento arquivada").then(done)}>Arquivar</button>}
         {p && !p.archived && (confirm
-          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then(done)}>Confirmar exclusão</button>
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path), "Forma de pagamento excluída").then(done)}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir forma de pagamento</button>)}
       </div>
     </form>

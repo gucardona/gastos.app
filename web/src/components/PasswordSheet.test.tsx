@@ -8,9 +8,8 @@ const writes = (f: ReturnType<typeof mockFetch>) => f.mock.calls.filter((c) => c
 
 function open() {
   const onClose = vi.fn();
-  const onChanged = vi.fn();
-  renderApp(<PasswordSheet open onClose={onClose} onChanged={onChanged} />);
-  return { onClose, onChanged, user: userEvent.setup() };
+  const { toast } = renderApp(<PasswordSheet open onClose={onClose} />);
+  return { onClose, toast, user: userEvent.setup() };
 }
 
 async function fill(user: ReturnType<typeof userEvent.setup>, current: string, next: string, again = next) {
@@ -29,12 +28,12 @@ describe("PasswordSheet", () => {
     }
   });
 
-  it("changes the password, then closes and tells the page", async () => {
+  it("changes the password, then closes and says so in a toast", async () => {
     const fetch = mockFetch({ status: 204 });
-    const { user, onClose, onChanged } = open();
+    const { user, onClose, toast } = open();
     await fill(user, "provisoria-123", "minha-senha-nova");
     await user.click(screen.getByRole("button", { name: "Alterar senha" }));
-    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Senha alterada"));
     expect(onClose).toHaveBeenCalled();
     expect(writes(fetch)[0][0]).toBe("/api/me/password");
     expect(writes(fetch)[0][1]!.method).toBe("PUT");
@@ -62,12 +61,12 @@ describe("PasswordSheet", () => {
 
   it("shows the API's message when the current password is wrong, and stays open", async () => {
     mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { currentPassword: "senha atual incorreta" } } } });
-    const { user, onClose, onChanged } = open();
+    const { user, onClose, toast } = open();
     await fill(user, "errada-errada", "minha-senha-nova");
     await user.click(screen.getByRole("button", { name: "Alterar senha" }));
     expect(await screen.findByText("senha atual incorreta")).toBeTruthy();
     expect(onClose).not.toHaveBeenCalled();
-    expect(onChanged).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
   });
 
   it("shows the rate limit message", async () => {

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ToastProvider } from "../components/Toast";
 import { Ctx } from "../context";
 import { appCtx, mockFetch } from "../test/fixtures";
 import { Settings } from "./Settings";
@@ -17,7 +18,7 @@ function renderSettings(route = "/ajustes") {
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[route]}>
         <Routes>
-          <Route path="/ajustes/:section?" element={<Ctx.Provider value={appCtx()}><Settings /><Where /></Ctx.Provider>} />
+          <Route path="/ajustes/:section?" element={<ToastProvider><Ctx.Provider value={appCtx()}><Settings /><Where /></Ctx.Provider></ToastProvider>} />
           <Route path="/login" element={<p>tela de login</p>} />
         </Routes>
       </MemoryRouter>
@@ -106,7 +107,8 @@ describe("Settings: a screen per subject", () => {
     await user.type(screen.getByLabelText("Nova senha"), "minha-senha-nova");
     await user.type(screen.getByLabelText("Repetir a nova senha"), "minha-senha-nova");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Alterar senha" }));
-    expect(await screen.findByText("Senha alterada.")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("status").textContent).toContain("Senha alterada"); // the toast of the page, once the sheet is closed
   });
 
   it("every screen has a way back to the index", () => {

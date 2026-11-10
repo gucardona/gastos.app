@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from "react";
+import { ToastView } from "./Toast";
 
 /** A modal sheet on a native <dialog> (focus trap and Esc for free): it closes only through its own button or Esc, never by a click outside it. Rises from the bottom on phones, a side panel on desktop. */
 export function Sheet({ open, onClose, label, children }: { open: boolean; onClose: () => void; label: string; children: ReactNode }) {
@@ -20,6 +21,7 @@ export function Sheet({ open, onClose, label, children }: { open: boolean; onClo
         <>
           <div className="grab" />
           {children}
+          <ToastView />
         </>
       )}
     </dialog>

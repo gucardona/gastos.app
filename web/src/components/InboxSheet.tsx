@@ -51,8 +51,8 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
   const offerRule = !item.suggestedCategoryId && categoryId > 0;
 
   /** Runs the call, closes on success; on failure the list may be stale (someone else decided first), so refresh it anyway. */
-  async function decide(call: () => Promise<unknown>) {
-    if (await run(call)) onClose();
+  async function decide(call: () => Promise<unknown>, done: string) {
+    if (await run(call, done)) onClose();
     else refresh(wallet.id);
   }
 
@@ -64,7 +64,7 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
     const body: { categoryId: number; description?: string } = { categoryId };
     const text = description.trim();
     if (text && text !== defaultDescription) body.description = text;
-    if (!(await run(() => api.post(`${base}/accept`, body)))) return refresh(wallet.id); // maybe someone else decided first: the list is stale
+    if (!(await run(() => api.post(`${base}/accept`, body), "Lançamento criado"))) return refresh(wallet.id); // maybe someone else decided first: the list is stale
     // the rule is a second step: if it fails the line is already a transaction, and accepting again would only give a 409
     if (offerRule && remember && !(await run(() => api.post(`/wallets/${wallet.id}/rules`, { pattern: pattern.trim(), categoryId })))) return setRuleFailed(true);
     onClose();
@@ -120,9 +120,9 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
       <div className="actions">
         <button type="button" className="btn full" disabled={busy || categoryId === 0} onClick={() => void accept()}>Aceitar</button>
         {item.suggestedMatch && (
-          <button type="button" className="btn ghost full" disabled={busy} onClick={() => void decide(() => api.post(`${base}/match`, { transactionId: item.suggestedMatch!.id }))}>É este lançamento</button>
+          <button type="button" className="btn ghost full" disabled={busy} onClick={() => void decide(() => api.post(`${base}/match`, { transactionId: item.suggestedMatch!.id }), "Ligado ao lançamento")}>É este lançamento</button>
         )}
-        <button type="button" className="btn ghost full" disabled={busy} onClick={() => void decide(() => api.post(`${base}/ignore`))}>Ignorar</button>
+        <button type="button" className="btn ghost full" disabled={busy} onClick={() => void decide(() => api.post(`${base}/ignore`), "Linha ignorada")}>Ignorar</button>
       </div>
     </div>
   );

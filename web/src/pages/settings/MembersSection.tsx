@@ -47,7 +47,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"editor" | "reader">("editor");
   return (
-    <form onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post(`/wallets/${wallet.id}/members`, { email, role }))) onClose(); }}>
+    <form onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post(`/wallets/${wallet.id}/members`, { email, role }), "Pessoa adicionada")) onClose(); }}>
       <div className="sheet-head">
         <h2 className="sheet-title">Convidar alguém</h2>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>

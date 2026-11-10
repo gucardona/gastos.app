@@ -62,7 +62,7 @@ function Row({ r, onOpen }: { r: Recurrence; onOpen: () => void }) {
     <>
       <div className="rec-row">
         <button type="button" className="list-row rec-open" onClick={onOpen}>{content}</button>
-        <Switch checked={r.enabled} disabled={busy} label={`${r.enabled ? "Pausar" : "Retomar"} ${title}`} onChange={(v) => void run(() => api.put(`/wallets/${wallet.id}/recurrences/${r.id}`, recurrenceBody(r, { enabled: v }, wallet.splittingEnabled)))} />
+        <Switch checked={r.enabled} disabled={busy} label={`${r.enabled ? "Pausar" : "Retomar"} ${title}`} onChange={(v) => void run(() => api.put(`/wallets/${wallet.id}/recurrences/${r.id}`, recurrenceBody(r, { enabled: v }, wallet.splittingEnabled)), v ? "Recorrência retomada" : "Recorrência pausada")} />
       </div>
       {error && <p className="error" role="alert">{error}</p>}
     </>
