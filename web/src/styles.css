@@ -409,3 +409,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 /* the running total of the percentages, under them while they are typed */
 .split-total { margin: 0; font-size: 13px; }
 .split-total.over { color: var(--over); }
+
+/* ---------- the Caixa sheet, line after line ---------- */
+.sheet .inbox-notice:empty { margin: 0; } /* the live region stays mounted, empty until a decision */
+.sheet .actions > .meta { margin: 0; }

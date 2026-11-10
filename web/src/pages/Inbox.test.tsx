@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { InboxItem } from "../api/types";
@@ -79,5 +79,40 @@ describe("Inbox", () => {
     expect(await screen.findByText("COMPRA MERCADO DO BAIRRO")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /COMPRA MERCADO DO BAIRRO/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Aceitar/ })).toBeNull();
+  });
+});
+
+describe("Inbox: reviewing one line after another", () => {
+  const three = () => [line({ id: 1, description: "PRIMEIRA" }), line({ id: 2, description: "SEGUNDA" }), line({ id: 3, description: "TERCEIRA" })];
+  const sheet = () => within(screen.getByRole("dialog"));
+
+  it("after a decision the sheet moves to the next line of the list, says how many are left and closes after the last", async () => {
+    serve(three());
+    const user = userEvent.setup();
+    const { toast } = renderApp(<Inbox />);
+    await user.click(await screen.findByRole("button", { name: /SEGUNDA/ }));
+    await user.click(sheet().getByRole("button", { name: "Ignorar" }));
+    expect(await sheet().findByRole("heading", { name: "TERCEIRA" })).toBeTruthy();
+    expect(sheet().getByText("Linha ignorada. 2 restantes.").getAttribute("role")).toBe("status");
+    expect(document.activeElement).toBe(sheet().getByRole("heading", { name: "TERCEIRA" }));
+    // after the end of the list it goes on from the top, in the same order
+    await user.click(sheet().getByRole("button", { name: "Ignorar" }));
+    expect(await sheet().findByRole("heading", { name: "PRIMEIRA" })).toBeTruthy();
+    expect(sheet().getByText("Linha ignorada. 1 restante.")).toBeTruthy();
+    expect(toast).not.toHaveBeenCalled(); // while the sheet goes on, its own line says it
+    await user.click(sheet().getByRole("button", { name: "Ignorar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(toast).toHaveBeenCalledWith("Linha ignorada");
+  });
+
+  it("the close button always leaves", async () => {
+    serve(three());
+    const user = userEvent.setup();
+    renderApp(<Inbox />);
+    await user.click(await screen.findByRole("button", { name: /PRIMEIRA/ }));
+    await user.click(sheet().getByRole("button", { name: "Ignorar" }));
+    await sheet().findByRole("heading", { name: "SEGUNDA" });
+    await user.click(sheet().getByRole("button", { name: "Fechar" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

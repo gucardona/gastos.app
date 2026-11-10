@@ -12,16 +12,21 @@ import { Switch } from "./Switch";
 
 const shortDate = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
 
-/** Decide one line of an imported statement: accept it as a transaction, link it to one already typed in, or ignore it. */
-export function InboxSheet({ item, onClose }: { item: InboxItem | null; onClose: () => void }) {
+/**
+ * Decide one line of an imported statement: accept it as a transaction, link it to one already typed in, or ignore it.
+ * `onDone` gets what was done; the page then shows the next line (with `notice` saying what happened) or closes.
+ */
+export function InboxSheet({ item, notice = "", onDone, onClose }: { item: InboxItem | null; notice?: string; onDone: (message: string) => void; onClose: () => void }) {
   return (
     <Sheet open={item !== null} onClose={onClose} label="Decidir linha do extrato">
-      {item && <InboxForm key={item.id} item={item} onClose={onClose} />}
+      {/* outside the keyed form, so it stays mounted and is announced when the next line comes in */}
+      <p className="meta inbox-notice" role="status">{notice}</p>
+      {item && <InboxForm key={item.id} item={item} advanced={notice !== ""} onDone={onDone} onClose={onClose} />}
     </Sheet>
   );
 }
 
-function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) {
+function InboxForm({ item, advanced, onDone, onClose }: { item: InboxItem; advanced: boolean; onDone: (message: string) => void; onClose: () => void }) {
   const { wallet, categories } = useApp();
   const { run, busy, error } = useAction();
   const refresh = useRefresh();
@@ -37,6 +42,12 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
   const [picking, setPicking] = useState(false);
   const [ruleFailed, setRuleFailed] = useState(false); // the line was accepted but the rule was refused
   const cameFromPicker = useRef(false);
+  const title = useRef<HTMLHeadingElement>(null);
+
+  // a new line after a decision: the focus goes to its title, so it is clear that this is another line
+  useEffect(() => {
+    if (advanced) title.current?.focus();
+  }, [advanced]);
 
   // coming back from the category grid, focus goes to the row that opened it
   useEffect(() => {
@@ -50,9 +61,9 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
   const category = categories.find((c) => c.id === categoryId);
   const offerRule = !item.suggestedCategoryId && categoryId > 0;
 
-  /** Runs the call, closes on success; on failure the list may be stale (someone else decided first), so refresh it anyway. */
+  /** Runs the call, reports it done on success; on failure the list may be stale (someone else decided first), so refresh it anyway. */
   async function decide(call: () => Promise<unknown>, done: string) {
-    if (await run(call, done)) onClose();
+    if (await run(call)) onDone(done);
     else refresh(wallet.id);
   }
 
@@ -64,10 +75,10 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
     const body: { categoryId: number; description?: string } = { categoryId };
     const text = description.trim();
     if (text && text !== defaultDescription) body.description = text;
-    if (!(await run(() => api.post(`${base}/accept`, body), "Lançamento criado"))) return refresh(wallet.id); // maybe someone else decided first: the list is stale
+    if (!(await run(() => api.post(`${base}/accept`, body)))) return refresh(wallet.id); // maybe someone else decided first: the list is stale
     // the rule is a second step: if it fails the line is already a transaction, and accepting again would only give a 409
     if (offerRule && remember && !(await run(() => api.post(`/wallets/${wallet.id}/rules`, { pattern: pattern.trim(), categoryId })))) return setRuleFailed(true);
-    onClose();
+    onDone("Lançamento criado");
   }
 
   if (picking) {
@@ -91,7 +102,7 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
   return (
     <div>
       <div className="sheet-head">
-        <h2 className="sheet-title">{item.suggestedDescription || item.description}</h2>
+        <h2 className="sheet-title" ref={title} tabIndex={-1}>{item.suggestedDescription || item.description}</h2>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
       </div>
       <p className="meta">{kind === "income" ? "+" : "−"}{formatBRL(Math.abs(item.amountCents))}, {shortDate(item.date)}, {item.accountName}</p>
@@ -118,7 +129,8 @@ function InboxForm({ item, onClose }: { item: InboxItem; onClose: () => void }) 
 
       {(problem || error) && <p className="error" role="alert">{problem || error}</p>}
       <div className="actions">
-        <button type="button" className="btn full" disabled={busy || categoryId === 0} onClick={() => void accept()}>Aceitar</button>
+        {categoryId === 0 && <p id="accept-why" className="meta">Escolha uma categoria para aceitar</p>}
+        <button type="button" className="btn full" disabled={busy || categoryId === 0} aria-describedby={categoryId === 0 ? "accept-why" : undefined} onClick={() => void accept()}>Aceitar</button>
         {item.suggestedMatch && (
           <button type="button" className="btn ghost full" disabled={busy} onClick={() => void decide(() => api.post(`${base}/match`, { transactionId: item.suggestedMatch!.id }), "Ligado ao lançamento")}>É este lançamento</button>
         )}

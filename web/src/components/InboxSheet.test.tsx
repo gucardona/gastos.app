@@ -17,8 +17,9 @@ const row = (label: string) => screen.getByRole("button", { name: new RegExp(`^$
 
 function open(item: InboxItem | null = line(), ctx = appCtx()) {
   const onClose = vi.fn();
-  renderApp(<InboxSheet item={item} onClose={onClose} />, ctx);
-  return { onClose, user: userEvent.setup() };
+  const onDone = vi.fn();
+  renderApp(<InboxSheet item={item} onDone={onDone} onClose={onClose} />, ctx);
+  return { onClose, onDone, user: userEvent.setup() };
 }
 async function pickCategory(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
   await user.click(row("Categoria"));
@@ -37,17 +38,22 @@ describe("InboxSheet", () => {
     expect(screen.getByText(/Nubank/)).toBeTruthy();
   });
 
-  it("cannot accept before a category is chosen", () => {
-    open();
-    expect((screen.getByRole("button", { name: "Aceitar" }) as HTMLButtonElement).disabled).toBe(true);
+  it("cannot accept before a category is chosen, and says why next to the button", async () => {
+    const { user } = open();
+    const accept = screen.getByRole("button", { name: "Aceitar" }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(true);
+    expect(document.getElementById(accept.getAttribute("aria-describedby")!)?.textContent).toBe("Escolha uma categoria para aceitar");
+    await pickCategory(user, /Mercado/);
+    expect(screen.queryByText("Escolha uma categoria para aceitar")).toBeNull();
   });
 
-  it("accepts with the chosen category and closes", async () => {
+  it("accepts with the chosen category and reports it done", async () => {
     const fetch = serve();
-    const { user, onClose } = open();
+    const { user, onDone, onClose } = open();
     await pickCategory(user, /Mercado/);
     await user.click(screen.getByRole("button", { name: "Aceitar" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("Lançamento criado"));
+    expect(onClose).not.toHaveBeenCalled(); // the page decides: the next line, or closing
     expect(writes(fetch)).toHaveLength(1);
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/inbox/5/accept");
     expect(bodyAt(fetch, 0)).toEqual({ categoryId: 1 });
@@ -92,22 +98,22 @@ describe("InboxSheet", () => {
 
   it("a rule text under 2 characters is refused before the line is accepted", async () => {
     const fetch = serve();
-    const { user, onClose } = open();
+    const { user, onDone } = open();
     await pickCategory(user, /Mercado/);
     await user.click(screen.getByRole("switch", { name: "Usar nas próximas importações" }));
     fireEvent.change(screen.getByLabelText("Texto da regra"), { target: { value: "a" } });
     await user.click(screen.getByRole("button", { name: "Aceitar" }));
     expect(await screen.findByText("Use ao menos 2 caracteres na regra.")).toBeTruthy();
     expect(writes(fetch)).toHaveLength(0);
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
   });
 
   it("links to the look-alike transaction instead of creating one", async () => {
     const fetch = serve();
-    const { user, onClose } = open(line({ suggestedMatch: { id: 77, description: "Mercado (digitado)", date: "2026-10-02" } }));
+    const { user, onDone } = open(line({ suggestedMatch: { id: 77, description: "Mercado (digitado)", date: "2026-10-02" } }));
     expect(screen.getByText(/Parece o lançamento que você já fez: Mercado \(digitado\)/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "É este lançamento" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("Ligado ao lançamento"));
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/inbox/5/match");
     expect(bodyAt(fetch, 0)).toEqual({ transactionId: 77 });
   });
@@ -117,20 +123,20 @@ describe("InboxSheet", () => {
     expect(screen.queryByRole("button", { name: "É este lançamento" })).toBeNull();
   });
 
-  it("ignores the line and closes", async () => {
+  it("ignores the line and reports it done", async () => {
     const fetch = serve();
-    const { user, onClose } = open();
+    const { user, onDone } = open();
     await user.click(screen.getByRole("button", { name: "Ignorar" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("Linha ignorada"));
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/inbox/5/ignore");
   });
 
   it("a line someone else already handled shows the message of the server and stays open", async () => {
     mockFetch((_u, init) => (init.method === "POST" ? { status: 409, body: { error: { code: "conflict", message: "Esta linha já foi tratada" } } } : { body: [] }));
-    const { user, onClose } = open();
+    const { user, onDone } = open();
     await user.click(screen.getByRole("button", { name: "Ignorar" }));
     expect(await screen.findByText("Esta linha já foi tratada")).toBeTruthy();
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
   });
 });
 
@@ -176,5 +182,10 @@ describe("InboxSheet: the rule step", () => {
     expect(await screen.findByText("Use ao menos 2 caracteres na regra.")).toBeTruthy();
     await user.type(screen.getByLabelText("Texto da regra"), "bc");
     expect(screen.queryByText("Use ao menos 2 caracteres na regra.")).toBeNull();
+  });
+
+  it("the notice of what was done before this line is a status, announced as the line changes", () => {
+    renderApp(<InboxSheet item={line({ id: 6, description: "TARIFA BANCARIA" })} notice="Lançamento criado. 2 restantes." onDone={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByText("Lançamento criado. 2 restantes.").getAttribute("role")).toBe("status");
   });
 });

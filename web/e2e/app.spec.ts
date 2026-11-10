@@ -352,11 +352,15 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
   await page.getByRole("link", { name: /Caixa/ }).first().click();
   await page.getByRole("button", { name: /COMPRA MERCADO DO BAIRRO/ }).click();
   const decision = page.getByRole("dialog");
+  await expect(decision.getByText("Escolha uma categoria para aceitar")).toBeVisible(); // why Aceitar is off
   await pickCategory(decision, "Mercado");
   await decision.getByRole("button", { name: "Aceitar" }).click();
-  await expect(decision).toBeHidden();
-  await page.getByRole("button", { name: /TARIFA BANCARIA/ }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Ignorar" }).click();
+  // the sheet moves on to the next line instead of closing, says so, and puts the focus on the new title
+  await expect(decision.getByRole("heading", { name: "TARIFA BANCARIA" })).toBeFocused();
+  await expect(decision.getByText("Lançamento criado. 1 restante.")).toBeVisible();
+  await decision.getByRole("button", { name: "Ignorar" }).click();
+  await expect(decision).toBeHidden(); // that was the last one
+  await expect(page.getByRole("status").filter({ hasText: "Linha ignorada" })).toBeVisible();
   await expect(page.getByText(/Nada para revisar/)).toBeVisible();
 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();

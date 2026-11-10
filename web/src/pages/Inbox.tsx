@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api/client";
 import { useInbox } from "../api/queries";
@@ -7,6 +7,7 @@ import { ConfirmButton } from "../components/ConfirmButton";
 import { InboxSheet } from "../components/InboxSheet";
 import { ListGroup } from "../components/ListGroup";
 import { PageBar } from "../components/PageBar";
+import { useToast } from "../components/Toast";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
 import { formatBRL } from "../lib/money";
@@ -18,7 +19,31 @@ export function Inbox() {
   const inbox = useInbox(wallet.id);
   const { run, busy, error } = useAction();
   const [selected, setSelected] = useState<InboxItem | null>(null);
+  const [notice, setNotice] = useState("");
+  const decided = useRef(new Set<number>()); // the list refreshes after each decision, maybe not yet
+  const toast = useToast();
   const safe = inbox.data?.filter((i) => i.suggestedCategoryId && !i.suggestedMatch).length ?? 0;
+
+  function close() {
+    setSelected(null);
+    setNotice("");
+  }
+
+  /** After a decision: the next pending line in the order of the list (going on from the top), or close after the last one. */
+  function next(message: string) {
+    if (!selected) return;
+    decided.current.add(selected.id);
+    const items = inbox.data ?? [];
+    const at = items.findIndex((i) => i.id === selected.id);
+    const left = [...items.slice(at + 1), ...items.slice(0, Math.max(at, 0))].filter((i) => !decided.current.has(i.id));
+    if (left.length === 0) {
+      close();
+      toast(message);
+      return;
+    }
+    setSelected(left[0]);
+    setNotice(`${message}. ${left.length} ${left.length === 1 ? "restante" : "restantes"}.`);
+  }
 
   return (
     <>
@@ -44,7 +69,7 @@ export function Inbox() {
           {inbox.data.map((i) => <Line key={i.id} item={i} onOpen={canEdit ? () => setSelected(i) : undefined} />)}
         </ListGroup>
       )}
-      <InboxSheet item={selected} onClose={() => setSelected(null)} />
+      <InboxSheet item={selected} notice={notice} onDone={next} onClose={close} />
     </>
   );
 }
