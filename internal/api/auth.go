@@ -268,13 +268,15 @@ func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
 		in.Name, uid).Scan(&u.ID, &u.Name, &u.Email); err != nil {
 		return err
 	}
-	wallets, err := s.walletsFor(r.Context(), uid)
-	if err != nil {
-		return err
-	}
 	s.notifyUsers(uid) // their other tabs, even with no wallet left
+	ctx, cancel := notifyCtx(r.Context())
+	defer cancel()
+	wallets, err := s.walletsFor(ctx, uid)
+	if err != nil {
+		s.log.ErrorContext(ctx, "notify co-members", "user", uid, "err", err) // the new name is saved: only the notice is lost
+	}
 	for _, wl := range wallets {
-		s.notifyWallet(r.Context(), wl.ID)
+		s.notifyWallet(ctx, wl.ID)
 	}
 	writeJSON(w, http.StatusOK, u)
 	return nil

@@ -12,7 +12,7 @@ import (
 const changedLine = `data: {"type":"changed"}`
 
 // openStream opens the user's SSE stream and delivers every line read on the channel.
-// It waits a moment so the subscription on the bus is in place before the test goes on.
+// The server subscribes before sending the headers, so the stream is live once Do returns.
 func openStream(t *testing.T, c *client) <-chan string {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -34,7 +34,6 @@ func openStream(t *testing.T, c *client) <-chan string {
 		}
 		close(lines)
 	}()
-	time.Sleep(100 * time.Millisecond)
 	return lines
 }
 
@@ -192,4 +191,34 @@ func TestSSEOldPerWalletRouteIsGone(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	ana.do("GET", ana.wpath("/events"), nil, 404, nil)
+}
+
+func TestSSEAssistantSettingsReachTheUsersOtherTabs(t *testing.T) {
+	app, _ := newAIApp(t, true)
+	ana := app.register("Ana", "ana@example.com")
+	stream := openStream(t, ana)
+
+	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
+	expectChanged(t, stream, "Ana's other tab, after saving the key")
+	ana.do("DELETE", "/api/me/ai/key", nil, 204, nil)
+	expectChanged(t, stream, "Ana's other tab, after removing the key")
+}
+
+// The change is saved before the notice goes out: a client that hangs up right after must not keep the others in the dark.
+func TestNotifyWalletSurvivesACancelledRequest(t *testing.T) {
+	app := newTestApp(t)
+	ana := app.register("Ana", "ana@example.com")
+	bia := app.register("Bia", "bia@example.com")
+	shareWallet(ana, bia, "editor")
+	ch := app.s.bus.Subscribe(bia.user.ID)
+	defer app.s.bus.Unsubscribe(bia.user.ID, ch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	app.s.notifyWallet(ctx, ana.walletID)
+	select {
+	case <-ch:
+	default:
+		t.Fatal("Bia was not notified")
+	}
 }

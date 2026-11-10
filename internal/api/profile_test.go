@@ -75,7 +75,6 @@ func TestRenameShowsUpForOtherMembers(t *testing.T) {
 	bia := app.register("Bia", "bia@example.com")
 	shareWallet(ana, bia, "editor")
 	stream := openStream(t, bia)
-	time.Sleep(100 * time.Millisecond) // make sure the subscription on the bus is in place
 
 	ana.do("PATCH", "/api/me", map[string]string{"name": "Ana Maria"}, 200, nil)
 
