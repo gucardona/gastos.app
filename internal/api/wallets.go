@@ -370,7 +370,7 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if in.DefaultShareBP != nil && (*in.DefaultShareBP < 0 || *in.DefaultShareBP > money.FullShare) {
-		return errValidation(map[string]string{"defaultShareBp": "use entre 0,01% e 100%"})
+		return errValidation(map[string]string{"defaultShareBp": "use entre 0 e 100%"})
 	}
 	walletID := walletIDFrom(r.Context())
 	cur, err := s.memberByID(r.Context(), walletID, target)

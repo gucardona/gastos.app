@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -102,8 +103,9 @@ func applyStep(d *sql.DB) (done bool, err error) {
 }
 
 // preMigrationCopy saves <path>.pre-v<from>.bak before the first pending migration of a non-empty database, so a
-// deploy that rolls back to the previous binary (which refuses a newer schema) can restore it. An existing copy is
-// kept; failing to copy aborts the start, since migrating without a way back is worse than not starting.
+// deploy that rolls back to the previous binary (which refuses a newer schema) can restore it. The copy is written to
+// a .tmp file and renamed, so a killed copy is never mistaken for a good one; an older copy is kept under a
+// timestamped name. Failing to copy aborts the start, since migrating without a way back is worse than not starting.
 func preMigrationCopy(d *sql.DB, path string) error {
 	var version int
 	if err := d.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
@@ -114,9 +116,18 @@ func preMigrationCopy(d *sql.DB, path string) error {
 	}
 	dst := fmt.Sprintf("%s.pre-v%d.bak", path, version)
 	if _, err := os.Stat(dst); err == nil {
-		return nil
+		if err := os.Rename(dst, dst+"."+time.Now().UTC().Format("20060102T150405Z")); err != nil {
+			return fmt.Errorf("keep the previous copy %s: %w", dst, err)
+		}
 	}
-	if _, err := d.Exec(`VACUUM INTO '` + strings.ReplaceAll(dst, "'", "''") + `'`); err != nil {
+	tmp := dst + ".tmp"
+	if err := os.Remove(tmp); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := d.Exec(`VACUUM INTO '` + strings.ReplaceAll(tmp, "'", "''") + `'`); err != nil {
+		return fmt.Errorf("copy database before migrating from version %d to %s: %w", version, dst, err)
+	}
+	if err := os.Rename(tmp, dst); err != nil {
 		return fmt.Errorf("copy database before migrating from version %d to %s: %w", version, dst, err)
 	}
 	return nil

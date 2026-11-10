@@ -50,7 +50,7 @@ func TestMemberDefaultSharePatch(t *testing.T) {
 			Error apiError `json:"error"`
 		}
 		ana.do("PATCH", path, map[string]any{"defaultShareBp": bad}, 400, &res)
-		if res.Error.Fields["defaultShareBp"] != "use entre 0,01% e 100%" {
+		if res.Error.Fields["defaultShareBp"] != "use entre 0 e 100%" {
 			t.Errorf("%d: %+v", bad, res.Error)
 		}
 	}

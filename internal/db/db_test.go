@@ -364,10 +364,13 @@ func TestFreshDatabaseMakesNoCopy(t *testing.T) {
 	}
 }
 
-func TestExistingPreMigrationCopyIsKept(t *testing.T) {
+func TestStalePreMigrationCopyIsMovedAsideAndRefreshed(t *testing.T) {
 	path := filepath.Join(testutil.TempDir(t), "t.db")
 	seedV4(t, path)
-	if err := os.WriteFile(path+".pre-v4.bak", []byte("keep"), 0o600); err != nil {
+	if err := os.WriteFile(path+".pre-v4.bak", []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+".pre-v4.bak.tmp", []byte("partial"), 0o600); err != nil { // a leftover of a killed copy
 		t.Fatal(err)
 	}
 	d, err := Open(path)
@@ -375,7 +378,51 @@ func TestExistingPreMigrationCopyIsKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Close()
-	if b, _ := os.ReadFile(path + ".pre-v4.bak"); string(b) != "keep" {
-		t.Fatal("existing copy was overwritten")
+	kept, _ := filepath.Glob(path + ".pre-v4.bak.2*")
+	if len(kept) != 1 {
+		t.Fatalf("old copy should be kept under a timestamped name, got %v", kept)
+	}
+	if b, _ := os.ReadFile(kept[0]); string(b) != "old" {
+		t.Fatal("moved copy lost its content")
+	}
+	if _, err := os.Stat(path + ".pre-v4.bak.tmp"); err == nil {
+		t.Fatal("temporary copy left behind")
+	}
+	cp, err := sql.Open("sqlite", path+".pre-v4.bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cp.Close()
+	var v int
+	if err := cp.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil || v != 4 {
+		t.Fatalf("fresh copy: version %d, err %v", v, err)
+	}
+}
+
+// The documented rollback: drop the column and set the version back to 4; the next Open migrates again.
+func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV4(t, path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, raw, `ALTER TABLE wallet_members DROP COLUMN default_share_bp; PRAGMA user_version=4;`)
+	raw.Close()
+	d, err = Open(path)
+	if err != nil {
+		t.Fatalf("reopening after the rollback: %v", err)
+	}
+	defer d.Close()
+	var v, cols int
+	d.QueryRow(`PRAGMA user_version`).Scan(&v)
+	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&cols)
+	if v != latestVersion() || cols != 1 {
+		t.Fatalf("version %d, column %d; want %d, 1", v, cols, latestVersion())
 	}
 }
