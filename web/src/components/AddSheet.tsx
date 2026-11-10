@@ -4,7 +4,7 @@ import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
 import { dayLabel, today, yesterday } from "../lib/dates";
-import { centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents } from "../lib/money";
 import { percentsFromSplits } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
 import { CategoryGrid, DatePicker, OptionList, PickerView } from "./pickers";
@@ -57,7 +57,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
 
   async function save(again: boolean) {
     const errs: Record<string, string> = {};
-    if (!cents) errs.amountCents = "Informe um valor maior que zero.";
+    if (!cents) errs.amountCents = amountProblem(amount);
     if (!category) errs.categoryId = "Escolha uma categoria.";
     const { splits, error: splitsError } = splitting ? resolveSplits(percents) : {};
     if (splitsError) errs.splits = splitsError;
@@ -105,7 +105,9 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     }
   }
 
-  const err = (k: string) => errors[k] && <p className="error" role="alert">{errors[k]}</p>;
+  const err = (k: string) => errors[k] && <p id={`err-${k}`} className="error" role="alert">{errors[k]}</p>;
+  /** Marks an input invalid and points it at its error, while it has one. */
+  const invalid = (k: string) => (errors[k] ? { "aria-invalid": true, "aria-describedby": `err-${k}` } : {});
 
   // coming back from a picker, focus goes to the row that opened it
   useEffect(() => {
@@ -153,7 +155,11 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
 
       <div className="amount">
         <span className="cur">R$</span>
-        <input ref={amountRef} data-autofocus inputMode="decimal" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <input
+          ref={amountRef} data-autofocus inputMode="decimal" enterKeyHint="done" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} {...invalid("amountCents")}
+          // grows with the amount; where CSS field-sizing is missing, a width in ch from the length of the text
+          style={globalThis.CSS?.supports?.("field-sizing", "content") ? undefined : { width: `${Math.max(amount.length, 4) + 0.5}ch` }}
+        />
       </div>
       {err("amountCents")}
 
@@ -163,7 +169,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
         {methods.length > 0 && <ListRow id="row-method" label="Pago com" value={method?.name ?? "Nenhuma"} onClick={() => choose("method")} chevron />}
         <div className="list-row">
           <label htmlFor="desc" className="lr-label">Descrição</label>
-          <input id="desc" className="desc-input" placeholder="opcional" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <input id="desc" className="desc-input" placeholder="opcional" enterKeyHint="done" value={description} onChange={(e) => setDescription(e.target.value)} {...invalid("description")} />
         </div>
         {splitting && <ListRow id="row-paidBy" label="Quem pagou" value={nameOf(paidBy)} onClick={() => choose("paidBy")} chevron />}
         {!tx && <ListRow label="Repetir todo mês" trailing={<Switch checked={repeat} onChange={setRepeat} label="Repetir todo mês" />} />}

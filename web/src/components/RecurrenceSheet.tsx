@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import type { Recurrence } from "../api/types";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
-import { centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents } from "../lib/money";
 import { percentsFromSplits } from "../lib/splits";
 import { ListGroup } from "./ListGroup";
 import { Sheet } from "./Sheet";
@@ -51,7 +51,7 @@ function RecurrenceForm({ r, onClose }: { r: Recurrence; onClose: () => void }) 
     e.preventDefault();
     const cents = parseCents(amount);
     const d = Number(day);
-    if (!cents) return setProblem("Informe um valor maior que zero.");
+    if (!cents) return setProblem(amountProblem(amount));
     if (!Number.isInteger(d) || d < 1 || d > 31) return setProblem("O dia deve estar entre 1 e 31.");
     const { splits, error: splitsError } = resolveSplits(percents);
     if (splitsError) return setProblem(splitsError);

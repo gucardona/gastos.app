@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centsToInput, formatBRL, parseCents, splitBRL } from "./money";
+import { amountProblem, centsToInput, formatBRL, parseCents, splitBRL } from "./money";
 
 describe("parseCents", () => {
   it.each([
@@ -40,5 +40,21 @@ describe("centsToInput", () => {
     expect(centsToInput(12990)).toBe("129,90");
     expect(centsToInput(5)).toBe("0,05");
     expect(centsToInput(100000)).toBe("1000,00");
+  });
+});
+
+describe("amountProblem", () => {
+  it("is empty when the amount can be saved", () => {
+    expect(amountProblem("12,90")).toBe("");
+    expect(amountProblem("1.234,56")).toBe("");
+  });
+  it("asks for at most 2 decimals when the text is a number with more", () => {
+    expect(amountProblem("12,345")).toBe("Use até 2 casas decimais.");
+    expect(amountProblem("R$ 1.234,567")).toBe("Use até 2 casas decimais.");
+  });
+  it("asks for an amount above zero otherwise", () => {
+    expect(amountProblem("")).toBe("Informe um valor maior que zero.");
+    expect(amountProblem("0,00")).toBe("Informe um valor maior que zero.");
+    expect(amountProblem("abc")).toBe("Informe um valor maior que zero.");
   });
 });

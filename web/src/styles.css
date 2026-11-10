@@ -103,7 +103,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .icon-btn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; width: 44px; height: 44px; display: grid; place-items: center; }
 .amount { display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 18px 0 20px; }
 .amount .cur { font-size: 24px; color: var(--muted); font-weight: 600; }
-.amount input { border: 0; background: none; font-weight: 700; font-size: 52px; letter-spacing: -0.04em; width: 7ch; min-width: 0; padding: 0; outline: none; text-align: left; color: var(--ink); }
+.amount input { border: 0; background: none; font-weight: 700; font-size: 52px; letter-spacing: -0.04em; field-sizing: content; min-width: 0; max-width: 100%; padding: 0; outline: none; text-align: left; color: var(--ink); }
 .amount input::placeholder { color: color-mix(in srgb, var(--ink) 22%, transparent); }
 /* the field hides the outline (a box around a 52px number is heavy): an accent underline marks the focus instead */
 .amount input:focus-visible { box-shadow: 0 2px 0 var(--accent); }

@@ -134,6 +134,7 @@ function Conversation() {
           maxLength={4000}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          enterKeyHint="send"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();

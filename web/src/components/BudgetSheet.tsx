@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import type { Category } from "../api/types";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
-import { centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents } from "../lib/money";
 import { Sheet } from "./Sheet";
 
 /** The monthly limit of one expense category. `current` is the limit in cents, when there is one. Closed while `category` is null. */
@@ -25,7 +25,7 @@ function BudgetForm({ category, current, onClose }: { category: Category; curren
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const cents = parseCents(value);
-    if (!cents) return setProblem("Informe um valor maior que zero.");
+    if (!cents) return setProblem(amountProblem(value));
     setProblem("");
     if (await run(() => api.put(path, { limitCents: cents }))) onClose();
   }
