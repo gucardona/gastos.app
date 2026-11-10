@@ -98,6 +98,17 @@ describe("Settings: a screen per subject", () => {
     expect(await screen.findByText("obrigatório")).toBeTruthy();
   });
 
+  it("Perfil changes the password from a sheet and confirms it", async () => {
+    mockFetch({ status: 204 });
+    const user = renderSettings("/ajustes/perfil");
+    await user.click(screen.getByRole("button", { name: /Alterar senha/ }));
+    await user.type(screen.getByLabelText("Senha atual"), "provisoria-123");
+    await user.type(screen.getByLabelText("Nova senha"), "minha-senha-nova");
+    await user.type(screen.getByLabelText("Repetir a nova senha"), "minha-senha-nova");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Alterar senha" }));
+    expect(await screen.findByText("Senha alterada.")).toBeTruthy();
+  });
+
   it("every screen has a way back to the index", () => {
     mockFetch({ body: [] });
     renderSettings("/ajustes/pessoas");

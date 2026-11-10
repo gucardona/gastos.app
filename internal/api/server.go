@@ -51,6 +51,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("POST /api/auth/logout", user(s.logout))
 	mux.Handle("GET /api/me", user(s.me))
 	mux.Handle("PATCH /api/me", user(s.rename))
+	mux.Handle("PUT /api/me/password", user(s.changePassword))
 	mux.Handle("GET /api/me/ai", user(s.getAI))
 	mux.Handle("PUT /api/me/ai", user(s.putAI))
 	mux.Handle("DELETE /api/me/ai/key", user(s.deleteAIKey))
