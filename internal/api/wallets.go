@@ -224,6 +224,7 @@ func (s *Server) createWallet(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	s.notifyUsers(userID) // the creator's other tabs list the new wallet
 	writeJSON(w, http.StatusCreated, d)
 	return nil
 }
@@ -267,10 +268,15 @@ func (s *Server) updateWallet(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) deleteWallet(w http.ResponseWriter, r *http.Request) error {
-	s.mutated(r) // notify the other members before the wallet disappears
-	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM wallets WHERE id = ?`, walletIDFrom(r.Context())); err != nil {
+	walletID := walletIDFrom(r.Context())
+	members, err := s.walletMembers(r.Context(), walletID) // read before the delete takes them away
+	if err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM wallets WHERE id = ?`, walletID); err != nil {
+		return err
+	}
+	s.notifyUsers(members...)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -432,6 +438,7 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	s.mutated(r)
+	s.notifyUsers(target) // no longer a member, so mutated does not reach them
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
