@@ -4,6 +4,7 @@ After=network-online.target
 
 [Service]
 User=gastos
+# read by systemd as root before switching user, so the file can be root-only (chmod 600)
 EnvironmentFile=/etc/gastos/%i.env
 ExecStart=/opt/gastos/%i/current/gastos
 Restart=on-failure
@@ -12,7 +13,18 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/gastos/%i
+# the off-site backup's SSH key and work copy belong to another unit; "-" tolerates them not existing yet
+InaccessiblePaths=-/var/lib/gastos/.ssh -/var/lib/gastos/offsite
 PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+LockPersonality=true
+RestrictNamespaces=true
 
 [Install]
 WantedBy=multi-user.target

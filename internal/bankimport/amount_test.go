@@ -49,3 +49,16 @@ func TestParseAmountDoesNotUseFloats(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAmountCapsAtOneBillion(t *testing.T) {
+	for in, want := range map[string]int64{"1.000.000.000,00": 100_000_000_000, "-1.000.000.000,00": -100_000_000_000} {
+		if got, err := ParseAmount(in); err != nil || got != want {
+			t.Errorf("ParseAmount(%q) = %d, %v; want %d", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"1.000.000.000,01", "-1.000.000.000,01", "999999999999999"} {
+		if got, err := ParseAmount(in); err == nil {
+			t.Errorf("ParseAmount(%q) = %d, want an error", in, got)
+		}
+	}
+}

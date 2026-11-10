@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -172,4 +173,18 @@ func TestParseOFXRejectsAHugeFile(t *testing.T) {
 	if _, err := ParseOFX(strings.NewReader(huge)); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("got %v, want ErrTooLarge", err)
 	}
+}
+
+func TestParseOFXIsSafeConcurrently(t *testing.T) {
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := ParseOFX(strings.NewReader(sgml)); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
 }
