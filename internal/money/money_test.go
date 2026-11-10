@@ -1,6 +1,7 @@
 package money
 
 import (
+	"math"
 	"slices"
 	"testing"
 )
@@ -43,6 +44,15 @@ func TestEqualShares(t *testing.T) {
 	} {
 		if got := EqualShares(n); !slices.Equal(got, want) {
 			t.Errorf("EqualShares(%d) = %v, want %v", n, got, want)
+		}
+	}
+}
+
+func TestAllocateDoesNotOverflow(t *testing.T) {
+	for _, total := range []int64{MaxCents, math.MaxInt64} {
+		got := Allocate(total, []int64{3334, 3333, 3333})
+		if got[0]+got[1]+got[2] != total || got[2] < 0 || got[0] < got[1] || got[1] < got[2] {
+			t.Errorf("Allocate(%d) = %v", total, got)
 		}
 	}
 }

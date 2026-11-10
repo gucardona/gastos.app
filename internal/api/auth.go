@@ -131,8 +131,11 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if _, err := mail.ParseAddress(in.Email); err != nil {
 		fe.add("email", "e-mail inválido")
 	}
-	if len(in.Password) < 8 {
+	switch {
+	case len(in.Password) < 8:
 		fe.add("password", "mínimo de 8 caracteres")
+	case len(in.Password) > 72: // bcrypt refuses longer passwords
+		fe.add("password", "máximo de 72 caracteres")
 	}
 	if err := fe.err(); err != nil {
 		return err
@@ -178,8 +181,15 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
-	if !s.limiter.allow("ip:"+clientIP(r)) || !s.limiter.allow("email:"+in.Email) {
+	if !s.limiter.allow("ip:" + clientIP(r)) {
 		return errRateLimited
+	}
+	// The email key counts failures only and never refuses the right password, so strangers cannot lock a user out.
+	failed := func() error {
+		if !s.limiter.allow("email:" + in.Email) {
+			return errRateLimited
+		}
+		return errBadLogin
 	}
 	var u userDTO
 	var hash string
@@ -189,13 +199,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		// spend the same time so the response does not reveal whether the email exists
 		bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(in.Password))
-		return errBadLogin
+		return failed()
 	}
 	if err != nil {
 		return err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)) != nil {
-		return errBadLogin
+		return failed()
 	}
 	if err := s.startSession(r.Context(), w, u.ID); err != nil {
 		return err

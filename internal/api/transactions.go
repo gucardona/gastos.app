@@ -54,6 +54,31 @@ type transactionInput struct {
 
 func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
 
+// Stored dates must fall in this range; reads accept any valid date, so older data stays readable.
+const minDate, maxDate = "2000-01-01", "2100-12-31"
+
+// dateProblem returns the field error for a date about to be stored, or "" when it is fine.
+func dateProblem(s string) string {
+	switch {
+	case !validDate(s):
+		return "data inválida"
+	case s < minDate || s > maxDate: // YYYY-MM-DD compares as text
+		return "data fora do intervalo aceito"
+	}
+	return ""
+}
+
+// amountProblem returns the field error for an amount about to be stored, or "" when it is fine.
+func amountProblem(cents int64) string {
+	switch {
+	case cents <= 0:
+		return "deve ser maior que zero"
+	case cents > money.MaxCents:
+		return "deve ser no máximo R$ 1 bilhão"
+	}
+	return ""
+}
+
 // validate normalizes the input and checks references within the wallet.
 // currentCategoryID allows keeping an archived category the transaction already had (0 on create).
 func (in *transactionInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64) error {
@@ -65,14 +90,14 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 	if in.Kind != "expense" && in.Kind != "income" {
 		fe.add("kind", "deve ser expense ou income")
 	}
-	if in.AmountCents <= 0 {
-		fe.add("amountCents", "deve ser maior que zero")
+	if msg := amountProblem(in.AmountCents); msg != "" {
+		fe.add("amountCents", msg)
 	}
 	if len([]rune(in.Description)) > 200 {
 		fe.add("description", "use até 200 caracteres")
 	}
-	if !validDate(in.Date) {
-		fe.add("date", "data inválida")
+	if msg := dateProblem(in.Date); msg != "" {
+		fe.add("date", msg)
 	}
 
 	var catKind string

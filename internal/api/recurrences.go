@@ -49,8 +49,17 @@ type recurrenceInput struct {
 	Splits          []split `json:"splits"`
 }
 
+// maxBackfillMonths bounds how far back a new start date may go: each past month is materialized inside the request.
+const maxBackfillMonths = 24
+
+// earliestStart is the oldest start date a recurrence may be given now.
+func (s *Server) earliestStart() string {
+	return s.now().In(s.cfg.Location).AddDate(0, -maxBackfillMonths, 0).Format(dateLayout)
+}
+
 // validate checks the input; currentCategoryID allows keeping an archived category that is already in use (0 on create).
-func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64) error {
+// earliestStart ("" = no limit) is the oldest start date accepted.
+func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64, earliestStart string) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.EndDate != nil && strings.TrimSpace(*in.EndDate) == "" {
 		in.EndDate = nil
@@ -59,13 +68,15 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 	if in.DayOfMonth < 1 || in.DayOfMonth > 31 {
 		fe.add("dayOfMonth", "deve estar entre 1 e 31")
 	}
-	if !validDate(in.StartDate) {
-		fe.add("startDate", "data inválida")
+	if msg := dateProblem(in.StartDate); msg != "" {
+		fe.add("startDate", msg)
+	} else if in.StartDate < earliestStart {
+		fe.add("startDate", "o início pode ser no máximo 24 meses atrás")
 	}
 	if in.EndDate != nil {
-		switch {
-		case !validDate(*in.EndDate):
-			fe.add("endDate", "data inválida")
+		switch msg := dateProblem(*in.EndDate); {
+		case msg != "":
+			fe.add("endDate", msg)
 		case validDate(in.StartDate) && *in.EndDate < in.StartDate:
 			fe.add("endDate", "deve ser igual ou posterior ao início")
 		}
@@ -95,9 +106,6 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 		}
 		in.Splits = ti.Splits
 	case "settlement":
-		if in.AmountCents <= 0 {
-			fe.add("amountCents", "deve ser maior que zero")
-		}
 		if in.CategoryID != nil || in.PaymentMethodID != nil || len(in.Splits) > 0 {
 			fe.add("kind", "acertos não têm categoria, forma de pagamento nem divisão")
 		}
@@ -110,8 +118,8 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 	default:
 		fe.add("kind", "deve ser expense, income ou settlement")
 	}
-	if in.AmountCents <= 0 {
-		fe.add("amountCents", "deve ser maior que zero")
+	if msg := amountProblem(in.AmountCents); msg != "" {
+		fe.add("amountCents", msg)
 	}
 	return fe.err()
 }
@@ -233,7 +241,7 @@ func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error 
 	enabled := in.Enabled == nil || *in.Enabled
 	var id int64
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := in.validate(ctx, tx, walletID, userID, 0); err != nil {
+		if err := in.validate(ctx, tx, walletID, userID, 0, s.earliestStart()); err != nil {
 			return err
 		}
 		err := tx.QueryRowContext(ctx, `
@@ -273,11 +281,16 @@ func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error 
 	enabled := in.Enabled == nil || *in.Enabled
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var currentCat sql.NullInt64
-		if err := tx.QueryRowContext(ctx, `SELECT category_id FROM recurrences WHERE id = ? AND wallet_id = ?`, id, walletID).
-			Scan(&currentCat); err != nil {
+		var currentStart string
+		if err := tx.QueryRowContext(ctx, `SELECT category_id, start_date FROM recurrences WHERE id = ? AND wallet_id = ?`, id, walletID).
+			Scan(&currentCat, &currentStart); err != nil {
 			return err
 		}
-		if err := in.validate(ctx, tx, walletID, userID, currentCat.Int64); err != nil {
+		earliest := s.earliestStart()
+		if in.StartDate == currentStart { // keeping the start already stored: those months are materialized already
+			earliest = ""
+		}
+		if err := in.validate(ctx, tx, walletID, userID, currentCat.Int64, earliest); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
