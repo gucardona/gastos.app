@@ -93,7 +93,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                 );
               })}
               </div>
-              {expenseTotal > 0 && <Chart chart={{ kind: "pie", title: "Gastos por categoria", points: pie }} />}
+              {expenseTotal > 0 && <div className="list-group chart-card"><Chart chart={{ kind: "pie", title: "Gastos por categoria", points: pie }} /></div>}
             </section>
             )}
             <div>

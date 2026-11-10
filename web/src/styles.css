@@ -373,3 +373,13 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 
 /* read by screen readers, not shown */
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* ---------- the pie on the overview: a card like the other blocks (the chat's charts stay bare in their bubble) ---------- */
+.chart-card { margin-top: 14px; container-type: inline-size; }
+.chart-card .chart { margin: 0; display: grid; gap: 14px; }
+.chart-card .chart-title { margin: 0; font-size: 15px; }
+.chart-card .chart-pie { justify-self: center; width: 100%; max-width: 200px; }
+@container (min-width: 400px) {
+  .chart-card .chart { grid-template-columns: 180px minmax(0, 260px); align-items: center; column-gap: 28px; }
+  .chart-card .chart-title { grid-column: 1 / -1; }
+}

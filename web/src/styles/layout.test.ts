@@ -31,3 +31,16 @@ describe("tap targets", () => {
     expect(css).toMatch(/\.wallet-btn, \.chip, \.avatar\s*\{[^}]*position:\s*relative/);
   });
 });
+
+describe("the pie on the overview", () => {
+  it("sits in a card, centered without text-align, side by side with its legend when the card is wide", () => {
+    expect(css).toMatch(/\.chart-card\s*\{[^}]*container-type:\s*inline-size/);
+    expect(css).toMatch(/\.chart-card \.chart-pie\s*\{[^}]*justify-self:\s*center[^}]*max-width:\s*200px/);
+    expect(css).toMatch(/@container \(min-width: \d+px\)\s*\{\s*\.chart-card \.chart\s*\{[^}]*grid-template-columns/);
+  });
+
+  it("the card styling is scoped to the overview, so a chart in a chat bubble gets no card", () => {
+    const chartRules = [...css.matchAll(/([^{}]+)\{[^{}]*\}/g)].map((m) => m[1].trim()).filter((s) => /\.chart/.test(s) && /container-type|background:\s*var\(--surface\)/.test(s));
+    expect(chartRules.every((s) => s.startsWith(".chart-card"))).toBe(true);
+  });
+});

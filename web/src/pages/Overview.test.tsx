@@ -275,6 +275,15 @@ describe("Overview: shares and pie", () => {
     expect(pie.getAttribute("aria-label")).toMatch(/Mercado: R\$\s1\.042,30, 62%; Restaurante: R\$\s640,00, 38%/);
   });
 
+  it("the pie sits in its own card, like the other blocks", async () => {
+    serve(summary(), [tx()]);
+    renderApp(<Overview />);
+    const pie = await screen.findByRole("img", { name: /^Gastos por categoria\./ });
+    const card = pie.closest(".chart-card");
+    expect(card?.classList.contains("list-group")).toBe(true);
+    expect(card?.querySelector(".chart-title")?.textContent).toBe("Gastos por categoria");
+  });
+
   it("has no pie without expenses", async () => {
     serve(summary({ byCategory: [{ categoryId: 3, kind: "income", cents: 850000, budgetCents: null }], expenseCents: 0 }), [tx({ kind: "income", categoryId: 3 })]);
     renderApp(<Overview />);
