@@ -55,6 +55,8 @@ describe("Bank accounts screen", () => {
     renderApp(<BankSection />);
     expect(await screen.findByText(/renomeia para Uber/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Excluir regra uber" }));
+    expect(writes(fetch)).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Confirmar exclusão da regra uber" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/rules/8");
   });

@@ -1,32 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { Settlement } from "../api/types";
+import type { Settlement, Transfer } from "../api/types";
 import { firstName, useApp } from "../context";
-import { useAction } from "../hooks/useAction";
+import { useAction, useUndo } from "../hooks/useAction";
 import { today } from "../lib/dates";
 import { amountProblem, centsToInput, parseCents } from "../lib/money";
 import { ListGroup, ListRow } from "./ListGroup";
 import { OptionList, PickerView } from "./pickers";
 import { Sheet } from "./Sheet";
+import { useToast } from "./Toast";
 
-/** Register (`"new"`) or edit a settlement between two people; closed while `settlement` is null. */
-export function SettlementSheet({ settlement, onClose }: { settlement: Settlement | "new" | null; onClose: () => void }) {
+/** Register (`"new"`, or a suggested `Transfer` to check and confirm) or edit a settlement between two people; closed while `settlement` is null. */
+export function SettlementSheet({ settlement, onClose }: { settlement: Settlement | Transfer | "new" | null; onClose: () => void }) {
+  const saved = settlement && settlement !== "new" && "id" in settlement ? settlement : undefined;
   return (
-    <Sheet open={settlement !== null} onClose={onClose} label={settlement === "new" ? "Registrar acerto" : "Editar acerto"}>
-      {settlement && <SettlementForm key={settlement === "new" ? "new" : settlement.id} settlement={settlement === "new" ? undefined : settlement} onClose={onClose} />}
+    <Sheet open={settlement !== null} onClose={onClose} label={saved ? "Editar acerto" : "Registrar acerto"}>
+      {settlement && <SettlementForm key={saved?.id ?? "new"} settlement={saved} draft={saved || settlement === "new" ? undefined : settlement} onClose={onClose} />}
     </Sheet>
   );
 }
 
 type Picking = "from" | "to" | null;
 
-function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onClose: () => void }) {
+function SettlementForm({ settlement, draft, onClose }: { settlement?: Settlement; draft?: Transfer; onClose: () => void }) {
   const { wallet, members, user } = useApp();
   const { run, busy, error } = useAction();
+  const toast = useToast();
+  const undo = useUndo();
   const other = members.find((m) => m.userId !== user.id)?.userId ?? user.id;
-  const [from, setFrom] = useState(settlement?.fromUserId ?? other);
-  const [to, setTo] = useState(settlement?.toUserId ?? user.id);
-  const [amount, setAmount] = useState(settlement ? centsToInput(settlement.amountCents) : "");
+  const start = settlement ?? draft;
+  const [from, setFrom] = useState(start?.fromUserId ?? other);
+  const [to, setTo] = useState(start?.toUserId ?? user.id);
+  const [amount, setAmount] = useState(start ? centsToInput(start.amountCents) : "");
   const [date, setDate] = useState(settlement?.date ?? today());
   const [note, setNote] = useState(settlement?.note ?? "");
   const [problem, setProblem] = useState("");
@@ -48,7 +53,15 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
     if (from === to) return setProblem("Escolha pessoas diferentes para quem paga e quem recebe.");
     setProblem("");
     const body = { fromUserId: from, toUserId: to, amountCents: cents, date, note: note.trim() };
-    if (await run(() => (settlement ? api.put(`${path}/${settlement.id}`, body) : api.post(path, body)))) onClose();
+    if (await run(() => (settlement ? api.put(`${path}/${settlement.id}`, body) : api.post(path, body)), settlement ? "Acerto salvo" : "Acerto registrado")) onClose();
+  }
+
+  async function remove(s: Settlement) {
+    if (!(await run(() => api.del(`${path}/${s.id}`)))) return;
+    const again = { fromUserId: s.fromUserId, toUserId: s.toUserId, amountCents: s.amountCents, date: s.date, note: s.note };
+    // made by a recurrence: the recurrence makes it again, so a copy would count it twice
+    toast("Acerto excluído", s.recurrenceId === null ? { action: undo(() => api.post(path, again)) } : undefined);
+    onClose();
   }
 
   // coming back from a picker, focus goes to the row that opened it
@@ -97,7 +110,7 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>{settlement ? "Salvar" : "Registrar"}</button>
         {settlement && (confirm
-          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(`${path}/${settlement.id}`)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void remove(settlement)}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir acerto</button>)}
       </div>
     </form>

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Member, Settlement, Summary } from "../api/types";
@@ -72,8 +72,11 @@ describe("Division", () => {
     const buttons = screen.getAllByRole("button", { name: "Registrar acerto" });
     expect(buttons).toHaveLength(2);
     await user.click(buttons[1]);
+    expect((within(screen.getByRole("dialog")).getByLabelText("Valor do acerto") as HTMLInputElement).value).toBe("90,00");
+    expect(writes(fetch)).toHaveLength(0);
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Registrar" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
-    expect(writeBody(fetch)).toEqual({ fromUserId: 3, toUserId: 1, amountCents: 9000, date: today() });
+    expect(writeBody(fetch)).toEqual({ fromUserId: 3, toUserId: 1, amountCents: 9000, date: today(), note: "" });
   });
 
   it("a debt keeps its own color, apart from a credit", async () => {
@@ -84,14 +87,21 @@ describe("Division", () => {
     expect(container.querySelector(".minus")?.textContent).toMatch(/−R\$\s190,00/);
   });
 
-  it("registers the suggested settlement with today's date", async () => {
+  it("'Registrar acerto' opens the sheet with the suggestion and today's date, and registers only from there", async () => {
     const fetch = serve();
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
     await user.click(await screen.findByRole("button", { name: "Registrar acerto" }));
+    const sheet = within(screen.getByRole("dialog"));
+    expect(sheet.getByRole("button", { name: /^Quem pagou/ }).textContent).toContain("Bia");
+    expect(sheet.getByRole("button", { name: /^Quem recebeu/ }).textContent).toContain("Ana (você)");
+    expect((sheet.getByLabelText("Valor do acerto") as HTMLInputElement).value).toBe("190,00");
+    expect((sheet.getByLabelText("Data do acerto") as HTMLInputElement).value).toBe(today());
+    expect(writes(fetch)).toHaveLength(0);
+    await user.click(sheet.getByRole("button", { name: "Registrar" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/settlements");
-    expect(writeBody(fetch)).toEqual({ fromUserId: 2, toUserId: 1, amountCents: 19000, date: today() });
+    expect(writeBody(fetch)).toEqual({ fromUserId: 2, toUserId: 1, amountCents: 19000, date: today(), note: "" });
   });
 
   it("shows the error when registering the suggestion fails", async () => {
@@ -99,6 +109,7 @@ describe("Division", () => {
     const user = userEvent.setup();
     renderApp(<Division />, splitting());
     await user.click(await screen.findByRole("button", { name: "Registrar acerto" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Registrar" }));
     expect(await screen.findByText("Erro interno")).toBeTruthy();
   });
 

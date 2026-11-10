@@ -57,7 +57,7 @@ function RecurrenceForm({ r, onClose }: { r: Recurrence; onClose: () => void }) 
     if (splitsError) return setProblem(splitsError);
     setProblem("");
     const body = recurrenceBody(r, { amountCents: cents, description: description.trim(), dayOfMonth: d, endDate: endDate || null }, wallet.splittingEnabled, splits ?? null);
-    if (await run(() => api.put(path, body))) onClose();
+    if (await run(() => api.put(path, body), "Recorrência salva")) onClose();
   }
 
   return (
@@ -89,7 +89,7 @@ function RecurrenceForm({ r, onClose }: { r: Recurrence; onClose: () => void }) 
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>Salvar</button>
         {confirmDelete
-          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path), "Recorrência excluída").then((ok) => ok && onClose())}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirmDelete(true)}>Excluir recorrência</button>}
       </div>
     </form>

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ApiError, api } from "../api/client";
-import { useRefresh, useSummary, useTransactions } from "../api/queries";
-import type { Transaction } from "../api/types";
+import { useSummary, useTransactions } from "../api/queries";
+import type { Transaction, Transfer } from "../api/types";
 import { MonthSwitcher, PageBar } from "../components/PageBar";
+import { SettlementSheet } from "../components/SettlementSheet";
 import { TransactionList } from "../components/TransactionList";
 import { firstName, useApp } from "../context";
 import { monthOf, monthRange, today } from "../lib/dates";
@@ -150,29 +150,13 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
   );
 }
 
-function Settle({ summary }: { summary: { suggestedSettlements?: { fromUserId: number; toUserId: number; amountCents: number }[] } }) {
+function Settle({ summary }: { summary: { suggestedSettlements?: Transfer[] } }) {
   const { user, wallet, members, canEdit } = useApp();
-  const refresh = useRefresh();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [sheet, setSheet] = useState<Transfer | null>(null);
   const t = summary.suggestedSettlements?.[0];
   if (!wallet.splittingEnabled) return null;
 
   const who = (id: number) => (id === user.id ? "Você" : firstName(members.find((m) => m.userId === id)?.name ?? "Alguém"));
-
-  async function register() {
-    if (!t) return;
-    setBusy(true);
-    setError("");
-    try {
-      await api.post(`/wallets/${wallet.id}/settlements`, { fromUserId: t.fromUserId, toUserId: t.toUserId, amountCents: t.amountCents, date: today() });
-      refresh(wallet.id);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Sem conexão. Tente de novo.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <section className="sec" style={{ marginTop: 36 }}>
@@ -183,13 +167,13 @@ function Settle({ summary }: { summary: { suggestedSettlements?: { fromUserId: n
           <>
             <p><span className="big num">{formatBRL(t.amountCents)}</span></p>
             <p>{who(t.fromUserId)} deve esse valor {t.toUserId === user.id ? "a você" : `para ${who(t.toUserId)}`}.</p>
-            {canEdit && <button type="button" className="btn full" disabled={busy} onClick={() => void register()}>Registrar acerto</button>}
-            {error && <p className="error" role="alert">{error}</p>}
+            {canEdit && <button type="button" className="btn full" onClick={() => setSheet(t)}>Registrar acerto</button>}
           </>
         ) : (
           <p>Vocês estão quites.</p>
         )}
       </div>
+      <SettlementSheet settlement={sheet} onClose={() => setSheet(null)} />
     </section>
   );
 }

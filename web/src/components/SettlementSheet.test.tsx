@@ -110,3 +110,42 @@ describe("SettlementSheet: focus", () => {
     expect(document.activeElement).toBe(row("Quem pagou"));
   });
 });
+
+describe("SettlementSheet: toasts", () => {
+  function openWithToast(s: Settlement | "new") {
+    const onClose = vi.fn();
+    const { toast } = renderApp(<SettlementSheet settlement={s} onClose={onClose} />, appCtx());
+    return { onClose, toast, user: userEvent.setup() };
+  }
+
+  it("says 'Acerto registrado' after registering", async () => {
+    serve(201);
+    const { user, toast } = openWithToast("new");
+    await user.type(screen.getByLabelText("Valor do acerto"), "75,50");
+    await user.click(screen.getByRole("button", { name: "Registrar" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Acerto registrado"));
+  });
+
+  it("after deleting, 'Desfazer' registers the same settlement again", async () => {
+    const fetch = serve(204);
+    const { user, toast } = openWithToast(past);
+    await user.click(screen.getByRole("button", { name: "Excluir acerto" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    const [message, opts] = toast.mock.calls[0];
+    expect(message).toBe("Acerto excluído");
+    opts.action.run();
+    await waitFor(() => expect(writes(fetch)).toHaveLength(2));
+    expect(writes(fetch)[1][0]).toBe("/api/wallets/1/settlements");
+    expect(writes(fetch)[1][1]!.method).toBe("POST");
+    expect(bodyAt(fetch, 1)).toEqual({ fromUserId: 2, toUserId: 1, amountCents: 5000, date: "2026-09-20", note: "Pix do aluguel" });
+  });
+
+  it("a settlement made by a recurrence has no undo", async () => {
+    serve(204);
+    const { user, toast } = openWithToast({ ...past, recurrenceId: 4 });
+    await user.click(screen.getByRole("button", { name: "Excluir acerto" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Acerto excluído", undefined));
+  });
+});

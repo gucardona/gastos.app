@@ -5,6 +5,7 @@ import { api, ApiError, isUnauthenticated } from "../api/client";
 import { useChat } from "../api/queries";
 import type { ChatMessage } from "../api/types";
 import { Chart } from "../components/Chart";
+import { ConfirmButton } from "../components/ConfirmButton";
 import { PageBar } from "../components/PageBar";
 import { WalletPicker } from "../components/WalletPicker";
 import { useApp } from "../context";
@@ -106,7 +107,7 @@ function Conversation() {
       <div className="chat-head">
         <WalletPicker wallets={wallets} selected={selected} onChange={setSelected} />
         {messages.length > 0 && !streaming && (
-          <button type="button" className="chip" disabled={busy} onClick={() => void reset()}>Nova conversa</button>
+          <ConfirmButton className="chip" confirmClassName="chip danger" disabled={busy} label="Nova conversa" confirmLabel="Confirmar: apagar conversa" onConfirm={() => void reset()} />
         )}
       </div>
       {error && <p className="error" role="alert">{error}</p>}

@@ -434,3 +434,75 @@ describe("AddSheet: editing", () => {
     expect(screen.queryByRole("button", { name: /Outra antiga/ })).toBeNull();
   });
 });
+
+describe("AddSheet: toasts", () => {
+  function openWithToast(state: { tx?: ReturnType<typeof tx> } = {}, ctx = appCtx()) {
+    const onClose = vi.fn();
+    const { toast } = renderApp(<AddSheet state={state} onClose={onClose} />, ctx);
+    return { onClose, toast, user: userEvent.setup() };
+  }
+
+  it("says 'Lançamento salvo' after creating, also with 'Salvar e lançar outro'", async () => {
+    mockFetch({ status: 201, body: tx() });
+    const { user, toast } = openWithToast();
+    await fill(user);
+    await user.click(screen.getByRole("button", { name: "Salvar e lançar outro" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento salvo"));
+  });
+
+  it("says 'Lançamento salvo' after editing", async () => {
+    mockFetch({ body: tx() });
+    const { user, toast } = openWithToast({ tx: tx() });
+    await user.click(save());
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento salvo"));
+  });
+
+  it("a monthly repeat says the recurrence was created", async () => {
+    mockFetch({ status: 201, body: {} });
+    const { user, toast } = openWithToast();
+    await fill(user);
+    await user.click(screen.getByRole("switch", { name: "Repetir todo mês" }));
+    await user.click(save());
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Recorrência criada"));
+  });
+
+  it("after deleting, 'Desfazer' posts the same transaction again, splits included", async () => {
+    const fetch = mockFetch({ status: 204 });
+    const ctx = appCtx({ wallet: { ...wallet, splittingEnabled: true } });
+    const deleted = tx({ splits: [{ userId: 1, shareBp: 6000, amountCents: 2934 }, { userId: 2, shareBp: 4000, amountCents: 1956 }] });
+    const { user, toast } = openWithToast({ tx: deleted }, ctx);
+    await user.click(screen.getByRole("button", { name: "Excluir lançamento" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    const [message, opts] = toast.mock.calls[0];
+    expect(message).toBe("Lançamento excluído");
+    expect(opts.action.label).toBe("Desfazer");
+    opts.action.run();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(fetch.mock.calls[1][0]).toBe("/api/wallets/1/transactions");
+    expect(fetch.mock.calls[1][1]!.method).toBe("POST");
+    expect(bodyOf(fetch, 1)).toEqual({
+      kind: "expense", amountCents: 4890, description: "Mercado do bairro", categoryId: 1, paymentMethodId: 1, date: deleted.date,
+      paidByUserId: 1, splits: [{ userId: 1, shareBp: 6000 }, { userId: 2, shareBp: 4000 }],
+    });
+  });
+
+  it("a failed undo says why in a toast", async () => {
+    let calls = 0;
+    mockFetch(() => (calls++ === 0 ? { status: 204 } : { status: 400, body: { error: { code: "validation", message: "categoria arquivada" } } }));
+    const { user, toast } = openWithToast({ tx: tx() });
+    await user.click(screen.getByRole("button", { name: "Excluir lançamento" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    toast.mock.calls[0][1].action.run();
+    await waitFor(() => expect(toast).toHaveBeenLastCalledWith("categoria arquivada"));
+  });
+
+  it("a transaction made by a recurrence has no undo (the recurrence would make it again)", async () => {
+    mockFetch({ status: 204 });
+    const { user, toast } = openWithToast({ tx: tx({ recurrenceId: 3, source: "recurring" }) });
+    await user.click(screen.getByRole("button", { name: "Excluir lançamento" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento excluído", undefined));
+  });
+});

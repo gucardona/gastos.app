@@ -233,3 +233,17 @@ describe("Login: fields for browsers and password managers", () => {
     expect(message.previousElementSibling?.contains(screen.getByLabelText("E-mail"))).toBe(true);
   });
 });
+
+describe("Login: long labels", () => {
+  const rowOf = (label: string) => screen.getByLabelText(label).closest(".field-row")!;
+
+  it("stack the long labels above their field; short ones stay beside it", async () => {
+    serve("code");
+    const user = renderLogin();
+    await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
+    for (const label of ["Como você gostaria de ser chamado?", "Repita a senha", "Código de convite"]) {
+      expect(rowOf(label).classList.contains("stacked"), label).toBe(true);
+    }
+    for (const label of ["E-mail", "Senha"]) expect(rowOf(label).classList.contains("stacked"), label).toBe(false);
+  });
+});

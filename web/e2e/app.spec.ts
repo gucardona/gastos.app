@@ -70,6 +70,13 @@ test("sign up, add, edit and delete a transaction", async ({ page }) => {
   await page.getByRole("button", { name: "Excluir lançamento" }).click();
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(page.getByText("Nenhum lançamento neste mês.")).toBeVisible();
+
+  // the toast offers to undo it: the same transaction comes back
+  const toast = page.getByRole("status").filter({ hasText: "Lançamento excluído" });
+  await expect(toast).toBeVisible();
+  await toast.getByRole("button", { name: "Desfazer" }).click();
+  await expect(page.getByRole("button", { name: /Mercado do bairro/ })).toBeVisible();
+  await expect(page.getByText("−R$ 50,00").first()).toBeVisible();
 });
 
 test("session: sign out and back in, with a wrong password rejected", async ({ page }) => {
@@ -163,8 +170,15 @@ test("splitting: balance, suggested settlement and history", async ({ browser })
   await expect(ana.getByText(/Você deve R\$\s*190,00 para Bia\./)).toBeVisible();
   await expect(ana.getByText(/−R\$\s*190,00/).first()).toBeVisible();
 
-  // Ana settles up: the balance goes to zero and the settlement enters the history
+  // Ana settles up: the sheet opens with the suggestion to check, and only its button records it
   await ana.getByRole("button", { name: "Registrar acerto" }).click();
+  const check = ana.getByRole("dialog");
+  await expect(check.getByLabel("Valor do acerto")).toHaveValue("190,00");
+  await expect(check.getByRole("button", { name: /^Quem pagou/ })).toContainText("Ana (você)");
+  await expect(check.getByRole("button", { name: /^Quem recebeu/ })).toContainText("Bia");
+  await check.getByRole("button", { name: "Registrar", exact: true }).click();
+  await expect(check).toBeHidden();
+  // the balance goes to zero and the settlement enters the history
   await expect(ana.getByText("Vocês estão quites.")).toBeVisible();
   await expect(ana.getByText(/Você pagou Bia/)).toBeVisible();
 
@@ -369,11 +383,15 @@ test("import an OFX statement, accept a line and ignore another", async ({ page 
   await page.getByRole("link", { name: /Caixa/ }).first().click();
   await page.getByRole("button", { name: /COMPRA MERCADO DO BAIRRO/ }).click();
   const decision = page.getByRole("dialog");
+  await expect(decision.getByText("Escolha uma categoria para aceitar")).toBeVisible(); // why Aceitar is off
   await pickCategory(decision, "Mercado");
   await decision.getByRole("button", { name: "Aceitar" }).click();
-  await expect(decision).toBeHidden();
-  await page.getByRole("button", { name: /TARIFA BANCARIA/ }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Ignorar" }).click();
+  // the sheet moves on to the next line instead of closing, says so, and puts the focus on the new title
+  await expect(decision.getByRole("heading", { name: "TARIFA BANCARIA" })).toBeFocused();
+  await expect(decision.getByText("Lançamento criado. 1 restante.")).toBeVisible();
+  await decision.getByRole("button", { name: "Ignorar" }).click();
+  await expect(decision).toBeHidden(); // that was the last one
+  await expect(page.getByRole("status").filter({ hasText: "Linha ignorada" })).toBeVisible();
   await expect(page.getByText(/Nada para revisar/)).toBeVisible();
 
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
@@ -601,7 +619,7 @@ test("a person changes the provisional password and signs in with the new one", 
 
   await sheet.getByLabel("Senha atual", { exact: true }).fill(password);
   await sheet.getByRole("button", { name: "Alterar senha" }).click();
-  await expect(page.getByText("Senha alterada.")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Senha alterada" })).toBeVisible();
 
   await page.getByRole("link", { name: "Ajustes" }).first().click();
   await page.getByRole("button", { name: "Sair" }).click();

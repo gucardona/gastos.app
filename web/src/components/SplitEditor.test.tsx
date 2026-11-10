@@ -37,4 +37,34 @@ describe("SplitEditor", () => {
     render(ui(ctx(), { 1: "50", 2: "50" }, onChange));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  describe("live total while editing", () => {
+    const total = () => screen.getByText(/^Total/);
+    it("says 100% when the parts add up", () => {
+      render(ui(ctx(), { 1: "60", 2: "40" }));
+      expect(total().textContent).toBe("Total 100%");
+      expect(total().getAttribute("aria-live")).toBe("polite");
+      expect(total().className).toContain("muted");
+    });
+    it("says how much is missing, with up to 2 decimals in pt-BR", () => {
+      render(ui(ctx(), { 1: "33,33", 2: "56,6" }));
+      expect(total().textContent).toBe("Total 89,93%, faltam 10,07%");
+      expect(total().className).toContain("over");
+    });
+    it("says how much it went over", () => {
+      render(ui(ctx(), { 1: "70", 2: "40" }));
+      expect(total().textContent).toBe("Total 110%, passou 10%");
+    });
+    it("an empty part counts as zero", () => {
+      render(ui(ctx(), { 1: "90", 2: "" }));
+      expect(total().textContent).toBe("Total 90%, faltam 10%");
+    });
+    it("is not shown while a part is not a number (the submit error covers it), nor when not editing", () => {
+      const { unmount } = render(ui(ctx(), { 1: "abc", 2: "50" }));
+      expect(screen.queryByText(/^Total/)).toBeNull();
+      unmount();
+      render(ui(ctx(), null));
+      expect(screen.queryByText(/^Total/)).toBeNull();
+    });
+  });
 });

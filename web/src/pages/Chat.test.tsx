@@ -158,6 +158,8 @@ describe("Chat", () => {
     expect(await screen.findByText("R$ 820.")).toBeTruthy();
     expect(within(thread()).getByText("Quanto gastei?")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Nova conversa" }));
+    expect(api.fn).not.toHaveBeenCalledWith("/api/chat?wallet=1", expect.objectContaining({ method: "DELETE" })); // it asks first: it erases the conversation
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar: apagar conversa" }));
     expect(api.fn).toHaveBeenCalledWith("/api/chat?wallet=1", expect.objectContaining({ method: "DELETE" }));
     await vi.waitFor(() => expect(screen.queryByText("R$ 820.")).toBeNull());
     expect(screen.queryByText("Quanto gastei?")).toBeNull();

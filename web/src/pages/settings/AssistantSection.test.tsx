@@ -61,6 +61,8 @@ describe("Assistant screen", () => {
     const user = userEvent.setup();
     renderApp(<AssistantSection />);
     await user.click(await screen.findByRole("button", { name: "Remover" }));
+    expect(writes(fetch)).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Confirmar remoção" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(writes(fetch)[0][0]).toBe("/api/me/ai/key");
     expect(writes(fetch)[0][1]!.method).toBe("DELETE");
@@ -259,5 +261,21 @@ describe("Assistant screen", () => {
     serve(withKey);
     renderApp(<AssistantSection />);
     expect(await screen.findByText("Cotação do dólar indisponível: os limites em reais só passam a valer quando ela for obtida.")).toBeTruthy();
+  });
+});
+
+describe("Assistant screen: long labels", () => {
+  it("stack above their fields, still naming them", async () => {
+    serve(withKey);
+    renderApp(<AssistantSection />);
+    for (const label of ["Guardar conversas por (dias)", "Limite diário (R$) *", "Limite mensal (R$) *"]) {
+      expect((await screen.findByLabelText(label)).closest(".list-row")!.classList.contains("stacked"), label).toBe(true);
+    }
+  });
+
+  it("the key field stacks too", async () => {
+    serve(base);
+    renderApp(<AssistantSection />);
+    expect((await screen.findByLabelText("Chave da API")).closest(".list-row")!.classList.contains("stacked")).toBe(true);
   });
 });

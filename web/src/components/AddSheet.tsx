@@ -3,6 +3,7 @@ import { ApiError, api, generalError } from "../api/client";
 import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
+import { useUndo } from "../hooks/useAction";
 import { dayLabel, today, yesterday } from "../lib/dates";
 import { amountProblem, centsToInput, parseCents } from "../lib/money";
 import { percentsFromSplits } from "../lib/splits";
@@ -12,6 +13,7 @@ import { Segmented } from "./Segmented";
 import { Sheet } from "./Sheet";
 import { resolveSplits, SplitEditor, type Percents } from "./SplitEditor";
 import { Switch } from "./Switch";
+import { useToast } from "./Toast";
 
 /** Quick-add sheet: new transaction, or editing one when `state.tx` is set. */
 export function AddSheet({ state, onClose }: { state: { tx?: Transaction } | null; onClose: () => void }) {
@@ -28,6 +30,8 @@ type Picker = "category" | "date" | "method" | "paidBy";
 function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const { user, wallet, categories, paymentMethods, members } = useApp();
   const refresh = useRefresh();
+  const toast = useToast();
+  const undo = useUndo();
 
   const [kind, setKind] = useState<Kind>(tx?.kind ?? "expense");
   const [amount, setAmount] = useState(tx ? centsToInput(tx.amountCents) : "");
@@ -76,6 +80,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       else if (repeat) await api.post(`${wp}/recurrences`, { ...base, dayOfMonth: Number(date.slice(8)), startDate: date });
       else await api.post(`${wp}/transactions`, { ...base, date });
       refresh(wallet.id);
+      toast(!tx && repeat ? "Recorrência criada" : "Lançamento salvo");
       if (again) {
         setAmount("");
         setDescription("");
@@ -98,6 +103,10 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     try {
       await api.del(`/wallets/${wallet.id}/transactions/${tx.id}`);
       refresh(wallet.id);
+      const { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId } = tx;
+      const again = { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId, ...(tx.splits.length ? { splits: tx.splits.map((s) => ({ userId: s.userId, shareBp: s.shareBp })) } : {}) };
+      // made by a recurrence: a copy would sit next to the occurrence the recurrence makes again, so no undo
+      toast("Lançamento excluído", tx.recurrenceId === null ? { action: undo(() => api.post(`/wallets/${wallet.id}/transactions`, again)) } : undefined);
       onClose();
     } catch (e) {
       setGeneral(e instanceof ApiError ? e.message : "Sem conexão. Tente de novo.");

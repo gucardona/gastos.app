@@ -8,6 +8,7 @@ import { AddSheet } from "./components/AddSheet";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
+import { ToastProvider } from "./components/Toast";
 import { Ctx, type AppCtx } from "./context";
 import { isMonth, monthOf, today } from "./lib/dates";
 
@@ -98,14 +99,16 @@ export function Shell() {
   if (!ctx) return <div className="main"><div className="skeleton" /><div className="skeleton" style={{ width: "40%" }} /></div>;
 
   return (
-    <Ctx.Provider value={ctx}>
-      <div className="app">
-        <Sidebar pending={pending} onAdd={() => setAdding({})} />
-        <main className="main"><ErrorBoundary><Outlet /></ErrorBoundary></main>
-      </div>
-      <TabBar pending={pending} onAdd={() => setAdding({})} />
-      <AddSheet state={adding} onClose={() => setAdding(null)} />
-    </Ctx.Provider>
+    <ToastProvider>
+      <Ctx.Provider value={ctx}>
+        <div className="app">
+          <Sidebar pending={pending} onAdd={() => setAdding({})} />
+          <main className="main"><ErrorBoundary><Outlet /></ErrorBoundary></main>
+        </div>
+        <TabBar pending={pending} onAdd={() => setAdding({})} />
+        <AddSheet state={adding} onClose={() => setAdding(null)} />
+      </Ctx.Provider>
+    </ToastProvider>
   );
 }
 

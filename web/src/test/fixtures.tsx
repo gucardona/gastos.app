@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import type { Category, Member, PaymentMethod, Transaction, Wallet } from "../api/types";
+import { ToastContext } from "../components/Toast";
 import { Ctx, type AppCtx } from "../context";
 import { today } from "../lib/dates";
 
@@ -40,16 +41,20 @@ export function appCtx(over: Partial<AppCtx> = {}): AppCtx {
   };
 }
 
-/** Renders inside the app context, React Query and an in-memory router. */
+/** Renders inside the app context, React Query and an in-memory router; `toast` is a spy that receives every toast. */
 export function renderApp(ui: ReactElement, ctx: AppCtx = appCtx(), route = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const toast = vi.fn();
+  const r = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[route]}>
-        <Ctx.Provider value={ctx}>{ui}</Ctx.Provider>
+        <ToastContext.Provider value={{ toast, current: null, dismiss: vi.fn(), pause: vi.fn() }}>
+          <Ctx.Provider value={ctx}>{ui}</Ctx.Provider>
+        </ToastContext.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...r, toast };
 }
 
 type Reply = { status?: number; body?: unknown };

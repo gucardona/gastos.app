@@ -57,3 +57,19 @@ describe("rings that used to be missing or clipped", () => {
     });
   }
 });
+
+describe("a stacked row (a long label on its own line, above a full-width input)", () => {
+  const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1].trim(), body: m[2] }));
+  const stacked = rules.filter((r) => /\.stacked(?![-\w])/.test(r.selector));
+
+  it("wraps the label to a line of its own, and the input fills the next one with its text to the left", () => {
+    expect(css).toMatch(/\.stacked\s*\{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.stacked > \.lr-label\s*\{[^}]*flex:\s*1 0 100%/);
+    expect(css).toMatch(/\.stacked \.desc-input\s*\{[^}]*text-align:\s*left/);
+  });
+
+  it("is a modifier of the same rows, so it keeps their ring and dividers: no stacked rule touches outline, box-shadow or borders", () => {
+    expect(stacked.length).toBeGreaterThan(0);
+    for (const r of stacked) expect(r.body, r.selector).not.toMatch(/outline|box-shadow|border/);
+  });
+});

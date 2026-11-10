@@ -115,22 +115,20 @@ function Profile() {
   const rename = useAction();
   const [name, setName] = useState(user.name);
   const [changing, setChanging] = useState(false);
-  const [changed, setChanged] = useState(false);
   return (
     <div className="screen">
       <ListGroup>
-        <form className="list-row" onSubmit={(e) => { e.preventDefault(); void rename.run(() => api.patch("/me", { name })); }}>
+        <form className="list-row" onSubmit={(e) => { e.preventDefault(); void rename.run(() => api.patch("/me", { name }), "Nome salvo"); }}>
           <label htmlFor="pname" className="lr-label">Seu nome</label>
           <input id="pname" className="desc-input" maxLength={60} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
           {name.trim() !== user.name && <button type="submit" className="chip" disabled={rename.busy}>Salvar nome</button>}
         </form>
         <div className="list-row"><span className="lr-label">E-mail</span> <span className="lr-value">{user.email}</span></div>
-        <ListRow id="row-password" label="Alterar senha" onClick={() => { setChanged(false); setChanging(true); }} chevron />
+        <ListRow id="row-password" label="Alterar senha" onClick={() => setChanging(true)} chevron />
         <div className="list-row"><span className="lr-label">Carteira ativa</span> <span className="lr-value">{wallet.name}, {ROLE_TEXT[wallet.role]}</span></div>
       </ListGroup>
       {rename.error && <p className="error" role="alert">{rename.error}</p>}
-      {changed && <p className="muted lead" role="status">Senha alterada.</p>}
-      <PasswordSheet open={changing} onClose={() => setChanging(false)} onChanged={() => setChanged(true)} />
+      <PasswordSheet open={changing} onClose={() => setChanging(false)} />
     </div>
   );
 }

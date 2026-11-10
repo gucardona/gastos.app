@@ -24,7 +24,7 @@ function NewAccount({ onClose }: { onClose: () => void }) {
   const { run, busy, error } = useAction();
   const [name, setName] = useState("");
   return (
-    <form onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post(`/wallets/${wallet.id}/bank-accounts`, { name }))) onClose(); }}>
+    <form onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post(`/wallets/${wallet.id}/bank-accounts`, { name }), "Conta criada")) onClose(); }}>
       <div className="sheet-head">
         <h2 className="sheet-title">Nova conta bancária</h2>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
@@ -78,7 +78,7 @@ function Account({ account, onClose }: { account: BankAccount; onClose: () => vo
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         {confirm
-          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path)).then((ok) => ok && onClose())}>Confirmar exclusão</button>
+          ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void run(() => api.del(path), "Conta excluída").then((ok) => ok && onClose())}>Confirmar exclusão</button>
           : <button key="ask" type="button" className="btn ghost full" onClick={() => setConfirm(true)}>Excluir conta</button>}
       </div>
     </div>

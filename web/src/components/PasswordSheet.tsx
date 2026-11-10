@@ -3,16 +3,16 @@ import { api } from "../api/client";
 import { useAction } from "../hooks/useAction";
 import { Sheet } from "./Sheet";
 
-/** Change the signed-in user's password; `onChanged` runs after the API accepted it. */
-export function PasswordSheet({ open, onClose, onChanged }: { open: boolean; onClose: () => void; onChanged: () => void }) {
+/** Change the signed-in user's password; a toast says when it is done. */
+export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Sheet open={open} onClose={onClose} label="Alterar senha">
-      {open && <PasswordForm onClose={onClose} onChanged={onChanged} />}
+      {open && <PasswordForm onClose={onClose} />}
     </Sheet>
   );
 }
 
-function PasswordForm({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+function PasswordForm({ onClose }: { onClose: () => void }) {
   const { run, busy, error } = useAction();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -24,10 +24,7 @@ function PasswordForm({ onClose, onChanged }: { onClose: () => void; onChanged: 
     if (next.length < 8) return setProblem("A nova senha precisa ter 8 ou mais caracteres.");
     if (next !== again) return setProblem("As senhas novas não coincidem.");
     setProblem("");
-    if (await run(() => api.put("/me/password", { currentPassword: current, newPassword: next }))) {
-      onChanged();
-      onClose();
-    }
+    if (await run(() => api.put("/me/password", { currentPassword: current, newPassword: next }), "Senha alterada")) onClose();
   }
 
   const field = (id: string, label: string, value: string, set: (v: string) => void, auto: string, focus = false) => (

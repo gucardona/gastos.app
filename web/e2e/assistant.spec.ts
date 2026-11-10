@@ -64,7 +64,10 @@ test("assistente: setup, chat with a chart, reload, new conversation, wrong key"
   await expect(page.getByText("quanto gastei este mês?")).toBeVisible();
   await expect(page.getByText("Você gastou R$ 150,00 no total, 60% em Mercado.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Nova conversa" }).click();
+  // it erases the conversation, so it asks first; a double click does not confirm
+  await page.getByRole("button", { name: "Nova conversa" }).dblclick();
+  await expect(page.getByText("quanto gastei este mês?")).toBeVisible();
+  await page.getByRole("button", { name: "Confirmar: apagar conversa" }).click();
   await expect(page.getByText("quanto gastei este mês?")).toHaveCount(0);
   await expect(page.getByRole("img", { name: /Gastos por categoria/ })).toHaveCount(0);
 
