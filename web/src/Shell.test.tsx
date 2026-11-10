@@ -177,20 +177,21 @@ describe("Shell: active wallet and month", () => {
 });
 
 describe("Shell: real time (SSE)", () => {
-  it("opens the active wallet's stream with credentials and closes on unmount", async () => {
+  it("opens the user's stream with credentials and closes on unmount", async () => {
     serve();
     const { unmount } = renderShell();
     await screen.findByText("carteira Casa");
     await waitFor(() => expect(FakeEventSource.all).toHaveLength(1));
-    expect(FakeEventSource.all[0].url).toBe("/api/wallets/1/events");
+    expect(FakeEventSource.all[0].url).toBe("/api/events");
     expect(FakeEventSource.all[0].init).toEqual({ withCredentials: true });
     unmount();
     expect(FakeEventSource.all[0].closed).toBe(true);
   });
 
-  it("opens no stream until it knows which wallet is active", () => {
+  it("opens no stream without a session", async () => {
     serve({ status: 401 });
     renderShell();
+    await screen.findByText("tela de login");
     expect(FakeEventSource.all).toHaveLength(0);
   });
 
@@ -204,15 +205,38 @@ describe("Shell: real time (SSE)", () => {
     await waitFor(() => expect(urls(fetch).filter((u) => u === "/api/wallets/1/categories").length).toBeGreaterThan(before));
   });
 
-  it("when switching wallet, closes the old stream and opens the new one", async () => {
+  it("switching wallet keeps the same stream", async () => {
     serve();
     const { user } = renderShell();
     await screen.findByText("carteira Casa");
-    await waitFor(() => expect(FakeEventSource.all).toHaveLength(1));
     await user.click(screen.getByRole("button", { name: "trocar de carteira" }));
-    await waitFor(() => expect(FakeEventSource.all).toHaveLength(2));
-    expect(FakeEventSource.all[0].closed).toBe(true);
-    expect(FakeEventSource.all[1].url).toBe("/api/wallets/2/events");
+    await screen.findByText("carteira Viagem");
+    expect(FakeEventSource.all).toHaveLength(1);
+    expect(FakeEventSource.all[0].closed).toBe(false);
+  });
+
+  it("when the active wallet vanishes elsewhere, falls back to another without a failure", async () => {
+    localStorage.setItem("walletId", "2");
+    let wallets = [wallet, viagem];
+    const fetch = mockFetch((url) => {
+      if (url === "/api/me") return { body: { user: ana, wallets } };
+      if (url.startsWith("/api/wallets/2/") && !wallets.includes(viagem)) return { status: 404, body: { error: { code: "not_found", message: "Não encontrado" } } };
+      for (const [suffix, body] of Object.entries({ "/categories": categories, "/payment-methods": paymentMethods, "/members": members })) {
+        if (url.endsWith(suffix)) return { body };
+      }
+      return { body: {} };
+    });
+    renderShell();
+    expect(await screen.findByText("carteira Viagem")).toBeTruthy();
+    await waitFor(() => expect(FakeEventSource.all).toHaveLength(1));
+
+    wallets = [wallet]; // deleted in another tab, or this person was removed from it
+    const before = fetch.mock.calls.length;
+    await act(async () => FakeEventSource.all[0].onmessage?.());
+    expect(await screen.findByText("carteira Casa")).toBeTruthy();
+    expect(screen.queryByText(/Não foi possível carregar/)).toBeNull();
+    // the vanished wallet's data is not asked for again (it would only 404)
+    expect(urls(fetch).slice(before).filter((u) => u.startsWith("/api/wallets/2/"))).toEqual([]);
   });
 });
 
