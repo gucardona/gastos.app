@@ -123,6 +123,37 @@ test("real time: one person's expense shows up for the other without reloading",
   await expect(ana.getByText(/Você deve esse valor para Bia/)).toBeVisible();
 });
 
+test("real time: two tabs of the same person stay in sync without reloading", async ({ page }) => {
+  await signUpAndEnter(page, "Olga");
+  const other = await page.context().newPage(); // same session, a second tab
+  await other.goto("/");
+  await expect(other.getByText("Saldo do mês")).toBeVisible();
+  const switcher = other.locator("button[aria-label^=Carteira]:visible"); // only a button with more than one wallet; the other layout's copy is hidden
+
+  // a wallet created in one tab shows up in the other's switcher
+  await page.goto("/ajustes/carteira");
+  await page.getByRole("button", { name: "Nova carteira" }).click();
+  await page.getByLabel("Nome da nova carteira").fill("Viagem");
+  await page.getByRole("button", { name: "Criar carteira" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(switcher).toHaveCount(1);
+
+  // an expense added in one tab shows up in the other's list
+  await switcher.click();
+  await other.getByRole("dialog").getByRole("button", { name: "Viagem" }).click();
+  await page.goto("/"); // this tab already switched to the new wallet when creating it
+  await addExpense(page, "120,00", "Passagem de ônibus");
+  await expect(other.getByText("Passagem de ônibus")).toBeVisible();
+
+  // deleting the wallet the other tab is looking at moves that tab to another one
+  await page.goto("/ajustes/carteira");
+  await page.getByRole("button", { name: "Excluir esta carteira" }).click();
+  await page.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(other.getByText(/Nada lançado em Pessoal/)).toBeVisible();
+  await expect(switcher).toHaveCount(0); // back to a single wallet: nothing to switch to
+  await expect(other.getByText(/Não foi possível carregar/)).toHaveCount(0);
+});
+
 test("splitting: balance, suggested settlement and history", async ({ browser }) => {
   const { ana, bia } = await pairUp(browser);
   await addExpense(bia, "380,00", "Jantar no Ida", "Mercado");

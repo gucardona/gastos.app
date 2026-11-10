@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useSearchParams } from "react-router";
 import { isUnauthenticated } from "./api/client";
-import { useCategories, useInbox, useMe, useMembers, usePaymentMethods, useWalletEvents } from "./api/queries";
+import { useCategories, useEvents, useInbox, useMe, useMembers, usePaymentMethods } from "./api/queries";
 import type { Transaction } from "./api/types";
 import { AddSheet } from "./components/AddSheet";
 import { Sidebar } from "./components/Sidebar";
@@ -30,7 +30,7 @@ export function Shell() {
   const categories = useCategories(walletId);
   const paymentMethods = usePaymentMethods(walletId);
   const members = useMembers(walletId);
-  useWalletEvents(walletId);
+  useEvents(!!me.data);
   const pending = useInbox(walletId).data?.length ?? 0;
 
   const month = params.get("m") ?? monthOf(today());

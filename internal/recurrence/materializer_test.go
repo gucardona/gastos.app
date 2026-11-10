@@ -165,17 +165,24 @@ func TestDisabledSkipped(t *testing.T) {
 	}
 }
 
-func TestRunNotifiesWallet(t *testing.T) {
+func TestRunNotifiesTheWalletMembers(t *testing.T) {
 	m, d := setup(t, time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC))
 	addExpenseRecurrence(t, d, 5, "2026-10-01")
-	ch := m.bus.Subscribe(1, 1)
+	ana, bia, stranger := m.bus.Subscribe(1), m.bus.Subscribe(2), m.bus.Subscribe(3)
 	if err := m.Run(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
+	for name, ch := range map[string]chan struct{}{"Ana": ana, "Bia": bia} {
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Fatalf("%s, a member, was not notified", name)
+		}
+	}
 	select {
-	case <-ch:
-	case <-time.After(time.Second):
-		t.Fatal("expected a notification")
+	case <-stranger:
+		t.Fatal("someone outside the wallet was notified")
+	default:
 	}
 }
 
