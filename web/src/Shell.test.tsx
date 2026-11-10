@@ -131,6 +131,41 @@ describe("Shell: session and loading", () => {
     renderShell();
     expect(await screen.findByText("Você não participa de nenhuma carteira.")).toBeTruthy();
   });
+
+  it("with no wallet, 'Criar carteira' creates 'Pessoal' and enters it", async () => {
+    const pessoal = { ...wallet, id: 7, name: "Pessoal" };
+    let created = false;
+    const fetch = mockFetch((url, init) => {
+      if (url === "/api/wallets" && init.method === "POST") { created = true; return { status: 201, body: pessoal }; }
+      if (url === "/api/me") return { body: { user: ana, wallets: created ? [pessoal] : [] } };
+      for (const [suffix, body] of Object.entries({ "/categories": categories, "/payment-methods": paymentMethods, "/members": members })) if (url.endsWith(suffix)) return { body };
+      return { body: {} };
+    });
+    const { user } = renderShell();
+    await user.click(await screen.findByRole("button", { name: "Criar carteira" }));
+    expect(await screen.findByText("carteira Pessoal")).toBeTruthy();
+    const post = fetch.mock.calls.find((c) => c[0] === "/api/wallets");
+    expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "Pessoal" });
+    expect(localStorage.getItem("walletId")).toBe("7");
+  });
+
+  it("with no wallet, 'Sair' signs out and goes to the login", async () => {
+    const fetch = serve({ user: ana, wallets: [] });
+    const { user } = renderShell();
+    await user.click(await screen.findByRole("button", { name: "Sair" }));
+    expect(await screen.findByText("tela de login")).toBeTruthy();
+    expect(urls(fetch)).toContain("/api/auth/logout");
+  });
+
+  it("the failure screen offers 'Sair' too", async () => {
+    const fetch = serve({ status: 500 });
+    const { user } = renderShell();
+    await screen.findByText(/Não foi possível carregar seus dados/);
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Sair" }));
+    expect(await screen.findByText("tela de login")).toBeTruthy();
+    expect(urls(fetch)).toContain("/api/auth/logout");
+  });
 });
 
 describe("Shell: active wallet and month", () => {
