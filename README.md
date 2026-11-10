@@ -9,9 +9,13 @@ Controle financeiro pessoal e compartilhado. Um único binário Go serve a API e
 - Carteiras com membros e papéis (owner, editor, reader)
 - Gastos e entradas com categorias e formas de pagamento editáveis
 - Divisão de gastos entre membros (em basis points) e acertos
-- Recorrências mensais de gastos, entradas e acertos
+- Recorrências mensais de gastos, entradas e acertos (a divisão por porcentagem também vale para elas)
 - Orçamento mensal por categoria e resumo do mês
 - Atualização em tempo real entre membros (SSE)
+
+### Divisão padrão por pessoa
+
+Em Ajustes > Pessoas, quem é dono da carteira pode definir a "Parte padrão (%)" de cada membro que entra na divisão por padrão (por exemplo 60% e 40%). Quando todos que dividem por padrão têm uma porcentagem, um gasto novo é dividido por elas, ajustadas para somar 100%; se alguém ficar em branco, a divisão é igual. No lançamento (e em cada recorrência) o botão "Ajustar" permite escolher outras porcentagens só para aquele gasto, como 50% para uma pessoa e 25% para cada uma das outras duas.
 
 ## Stack
 
@@ -82,7 +86,7 @@ O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
 
 ## Banco de dados
 
-O `internal/db/schema.sql` é a única definição do schema, hoje na versão 4 (`PRAGMA user_version`). Ao subir, o servidor cria o schema num banco vazio (versão 0); um banco já na versão 4 abre normalmente; qualquer outra versão faz o app recusar subir, sem alterar o banco ("database is at schema version N, this binary expects 4: recreate it"). Toda mudança de schema exige subir a versão (`schemaVersion` em `internal/db/db.go`) e recriar o banco, a menos que migrações sejam reintroduzidas de propósito.
+O `internal/db/schema.sql` é a base congelada, na versão 4 (`PRAGMA user_version`). Toda mudança depois dela é uma migração em `internal/db/migrations/` (a `0005_...` leva o banco da versão 4 para a 5, e assim por diante), registrada na lista `migrations` de `internal/db/db.go`. Ao subir, o servidor cria um banco novo (versão 0) com o `schema.sql` e todas as migrações; um banco entre a versão 4 e a mais recente recebe só as migrações que faltam, no lugar e sem perder dados, cada uma na sua transação. Antes da primeira migração pendente de um banco com dados, o servidor guarda uma cópia ao lado dele (`gastos.db.pre-v<N>.bak`, em que N é a versão de antes; uma cópia anterior com o mesmo nome é mantida com um carimbo de data no nome; se a cópia falhar, o app não sobe). Versões 1 a 3, ou mais novas do que o binário conhece, fazem o app recusar subir, sem alterar o banco. Para mudar o schema, crie a próxima migração; nunca edite o `schema.sql` nem uma migração já publicada.
 
 ## API
 
