@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useApp } from "../context";
 import { formatBRL } from "../lib/money";
-import { defaultPercents, sharesFromPercents } from "../lib/splits";
+import { bpToPercent, defaultPercents, sharesFromPercents, toBp } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
 
 export type Percents = Record<number, string>;
@@ -13,7 +13,17 @@ export function resolveSplits(percents: Percents | null) {
   return splits ? { splits } : { error: "As partes precisam somar 100%." };
 }
 
-/** "Dividir com ..." row with its Ajustar/Igualar chip and the percent inputs; `value` null = the wallet's default split. */
+/** "Total 90%, faltam 10%" for the typed parts; null while one of them is not a number. */
+function totalLine(percents: Percents) {
+  const bps = Object.values(percents).map(toBp);
+  if (bps.some((b) => b === null)) return null;
+  const sum = bps.reduce<number>((a, b) => a + (b ?? 0), 0);
+  const text = `Total ${bpToPercent(sum)}%`;
+  if (sum === 10000) return { text, ok: true };
+  return { text: `${text}, ${sum < 10000 ? "faltam" : "passou"} ${bpToPercent(Math.abs(10000 - sum))}%`, ok: false };
+}
+
+/** "Dividir com ... row with its Ajustar/Igualar chip and the percent inputs; `value` null = the wallet's default split. */
 export function SplitEditor({ value, onChange, paidBy, cents, error }: {
   value: Percents | null;
   onChange: (v: Percents | null) => void;
@@ -31,6 +41,7 @@ export function SplitEditor({ value, onChange, paidBy, cents, error }: {
       onChange(Object.fromEntries(Object.entries(value).filter(([id]) => members.some((m) => m.userId === Number(id)))));
     }
   }, [members, value, onChange]);
+  const total = value && totalLine(value);
   const summary = byShare
     ? Object.entries(defaultPercents(members, defaultIds)).map(([id, p]) => `${nameOf(Number(id))} ${p}%`).join(", ")
     : cents ? `${formatBRL(Math.floor(cents / Math.max(defaultIds.length, 1)))} para cada` : undefined;
@@ -55,6 +66,7 @@ export function SplitEditor({ value, onChange, paidBy, cents, error }: {
                 <span><input inputMode="decimal" aria-label={`Porcentagem de ${m.name}`} value={value[m.userId] ?? ""} onChange={(e) => onChange({ ...value, [m.userId]: e.target.value })} /> %</span>
               </label>
             ))}
+            {total && <p className={`split-total ${total.ok ? "muted" : "over"}`} aria-live="polite">{total.text}</p>}
           </div>
         )}
       </ListGroup>
