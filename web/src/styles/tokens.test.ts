@@ -16,7 +16,7 @@ const light = block(":root");
 const darkBySystem = block(':root:not([data-theme="light"])');
 const darkForced = block(':root[data-theme="dark"]');
 
-const roles = ["paper", "surface", "ink", "muted", "line", "accent", "on-accent", "income", "over", "scrim", "tick", "tick-future"];
+const roles = ["paper", "surface", "ink", "muted", "line", "accent", "on-accent", "income", "over", "scrim", "tick", "tick-future", "shadow", "knob"];
 
 const value = (body: string, name: string) => new RegExp(`--${name}:\\s*([^;]+);`, "i").exec(body)?.[1].trim();
 
@@ -83,4 +83,13 @@ describe("contrast of the money colors", () => {
       }
     });
   }
+});
+
+describe("colors live in tokens", () => {
+  const app = readFileSync(join(__dirname, "..", "styles.css"), "utf8");
+  it("the tab bar shadow and the switch knob follow the theme", () => {
+    expect(app).not.toMatch(/rgba\(20, 24, 27/);
+    expect(app).toMatch(/\.tabbar-pill\s*\{[^}]*box-shadow:[^};]*var\(--shadow\)/);
+    expect(app).toMatch(/\.switch::after\s*\{[^}]*background:\s*var\(--knob\)/);
+  });
 });

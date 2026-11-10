@@ -12,6 +12,8 @@
   --scrim: rgba(20, 24, 27, 0.28);
   --tick: #B9C0C4;
   --tick-future: #D9DDE0;
+  --shadow: rgba(20, 24, 27, 0.12);
+  --knob: #FFFFFF;
   --font: "Geist Variable", system-ui, sans-serif;
   --ui: var(--font);
   --radius-group: 22px;
@@ -33,6 +35,8 @@
     --scrim: rgba(0, 0, 0, 0.55);
     --tick: #5A646A;
     --tick-future: #2A2F33;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --knob: #F3F4F5;
     color-scheme: dark;
   }
 }
@@ -50,5 +54,7 @@
   --scrim: rgba(0, 0, 0, 0.55);
   --tick: #5A646A;
   --tick-future: #2A2F33;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --knob: #F3F4F5;
   color-scheme: dark;
 }
