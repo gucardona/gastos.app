@@ -38,6 +38,46 @@ describe("AddSheet: new transaction", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("an amount with more than 2 decimals says so, and the field points at its error", async () => {
+    const fetch = mockFetch();
+    const { user } = open();
+    const amount = screen.getByRole("textbox", { name: "Valor" });
+    expect(amount.getAttribute("aria-invalid")).toBeNull();
+    await user.type(amount, "12,345");
+    await user.click(save());
+    expect(await screen.findByText("Use até 2 casas decimais.")).toBeTruthy();
+    expect(amount.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(amount.getAttribute("aria-describedby")!)?.textContent).toBe("Use até 2 casas decimais.");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("a description the API refuses points the field at its error", async () => {
+    mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { description: "use até 200 caracteres" } } } });
+    const { user } = open();
+    await fill(user);
+    await user.click(save());
+    await screen.findByText("use até 200 caracteres");
+    const desc = screen.getByRole("textbox", { name: "Descrição" });
+    expect(desc.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(desc.getAttribute("aria-describedby")!)?.textContent).toBe("use até 200 caracteres");
+  });
+
+  it("where CSS field-sizing is missing, the amount field still grows with what is typed", async () => {
+    mockFetch();
+    vi.stubGlobal("CSS", { supports: () => false });
+    const { user } = open();
+    const amount = screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement;
+    await user.type(amount, "1.234.567,89");
+    expect(parseFloat(amount.style.width)).toBeGreaterThanOrEqual("1.234.567,89".length);
+  });
+
+  it("where CSS field-sizing works, it alone sizes the amount field", () => {
+    mockFetch();
+    vi.stubGlobal("CSS", { supports: () => true });
+    open();
+    expect((screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement).style.width).toBe("");
+  });
+
   it("saves without a description", async () => {
     const fetch = mockFetch({ status: 201, body: tx({ description: "" }) });
     const { user, onClose } = open();
@@ -105,6 +145,15 @@ describe("AddSheet: new transaction", () => {
     await fill(user, "10", "x".repeat(201));
     await user.click(save());
     expect(await screen.findByText("obrigatória, até 200 caracteres")).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("a field error with no place of its own on the sheet shows in the general error area", async () => {
+    mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { paymentMethodId: "forma de pagamento não encontrada" } } } });
+    const { user, onClose } = open();
+    await fill(user);
+    await user.click(save());
+    expect((await screen.findByRole("alert")).textContent).toBe("Forma de pagamento não encontrada.");
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -359,6 +408,14 @@ describe("AddSheet: editing", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(fetch.mock.calls[0][1]!.method).toBe("DELETE");
     expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/transactions/10");
+  });
+
+  it("a double click on Excluir does not confirm the deletion", async () => {
+    const fetch = mockFetch({ status: 204 });
+    const { user } = open({ tx: tx() });
+    await user.dblClick(screen.getByRole("button", { name: "Excluir lançamento" }));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Confirmar exclusão" })).toBeTruthy();
   });
 
   it("does not offer 'Repetir todo mês' or 'lançar outro' when editing", () => {

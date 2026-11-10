@@ -123,6 +123,20 @@ describe("Chat", () => {
     expect(await screen.findByRole("button", { name: "Enviar" })).toBeTruthy();
   });
 
+  it("the answer is aria-busy while it streams, so the log does not announce every piece", async () => {
+    const api = fakeApi();
+    renderChat();
+    await userEvent.type(input(), "Quanto gastei?{Enter}");
+    api.push("delta", { text: "Você gastou " });
+    const msg = (await within(thread()).findByText("Você gastou")).closest(".msg")!;
+    expect(msg.getAttribute("aria-busy")).toBe("true");
+    expect(within(thread()).getByText("Quanto gastei?").closest(".msg")?.getAttribute("aria-busy")).toBeNull();
+    api.push("done", {});
+    api.end();
+    await screen.findByRole("button", { name: "Enviar" });
+    expect(within(thread()).getByText("Você gastou").closest(".msg")?.getAttribute("aria-busy")).toBeNull();
+  });
+
   it("the send button turns into Parar while answering, and Parar aborts the request", async () => {
     const api = fakeApi();
     renderChat();

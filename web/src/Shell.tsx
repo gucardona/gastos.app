@@ -1,19 +1,29 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, Outlet, useSearchParams } from "react-router";
-import { isUnauthenticated } from "./api/client";
+import { Navigate, Outlet, useNavigate, useSearchParams } from "react-router";
+import { ApiError, api, isUnauthenticated } from "./api/client";
 import { useCategories, useEvents, useInbox, useMe, useMembers, usePaymentMethods } from "./api/queries";
-import type { Transaction } from "./api/types";
+import type { Transaction, Wallet } from "./api/types";
 import { AddSheet } from "./components/AddSheet";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { Ctx, type AppCtx } from "./context";
-import { monthOf, today } from "./lib/dates";
+import { isMonth, monthOf, today } from "./lib/dates";
 
 function readWalletId() {
   try {
     return Number(localStorage.getItem("walletId")) || 0;
   } catch {
     return 0;
+  }
+}
+
+function saveWalletId(id: number) {
+  try {
+    localStorage.setItem("walletId", String(id));
+  } catch {
+    // no storage available: only lasts for this session
   }
 }
 
@@ -33,7 +43,8 @@ export function Shell() {
   useEvents(!!me.data);
   const pending = useInbox(walletId).data?.length ?? 0;
 
-  const month = params.get("m") ?? monthOf(today());
+  const m = params.get("m");
+  const month = m && isMonth(m) ? m : monthOf(today());
   const canEdit = wallet?.role !== "reader";
 
   // the N shortcut opens quick add, as in the spec
@@ -57,11 +68,7 @@ export function Shell() {
       wallets,
       setWalletId: (id) => {
         setStoredId(id);
-        try {
-          localStorage.setItem("walletId", String(id));
-        } catch {
-          // no storage available: only lasts for this session
-        }
+        saveWalletId(id);
       },
       month,
       setMonth: (m) => setParams((p) => { p.set("m", m); return p; }, { replace: true }),
@@ -76,7 +83,15 @@ export function Shell() {
 
   if (isUnauthenticated(me.error)) return <Navigate to="/login" replace />;
   if (me.error) return <Failed onRetry={() => me.refetch()} />;
-  if (me.data && wallets.length === 0) return <Failed message="Você não participa de nenhuma carteira." />;
+  if (me.data && wallets.length === 0) {
+    const create = async () => {
+      const w = await api.post<Wallet>("/wallets", { name: "Pessoal" });
+      setStoredId(w.id);
+      saveWalletId(w.id);
+      await me.refetch();
+    };
+    return <Failed message="Você não participa de nenhuma carteira." onCreate={create} />;
+  }
   if (categories.error || paymentMethods.error || members.error) {
     return <Failed onRetry={() => { void categories.refetch(); void paymentMethods.refetch(); void members.refetch(); }} />;
   }
@@ -86,7 +101,7 @@ export function Shell() {
     <Ctx.Provider value={ctx}>
       <div className="app">
         <Sidebar pending={pending} onAdd={() => setAdding({})} />
-        <main className="main"><Outlet /></main>
+        <main className="main"><ErrorBoundary><Outlet /></ErrorBoundary></main>
       </div>
       <TabBar pending={pending} onAdd={() => setAdding({})} />
       <AddSheet state={adding} onClose={() => setAdding(null)} />
@@ -94,11 +109,34 @@ export function Shell() {
   );
 }
 
-function Failed({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+/** A screen the app cannot show: says why and always offers a way out (sign out), plus retry or creating a wallet when they apply. */
+function Failed({ message, onRetry, onCreate }: { message?: string; onRetry?: () => void; onCreate?: () => Promise<void> }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function signOut() {
+    await api.post("/auth/logout").catch(() => undefined);
+    qc.clear();
+    navigate("/login", { replace: true });
+  }
+  async function create() {
+    setBusy(true);
+    setError("");
+    try {
+      await onCreate?.();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Sem conexão. Tente de novo.");
+      setBusy(false);
+    }
+  }
   return (
     <div className="main empty">
       <p>{message ?? "Não foi possível carregar seus dados. Confira a conexão e tente de novo."}</p>
       {onRetry && <button type="button" className="btn" onClick={onRetry}>Tentar de novo</button>}
+      {onCreate && <button type="button" className="btn" disabled={busy} onClick={() => void create()}>Criar carteira</button>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <button type="button" className="btn ghost" onClick={() => void signOut()}>Sair</button>
     </div>
   );
 }

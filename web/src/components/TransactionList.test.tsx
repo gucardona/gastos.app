@@ -29,6 +29,14 @@ describe("TransactionList", () => {
     expect(screen.getByText(/^Ontem,/)).toBeTruthy();
   });
 
+  it("each day is a heading, level 2 by default and the level asked for under another heading", () => {
+    const { unmount } = renderApp(<TransactionList items={[tx({ date: today() })]} />);
+    expect(screen.getByRole("heading", { level: 2, name: /^Hoje,/ })).toBeTruthy();
+    unmount();
+    renderApp(<TransactionList items={[tx({ date: today() })]} headingLevel={3} />);
+    expect(screen.getByRole("heading", { level: 3, name: /^Hoje,/ })).toBeTruthy();
+  });
+
   it("a transaction without a description is titled by its category, which is not repeated underneath", () => {
     renderApp(<TransactionList items={[tx({ description: "" })]} />);
     expect(screen.getByText("Mercado").className).toBe("desc");

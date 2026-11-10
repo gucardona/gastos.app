@@ -30,4 +30,30 @@ describe("the dividers next to a focused row", () => {
   it("are hidden, so they do not cut through the ring", () => {
     expect(css).toMatch(/\.list-row:is\(:focus-visible, :has\(input:focus-visible\)\) \+ \.list-row\s*\{[^}]*border-top-color:\s*transparent/);
   });
+
+  it("are hidden around a focused transaction row too, which gets the same rounded ring", () => {
+    expect(css).toMatch(/\.row:focus-visible\s*\{[^}]*outline-offset:\s*4px[^}]*border-radius:\s*var\(--radius-control\)/);
+    expect(css).toMatch(/\.row:focus-visible, \.row:focus-visible \+ \.row\s*\{[^}]*border-top-color:\s*transparent/);
+  });
+});
+
+describe("rings that used to be missing or clipped", () => {
+  it("the big amount field, which hides its outline, shows an accent underline while focused", () => {
+    expect(css).toMatch(/\.amount input\s*\{[^}]*outline:\s*none/);
+    expect(css).toMatch(/\.amount input:focus-visible\s*\{[^}]*box-shadow:[^}]*var\(--accent\)/);
+  });
+
+  it("a segment's ring stays inside the 3px track (offset 0 + width 2px)", () => {
+    expect(css).toMatch(/\.segmented\s*\{[^}]*padding:\s*3px/);
+    expect(css).toMatch(/\.segmented button:focus-visible\s*\{[^}]*outline-offset:\s*0/);
+  });
+
+  for (const box of [".category-grid", ".emoji-tabs"]) {
+    it(`${box} scrolls, so it pads 4px (offset 2px + width 2px) for the rings of the items at its edges`, () => {
+      const body = new RegExp(`${box.replace(".", "\\.")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+      expect(body).toMatch(/overflow-[xy]:\s*auto/);
+      expect(body).toMatch(/(^|;)\s*padding:\s*4px/);
+      expect(body).toMatch(/scroll-padding:\s*4px/);
+    });
+  }
 });

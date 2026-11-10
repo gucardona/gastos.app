@@ -42,3 +42,9 @@ export function parseCents(input: string): number | null {
 
 /** Cents as the text a person types into an amount field: 12990 becomes "129,90". */
 export const centsToInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+
+/** Why an amount cannot be saved (pt-BR copy shown in the UI), or "" when it can. */
+export function amountProblem(input: string): string {
+  if (parseCents(input)) return "";
+  return /^\d[\d.]*,\d{3,}$/.test(input.replace(/R\$|\s/g, "")) ? "Use até 2 casas decimais." : "Informe um valor maior que zero.";
+}

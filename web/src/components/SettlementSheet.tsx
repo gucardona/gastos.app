@@ -4,7 +4,7 @@ import type { Settlement } from "../api/types";
 import { firstName, useApp } from "../context";
 import { useAction } from "../hooks/useAction";
 import { today } from "../lib/dates";
-import { centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents } from "../lib/money";
 import { ListGroup, ListRow } from "./ListGroup";
 import { OptionList, PickerView } from "./pickers";
 import { Sheet } from "./Sheet";
@@ -44,7 +44,7 @@ function SettlementForm({ settlement, onClose }: { settlement?: Settlement; onCl
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const cents = parseCents(amount);
-    if (!cents) return setProblem("Informe um valor maior que zero.");
+    if (!cents) return setProblem(amountProblem(amount));
     if (from === to) return setProblem("Escolha pessoas diferentes para quem paga e quem recebe.");
     setProblem("");
     const body = { fromUserId: from, toUserId: to, amountCents: cents, date, note: note.trim() };

@@ -35,6 +35,23 @@ describe("Transactions", () => {
     expect(rows().map((r) => r.textContent)).toEqual([expect.stringContaining("Feira da semana")]);
   });
 
+  it("also finds by category and payment method name, ignoring accents and case", async () => {
+    serve([...items, tx({ id: 4, description: "", categoryId: 2, paymentMethodId: 2, amountCents: 5000 })]);
+    const user = userEvent.setup();
+    renderApp(<Transactions />);
+    await screen.findByText("Padaria");
+    const box = screen.getByRole("searchbox", { name: "Buscar" });
+    const found = () => screen.getAllByRole("button", { name: /−R\$|\+R\$/ }).map((r) => r.querySelector(".desc")?.textContent);
+    await user.type(box, "RESTAURANTE");
+    expect(found()).toEqual(["Restaurante"]); // no description: the row shows the category name
+    await user.clear(box);
+    await user.type(box, "credito");
+    expect(found()).toEqual(["Restaurante"]);
+    await user.clear(box);
+    await user.type(box, "salario");
+    expect(found()).toEqual(["Salário"]);
+  });
+
   it("filters by expenses and by income", async () => {
     serve();
     const user = userEvent.setup();

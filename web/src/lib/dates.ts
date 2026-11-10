@@ -41,3 +41,6 @@ export function dayLabel(isoDate: string, todayISO = today()) {
   const weekday = d.toLocaleDateString("pt-BR", { weekday: "long" });
   return `${weekday[0].toUpperCase()}${weekday.slice(1).replace("-feira", "")}, ${rest}`;
 }
+
+/** A real "YYYY-MM" month, as `?m` must be. */
+export const isMonth = (s: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(s);

@@ -76,7 +76,8 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                 const cat = categories.find((x) => x.id === c.categoryId);
                 const over = c.budgetCents !== null && c.cents > c.budgetCents;
                 const scale = Math.max(c.cents, c.budgetCents ?? 0, 1);
-                const topExpense = Math.max(...summary.byCategory.filter((x) => x.kind === "expense").map((x) => x.cents), 1);
+                // with a budget: spent against the budget; without one: the share of the month's expenses, as the percentage says
+                const fill = c.budgetCents !== null ? c.cents / scale : c.cents / Math.max(expenseTotal, 1);
                 return (
                   <div className="rail" key={c.categoryId}>
                     <div className="rail-top">
@@ -84,7 +85,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                       <span className="amt num">{formatBRL(c.cents)} · {pctLabel(c.cents, expenseTotal)}{c.budgetCents !== null && <> <small>de {formatBRL(c.budgetCents)}</small></>}</span>
                     </div>
                     <div className={`track ${over ? "over" : ""}`}>
-                      <div className="fill" style={{ width: `${(c.cents / (c.budgetCents !== null ? scale : topExpense)) * 100}%` }} />
+                      <div className="fill" style={{ width: `${fill * 100}%`, minWidth: c.budgetCents === null && c.cents > 0 ? 2 : undefined }} />
                       {c.budgetCents !== null && <div className="limit" style={{ left: `calc(${(c.budgetCents / scale) * 100}% - 1px)` }} />}
                     </div>
                     {over && <div className="warn">{formatBRL(c.cents - c.budgetCents!)} acima do orçamento</div>}
@@ -92,14 +93,14 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
                 );
               })}
               </div>
-              {expenseTotal > 0 && <Chart chart={{ kind: "pie", title: "Gastos por categoria", points: pie }} />}
+              {expenseTotal > 0 && <div className="list-group chart-card"><Chart chart={{ kind: "pie", title: "Gastos por categoria", points: pie }} /></div>}
             </section>
             )}
             <div>
               <Settle summary={summary} />
               <section className="sec">
                 <h2>Recentes</h2>
-                <TransactionList items={txs.slice(0, 6)} />
+                <TransactionList items={txs.slice(0, 6)} headingLevel={3} />
                 {txs.length > 6 && <p style={{ marginTop: 14 }}><Link className="link" to={`/lancamentos?m=${month}`}>Ver todos os lançamentos</Link></p>}
               </section>
             </div>
@@ -138,6 +139,9 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
           return <span key={d} className={isToday ? "today" : ""}>{[1, 5, 10, 15, 20, 25, 30].includes(d) || isToday ? d : ""}</span>;
         })}
       </div>
+      <p className="visually-hidden">
+        {spent.map((v, i) => (v > 0 && i < todayDay ? `Dia ${i + 1}: ${formatBRL(v)}.` : "")).filter(Boolean).join(" ") || "Sem gastos até agora."}
+      </p>
       <p className="strip-note">
         {summary.dailyAverageCents > 0 && <>Média de <b className="num">{formatBRL(summary.dailyAverageCents)}</b> por dia. </>}
         {summary.previous.expenseCents > 0 && <>O mês anterior fechou em <span className="num">{formatBRL(summary.previous.expenseCents)}</span>.</>}

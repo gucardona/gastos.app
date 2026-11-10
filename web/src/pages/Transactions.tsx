@@ -15,15 +15,20 @@ const FILTERS = [
 
 type Filter = (typeof FILTERS)[number]["id"];
 
+/** Lowercase without accents, so "credito" finds "Crédito". */
+const fold = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
 export function Transactions() {
-  const { wallet, month, canEdit, openAdd } = useApp();
+  const { wallet, month, canEdit, openAdd, categories, paymentMethods } = useApp();
   const txs = useTransactions(wallet.id, month);
   const [kind, setKind] = useState<Filter>("all");
   const [q, setQ] = useState("");
 
   const all = txs.data ?? [];
-  const term = q.trim().toLowerCase();
-  const shown = all.filter((t) => (kind === "all" || t.kind === kind) && (!term || t.description.toLowerCase().includes(term)));
+  const term = fold(q.trim());
+  // a row with no description shows its category, so the category (and the payment method) can be searched too
+  const text = (t: (typeof all)[number]) => fold([t.description, categories.find((c) => c.id === t.categoryId)?.name, paymentMethods.find((p) => p.id === t.paymentMethodId)?.name].join(" "));
+  const shown = all.filter((t) => (kind === "all" || t.kind === kind) && (!term || text(t).includes(term)));
   const sum = (k: string) => all.filter((t) => t.kind === k).reduce((s, t) => s + t.amountCents, 0);
 
   return (
@@ -43,7 +48,7 @@ export function Transactions() {
             <span className="in">Entrou <b className="num">{formatBRL(sum("income"))}</b></span>
             <span>Saiu <b className="num">{formatBRL(sum("expense"))}</b></span>
           </div>
-          <input className="search" type="search" placeholder="Buscar por descrição" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="search" type="search" placeholder="Buscar por descrição ou categoria" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
           <Segmented<Filter> label="Filtros" value={kind} onChange={setKind} options={FILTERS.map((f) => ({ value: f.id, label: f.label }))} />
           {shown.length === 0 ? (
             <div className="empty">

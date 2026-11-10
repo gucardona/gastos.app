@@ -121,6 +121,23 @@ describe("Overview: month ruler", () => {
     if (todayDay > 1) expect(all[0].className).toBe("zero"); // previous day with no spending
   });
 
+  it("says in text, for screen readers, what each day with spending cost", async () => {
+    serve(summary(), [tx({ amountCents: 20000, date: today() })]);
+    renderApp(<Overview />);
+    await screen.findByText("4.376");
+    const ruler = screen.getByRole("region", { name: "Gastos por dia" });
+    const text = ruler.querySelector(".visually-hidden")?.textContent ?? "";
+    expect(text).toMatch(new RegExp(`Dia ${todayDay}: R\\$\\s200,00`));
+    expect(text).not.toMatch(/sem gastos/);
+  });
+
+  it("the recent lines are grouped under day headings one level below 'Recentes'", async () => {
+    serve(summary(), [tx({ amountCents: 20000, date: today() })]);
+    renderApp(<Overview />);
+    await screen.findByText("4.376");
+    expect(screen.getByRole("heading", { level: 3, name: /^Hoje,/ })).toBeTruthy();
+  });
+
   it("height is proportional (square root) to the month's largest expense", async () => {
     if (todayDay < 2) return; // needs two days in the month to compare
     const yesterday = today().slice(0, 8) + String(todayDay - 1).padStart(2, "0");
@@ -201,6 +218,31 @@ describe("Overview: budget rails", () => {
     expect(container.querySelector(".limit")).toBeNull();
     expect((container.querySelector(".fill") as HTMLElement).style.width).toBe("100%");
   });
+
+  it("with no budget, the bar is the category's share of the month's expenses, the same number as the percentage", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 50000, budgetCents: null }, { categoryId: 2, kind: "expense", cents: 10000, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    const widths = Array.from(container.querySelectorAll<HTMLElement>(".rail .fill")).map((f) => parseFloat(f.style.width));
+    expect(widths[0]).toBeCloseTo(83.33, 1);
+    expect(widths[1]).toBeCloseTo(16.67, 1);
+  });
+
+  it("a tiny share keeps a visible sliver", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 100000, budgetCents: null }, { categoryId: 2, kind: "expense", cents: 10, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    expect(container.querySelectorAll<HTMLElement>(".rail .fill")[1].style.minWidth).toBe("2px");
+  });
+
+  it("a budgeted category next to one without a budget keeps its spent-vs-budget bar", async () => {
+    serve(summary({ byCategory: [{ categoryId: 1, kind: "expense", cents: 104230, budgetCents: 150000 }, { categoryId: 2, kind: "expense", cents: 64000, budgetCents: null }] }), [tx()]);
+    const { container } = renderApp(<Overview />);
+    await screen.findByText("Para onde foi");
+    const fills = container.querySelectorAll<HTMLElement>(".rail .fill");
+    expect(fills[0].style.width).toMatch(/^69\.4/); // 104230 / 150000
+    expect(parseFloat(fills[1].style.width)).toBeCloseTo(38.04, 1); // 64000 / 168230
+  });
 });
 
 describe("Overview: shares and pie", () => {
@@ -231,6 +273,15 @@ describe("Overview: shares and pie", () => {
     renderApp(<Overview />);
     const pie = await screen.findByRole("img", { name: /^Gastos por categoria\./ });
     expect(pie.getAttribute("aria-label")).toMatch(/Mercado: R\$\s1\.042,30, 62%; Restaurante: R\$\s640,00, 38%/);
+  });
+
+  it("the pie sits in its own card, like the other blocks", async () => {
+    serve(summary(), [tx()]);
+    renderApp(<Overview />);
+    const pie = await screen.findByRole("img", { name: /^Gastos por categoria\./ });
+    const card = pie.closest(".chart-card");
+    expect(card?.classList.contains("list-group")).toBe(true);
+    expect(card?.querySelector(".chart-title")?.textContent).toBe("Gastos por categoria");
   });
 
   it("has no pie without expenses", async () => {

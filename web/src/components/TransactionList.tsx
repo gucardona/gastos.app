@@ -7,7 +7,8 @@ const signed = (t: Transaction) => (t.kind === "income" ? t.amountCents : -t.amo
 const money = (cents: number) => `${cents < 0 ? "−" : "+"}${formatBRL(Math.abs(cents))}`;
 
 /** Transactions grouped by day, in the order received (the API already returns newest first). */
-export function TransactionList({ items }: { items: Transaction[] }) {
+export function TransactionList({ items, headingLevel = 2 }: { items: Transaction[]; headingLevel?: 2 | 3 }) {
+  const Day = headingLevel === 2 ? "h2" : "h3";
   const { categories, paymentMethods, members, canEdit, openAdd } = useApp();
   const cat = (id: number) => categories.find((c) => c.id === id);
   const pm = (id: number | null) => paymentMethods.find((p) => p.id === id);
@@ -25,7 +26,7 @@ export function TransactionList({ items }: { items: Transaction[] }) {
       {days.map((d) => (
         <section className="day" key={d.date}>
           <div className="day-head">
-            <strong>{dayLabel(d.date)}</strong>
+            <Day className="day-title">{dayLabel(d.date)}</Day>
             <span className="num">{money(d.items.reduce((s, t) => s + signed(t), 0))}</span>
           </div>
           <div className="list-group">

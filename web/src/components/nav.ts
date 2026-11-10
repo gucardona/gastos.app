@@ -1,4 +1,12 @@
+import { useSearchParams } from "react-router";
+import { isMonth } from "../lib/dates";
 import type { IconName } from "./Icon";
+
+/** The month in the address (`?m`, only when valid) for the navigation links, so switching screen keeps it. */
+export function useMonthSearch() {
+  const m = useSearchParams()[0].get("m");
+  return m && isMonth(m) ? `?m=${m}` : "";
+}
 
 export interface NavItem {
   to: string;
