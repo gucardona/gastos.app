@@ -87,3 +87,48 @@ func TestSPAFallback(t *testing.T) {
 		}
 	}
 }
+
+// loginFrom tries to sign in as if from ip (the test server is on loopback, so X-Forwarded-For is trusted).
+func loginFrom(t *testing.T, app *testApp, ip, email, password string) int {
+	t.Helper()
+	body := `{"email":"` + email + `","password":"` + password + `"}`
+	req, _ := http.NewRequest("POST", app.srv.URL+"/api/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", ip)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	return res.StatusCode
+}
+
+func TestFailedLoginsCannotLockOutTheRightPassword(t *testing.T) {
+	app := newTestApp(t)
+	app.register("Ana", "ana@example.com")
+	for i := range 12 {
+		loginFrom(t, app, "203.0.113."+itoa(int64(i)), "ana@example.com", "errada!!")
+	}
+	if got := loginFrom(t, app, "198.51.100.7", "ana@example.com", "senha-segura"); got != 200 {
+		t.Fatalf("right password after others' failures: status %d, want 200", got)
+	}
+	// guessing is still limited: once an address is blocked, even the right password is refused from it
+	for range 10 {
+		loginFrom(t, app, "192.0.2.1", "ana@example.com", "errada!!")
+	}
+	if got := loginFrom(t, app, "192.0.2.1", "ana@example.com", "outra-errada"); got != 429 {
+		t.Fatalf("11th failure from one address: status %d, want 429", got)
+	}
+}
+
+func TestRegisterRejectsPasswordsOver72Bytes(t *testing.T) {
+	app := newTestApp(t)
+	var res struct {
+		Error apiError `json:"error"`
+	}
+	app.anon().do("POST", "/api/auth/register", map[string]string{"name": "Ana", "email": "ana@example.com",
+		"password": strings.Repeat("a", 73), "inviteCode": testInvite}, 400, &res)
+	if res.Error.Fields["password"] == "" {
+		t.Fatalf("no password error: %+v", res.Error)
+	}
+}

@@ -4,9 +4,14 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"gastos/internal/money"
 )
 
-var errBadAmount = errors.New("invalid amount")
+var (
+	errBadAmount      = errors.New("invalid amount")
+	errAmountTooLarge = errors.New("amount above R$ 1 billion")
+)
 
 // ParseAmount reads a money amount as written in a statement and returns signed whole cents, never going through floats.
 //
@@ -71,6 +76,9 @@ func ParseAmount(in string) (int64, error) {
 	}
 	cents, _ := strconv.ParseInt((frac + "00")[:2], 10, 64)
 	total := whole*100 + cents
+	if total > money.MaxCents {
+		return 0, errAmountTooLarge
+	}
 	if neg {
 		total = -total
 	}
