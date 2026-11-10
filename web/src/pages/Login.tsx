@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ApiError, api } from "../api/client";
+import { ApiError, api, generalError } from "../api/client";
 
 export function Login() {
   const [register, setRegister] = useState(false);
@@ -35,7 +35,7 @@ export function Login() {
     } catch (err) {
       if (err instanceof ApiError) {
         setErrors(err.fields);
-        setGeneral(Object.keys(err.fields).length ? "" : err.message);
+        setGeneral(generalError(err, register ? ["name", "email", "password", "confirm", ...(mode === "code" ? ["inviteCode"] : [])] : ["email", "password"]));
       } else setGeneral("Sem conexão. Tente de novo.");
     } finally {
       setBusy(false);
@@ -59,7 +59,7 @@ export function Login() {
         {row("email", "E-mail", <input id="email" className="desc-input" type="email" placeholder="voce@exemplo.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />, "email")}
         {row("password", "Senha", <input id="password" className="desc-input" type="password" placeholder={register ? "8 ou mais caracteres" : "sua senha"} autoComplete={register ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />, "password")}
         {register && row("confirm", "Repita a senha", <input id="confirm" className="desc-input" type="password" placeholder="a mesma senha" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />, "confirm")}
-        {register && mode === "code" && row("invite", "Código de convite", <input id="invite" className="desc-input" placeholder="recebido de quem convidou" autoComplete="off" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />)}
+        {register && mode === "code" && row("invite", "Código de convite", <input id="invite" className="desc-input" placeholder="recebido de quem convidou" autoComplete="off" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />, "inviteCode")}
         {general && <p className="error" role="alert">{general}</p>}
         <button type="submit" className="btn full" disabled={busy}>{register ? "Criar conta" : "Entrar"}</button>
         {/* the toggle waits for the mode so a closed sign-up never flashes an option that cannot work */}

@@ -38,3 +38,11 @@ export const api = {
 };
 
 export const isUnauthenticated = (e: unknown) => e instanceof ApiError && e.status === 401;
+
+/** Text for a form's general error area: the message, or else the field errors the form has no place for (`shown` lists the ones it has), so none is lost. */
+export function generalError(e: ApiError, shown: string[]): string {
+  const keys = Object.keys(e.fields);
+  if (keys.length === 0) return e.message;
+  const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+  return keys.filter((k) => !shown.includes(k)).map((k) => `${cap(e.fields[k])}.`).join(" ");
+}

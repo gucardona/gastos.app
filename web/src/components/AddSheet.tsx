@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, api } from "../api/client";
+import { ApiError, api, generalError } from "../api/client";
 import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
@@ -85,7 +85,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     } catch (e) {
       if (e instanceof ApiError) {
         setErrors(e.fields);
-        setGeneral(Object.keys(e.fields).length ? "" : e.message);
+        setGeneral(generalError(e, ["amountCents", "categoryId", "description", "date", ...(splitting ? ["splits"] : [])]));
       } else setGeneral("Sem conexão. Tente de novo.");
     } finally {
       setBusy(false);

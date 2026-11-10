@@ -106,6 +106,24 @@ describe("Login: sign-up by registration mode", () => {
     expect(screen.queryByText("Visão geral")).toBeNull();
   });
 
+  it("code: a field error on the invite code shows under its field", async () => {
+    serve("code", { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { inviteCode: "código inválido" } } } });
+    const user = renderLogin();
+    await user.click(await screen.findByRole("button", { name: "Criar uma conta" }));
+    await user.type(screen.getByLabelText("Código de convite"), "x");
+    await user.click(screen.getByRole("button", { name: "Criar conta" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("código inválido");
+  });
+
+  it("a field error with no field on the form shows in the general error area", async () => {
+    serve("code", { status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { name: "obrigatório" } } } });
+    const user = renderLogin();
+    await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
+    await user.type(screen.getByLabelText("Senha"), "senha-segura");
+    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Obrigatório.");
+  });
+
   it("closed: there is no way to start a sign-up", async () => {
     const fetch = serve("closed");
     renderLogin();

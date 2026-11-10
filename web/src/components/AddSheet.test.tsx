@@ -108,6 +108,15 @@ describe("AddSheet: new transaction", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("a field error with no place of its own on the sheet shows in the general error area", async () => {
+    mockFetch({ status: 400, body: { error: { code: "validation", message: "Dados inválidos", fields: { paymentMethodId: "forma de pagamento não encontrada" } } } });
+    const { user, onClose } = open();
+    await fill(user);
+    await user.click(save());
+    expect((await screen.findByRole("alert")).textContent).toBe("Forma de pagamento não encontrada.");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("shows the general message when the API fails without fields", async () => {
     mockFetch({ status: 403, body: { error: { code: "forbidden", message: "Sem permissão para esta ação" } } });
     const { user } = open();
