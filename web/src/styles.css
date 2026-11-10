@@ -395,3 +395,5 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 @media (min-width: 900px) { .toast-region { bottom: 24px; } }
 /* in a sheet on a phone the sheet covers the bottom, so the message goes to the top, over the scrim, never over the sheet's buttons */
 @media (max-width: 899px) { dialog .toast-region { top: calc(12px + env(safe-area-inset-top)); bottom: auto; } }
+/* a chip asking to confirm something that erases */
+.chip.danger { border-color: var(--over); color: var(--over); }

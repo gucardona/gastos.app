@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import { useBankAccounts, useRules } from "../../api/queries";
 import type { BankAccount } from "../../api/types";
 import { BankAccountSheet } from "../../components/BankAccountSheet";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { ListGroup, ListRow } from "../../components/ListGroup";
 import { useApp } from "../../context";
 import { useAction } from "../../hooks/useAction";
@@ -46,7 +47,11 @@ function Rules() {
                 <span className="desc">“{r.pattern}”</span>
                 <span className="meta">{c ? `${c.icon} ${c.name}` : "categoria removida"}{r.renameTo ? `, renomeia para ${r.renameTo}` : ""}</span>
               </span>
-              {canEdit && <button type="button" className="chip" disabled={busy} aria-label={`Excluir regra ${r.pattern}`} onClick={() => void run(() => api.del(`/wallets/${wallet.id}/rules/${r.id}`), "Regra excluída")}>Excluir</button>}
+              {canEdit && (
+                <ConfirmButton className="chip" confirmClassName="chip danger" disabled={busy} label="Excluir" ariaLabel={`Excluir regra ${r.pattern}`}
+                  confirmLabel="Confirmar exclusão" confirmAriaLabel={`Confirmar exclusão da regra ${r.pattern}`}
+                  onConfirm={() => void run(() => api.del(`/wallets/${wallet.id}/rules/${r.id}`), "Regra excluída")} />
+              )}
             </div>
           );
         })}

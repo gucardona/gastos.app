@@ -48,6 +48,8 @@ describe("Inbox", () => {
     const user = userEvent.setup();
     renderApp(<Inbox />);
     await user.click(await screen.findByRole("button", { name: "Aceitar 1 sugerida" }));
+    expect(writes(fetch)).toHaveLength(0); // it asks first, saying how many
+    await user.click(screen.getByRole("button", { name: "Confirmar: criar 1 lançamento" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(writes(fetch)[0][0]).toBe("/api/wallets/1/inbox/accept-suggested");
   });
@@ -56,7 +58,9 @@ describe("Inbox", () => {
     const many = Array.from({ length: 250 }, (_, i) => line({ id: i + 1, description: `LINHA ${i + 1}`, suggestedCategoryId: i % 5 === 0 ? 1 : null }));
     serve(many);
     const { container } = renderApp(<Inbox />);
-    await screen.findByRole("button", { name: "Aceitar 50 sugeridas" });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Aceitar 50 sugeridas" }));
+    expect(screen.getByRole("button", { name: "Confirmar: criar 50 lançamentos" })).toBeTruthy();
     expect(container.querySelectorAll(".list-group > .list-row")).toHaveLength(250);
   });
 
@@ -65,6 +69,7 @@ describe("Inbox", () => {
     const user = userEvent.setup();
     renderApp(<Inbox />);
     await user.click(await screen.findByRole("button", { name: "Aceitar 1 sugerida" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar: criar 1 lançamento" }));
     expect(await screen.findByText("Erro interno")).toBeTruthy();
   });
 

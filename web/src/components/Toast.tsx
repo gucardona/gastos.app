@@ -50,7 +50,7 @@ export function ToastView() {
         <div className="toast" key={t.id} onMouseEnter={() => pause(true)} onMouseLeave={() => pause(false)} onFocus={() => pause(true)} onBlur={() => pause(false)}>
           <span className="toast-text">{t.message}</span>
           {t.action && <button type="button" className="toast-action" onClick={() => { dismiss(); t.action!.run(); }}>{t.action.label}</button>}
-          <button type="button" className="toast-close" aria-label="Fechar aviso" onClick={dismiss}>✕</button>
+          <button type="button" className="toast-close" aria-label="Dispensar aviso" onClick={dismiss}>✕</button>
         </div>
       )}
     </div>

@@ -61,6 +61,8 @@ describe("Assistant screen", () => {
     const user = userEvent.setup();
     renderApp(<AssistantSection />);
     await user.click(await screen.findByRole("button", { name: "Remover" }));
+    expect(writes(fetch)).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Confirmar remoção" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(writes(fetch)[0][0]).toBe("/api/me/ai/key");
     expect(writes(fetch)[0][1]!.method).toBe("DELETE");

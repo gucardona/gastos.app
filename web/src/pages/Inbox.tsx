@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import { useInbox } from "../api/queries";
 import type { InboxItem } from "../api/types";
+import { ConfirmButton } from "../components/ConfirmButton";
 import { InboxSheet } from "../components/InboxSheet";
 import { ListGroup } from "../components/ListGroup";
 import { PageBar } from "../components/PageBar";
@@ -25,9 +26,9 @@ export function Inbox() {
       <h1 className="page-title">Caixa de entrada</h1>
       <p className="muted lead">Linhas dos extratos importados. Toque numa linha para criar o lançamento, ligar a um que você já fez, ou ignorar.</p>
       {canEdit && safe > 0 && (
-        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => api.post(`/wallets/${wallet.id}/inbox/accept-suggested`), "Sugestões aceitas")}>
-          Aceitar {safe} {safe === 1 ? "sugerida" : "sugeridas"}
-        </button>
+        <ConfirmButton className="btn" disabled={busy} label={`Aceitar ${safe} ${safe === 1 ? "sugerida" : "sugeridas"}`}
+          confirmLabel={`Confirmar: criar ${safe} ${safe === 1 ? "lançamento" : "lançamentos"}`}
+          onConfirm={() => void run(() => api.post(`/wallets/${wallet.id}/inbox/accept-suggested`), "Sugestões aceitas")} />
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {inbox.error ? (

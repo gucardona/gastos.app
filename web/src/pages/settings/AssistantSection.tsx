@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../../api/client";
 import { useAISettings } from "../../api/queries";
 import type { AISettings } from "../../api/types";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { ListGroup, ListRow } from "../../components/ListGroup";
 import { Segmented } from "../../components/Segmented";
 import { Switch } from "../../components/Switch";
@@ -92,7 +93,8 @@ export function AssistantSection() {
           <div className="list-row">
             <span className="lr-label">Chave da API</span> <span className="lr-value">•••• {data.keyHint}</span>
             <button type="button" className="chip" onClick={() => setReplacing(true)}>Trocar</button>
-            <button type="button" className="chip" disabled={keyAct.busy} onClick={() => void keyAct.run(async () => { await api.del("/me/ai/key"); await sync(); }, "Chave removida")}>Remover</button>
+            <ConfirmButton className="chip" confirmClassName="chip danger" disabled={keyAct.busy} label="Remover" confirmLabel="Confirmar remoção"
+              onConfirm={() => void keyAct.run(async () => { await api.del("/me/ai/key"); await sync(); }, "Chave removida")} />
           </div>
         )}
       </ListGroup>

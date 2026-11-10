@@ -57,10 +57,10 @@ describe("toast", () => {
     act(() => vi.advanceTimersByTime(10_000));
     expect(screen.queryByText("Lançamento salvo")).toBeTruthy();
     fireEvent.mouseLeave(toast);
-    fireEvent.focus(screen.getByRole("button", { name: "Fechar aviso" }));
+    fireEvent.focus(screen.getByRole("button", { name: "Dispensar aviso" }));
     act(() => vi.advanceTimersByTime(10_000));
     expect(screen.queryByText("Lançamento salvo")).toBeTruthy();
-    fireEvent.blur(screen.getByRole("button", { name: "Fechar aviso" }));
+    fireEvent.blur(screen.getByRole("button", { name: "Dispensar aviso" }));
     act(() => vi.advanceTimersByTime(4100));
     expect(screen.queryByText("Lançamento salvo")).toBeNull();
   });
@@ -68,7 +68,7 @@ describe("toast", () => {
   it("can be dismissed", () => {
     render(<ToastProvider><Trigger message="Lançamento salvo" /></ToastProvider>);
     fire("Lançamento salvo");
-    fireEvent.click(screen.getByRole("button", { name: "Fechar aviso" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dispensar aviso" }));
     expect(screen.queryByText("Lançamento salvo")).toBeNull();
   });
 
