@@ -47,11 +47,15 @@ Em Ajustes > Assistente há dois campos, **Limite diário (R$)** e **Limite mens
 - **Respostas canceladas ou com erro** contam só os tokens de entrada, porque os de saída só chegam ao fim da resposta; a estimativa pode ficar um pouco abaixo nesses casos.
 - **Sem cotação** (por exemplo, a AwesomeAPI fora do ar desde que o servidor subiu), os limites não valem até a cotação ser obtida; a tela avisa.
 - **Rede:** o servidor faz uma requisição por dia a `economia.awesomeapi.com.br` para obter a cotação. `GASTOS_FX_URL` só existe para testes.
-- **Banco novo:** esta versão usa o schema na versão 4 e exige um banco novo; veja o roteiro de deploy abaixo.
+- **Banco:** o `internal/db/schema.sql` é a base (versão 4); as mudanças depois dela são migrações aplicadas no lugar ao subir o servidor, com uma cópia de segurança antes (veja "Banco de dados" no README).
 
-## Roteiro de deploy (versão com assistente)
+## Mudanças de schema depois da versão 4
 
-Esta versão usa o schema na versão 4 (`internal/db/schema.sql`, a única definição; não há migrações) e um banco **novo**. O banco atual (versão 3) **não é migrado**: ele é movido para fora do caminho e cada pessoa recria a própria conta. Faça só com o "sim" de quem usa o app, porque os dados atuais deixam de aparecer.
+O deploy é o normal (merge na `master`): ao subir, o servidor guarda uma cópia ao lado do banco (`gastos.db.pre-v4.bak`) e aplica as migrações que faltam, sem recriar o banco nem perder dados. As migrações só adicionam coisas, mas a versão anterior do programa recusa um banco marcado como versão 5. Para voltar, com o serviço parado (`systemctl stop gastos@production`): baixe a marca com `sqlite3 /var/lib/gastos/production/gastos.db 'PRAGMA user_version=4'` (ou restaure a cópia `.pre-v4.bak` no lugar do banco, apagando antes os arquivos `-wal` e `-shm`) e inicie a versão anterior.
+
+## Roteiro de deploy (versão com assistente, histórico)
+
+Este roteiro valeu só para a versão que introduziu o schema na versão 4 (a base do `internal/db/schema.sql`) e criou um banco **novo**. O banco da época (versão 3) **não foi migrado**: ele foi movido para fora do caminho e cada pessoa recriou a própria conta.
 
 **Os passos 1 a 4 acontecem ANTES de fazer o merge do PR**, porque o merge na `master` já é o deploy de produção. Se o merge vier antes, a nova versão se recusa a abrir o banco antigo ("database is at schema version 3, this binary expects 4"), o `/healthz` falha e o deploy volta sozinho para a versão anterior. Nada se perde, mas refaça a ordem certa.
 
