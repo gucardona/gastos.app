@@ -13,9 +13,9 @@ button { cursor: pointer; }
 .main { padding: 20px 16px calc(112px + env(safe-area-inset-bottom)); max-width: 980px; margin: 0 auto; }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .wallet { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 15px; }
-.wallet select { appearance: none; background: none; border: 0; font-weight: 600; padding: 4px 0; cursor: pointer; max-width: 40vw; text-overflow: ellipsis; }
-.wallet select option { color: initial; }
-.wallet::after { content: "▾"; color: var(--muted); font-size: 12px; pointer-events: none; margin-left: -4px; }
+.wallet-btn { display: flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; max-width: 40vw; }
+.wallet-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wallet-caret { color: var(--muted); font-size: 12px; }
 .wallet small { color: var(--muted); font-weight: 400; }
 .avatar { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); display: grid; place-items: center; font-weight: 600; color: var(--ink); text-decoration: none; }
 .month { display: flex; align-items: center; gap: 4px; margin: 0 0 4px; color: var(--muted); }

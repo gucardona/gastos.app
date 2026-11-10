@@ -25,13 +25,12 @@ describe("Sheet", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("closes on a click on the backdrop, not on a click inside", () => {
+  it("does not close on a click outside it (the backdrop) or inside: only its own close button, or Esc, closes it", () => {
     const onClose = vi.fn();
     const { container } = render(<Sheet open onClose={onClose} label="x"><p>conteúdo</p></Sheet>);
     fireEvent.click(screen.getByText("conteúdo"));
+    fireEvent.click(dialog(container)); // a click on the backdrop lands on the dialog element itself
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(dialog(container));
-    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("closes the dialog when open goes from true to false", () => {

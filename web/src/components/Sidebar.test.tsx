@@ -64,9 +64,10 @@ describe("Sidebar", () => {
   it("shows the active wallet and who it is shared with, and switches wallet", async () => {
     const ctx = appCtx({ wallets: [wallet, { ...wallet, id: 7, name: "Viagem" }] });
     renderApp(<Sidebar pending={0} onAdd={vi.fn()} />, ctx);
-    expect((screen.getByLabelText("Carteira") as HTMLSelectElement).value).toBe("1");
+    expect(screen.getByRole("button", { name: /Carteira/ }).textContent).toContain("Casa");
     expect(screen.getByText("com Bia")).toBeTruthy();
-    await userEvent.selectOptions(screen.getByLabelText("Carteira"), "7");
+    await userEvent.click(screen.getByRole("button", { name: /Carteira/ }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Viagem/ }));
     expect(ctx.setWalletId).toHaveBeenCalledWith(7);
   });
 });
