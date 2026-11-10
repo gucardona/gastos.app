@@ -99,7 +99,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
               <Settle summary={summary} />
               <section className="sec">
                 <h2>Recentes</h2>
-                <TransactionList items={txs.slice(0, 6)} />
+                <TransactionList items={txs.slice(0, 6)} headingLevel={3} />
                 {txs.length > 6 && <p style={{ marginTop: 14 }}><Link className="link" to={`/lancamentos?m=${month}`}>Ver todos os lançamentos</Link></p>}
               </section>
             </div>
@@ -138,6 +138,9 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
           return <span key={d} className={isToday ? "today" : ""}>{[1, 5, 10, 15, 20, 25, 30].includes(d) || isToday ? d : ""}</span>;
         })}
       </div>
+      <p className="visually-hidden">
+        {spent.map((v, i) => (v > 0 && i < todayDay ? `Dia ${i + 1}: ${formatBRL(v)}.` : "")).filter(Boolean).join(" ") || "Sem gastos até agora."}
+      </p>
       <p className="strip-note">
         {summary.dailyAverageCents > 0 && <>Média de <b className="num">{formatBRL(summary.dailyAverageCents)}</b> por dia. </>}
         {summary.previous.expenseCents > 0 && <>O mês anterior fechou em <span className="num">{formatBRL(summary.previous.expenseCents)}</span>.</>}

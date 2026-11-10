@@ -121,6 +121,23 @@ describe("Overview: month ruler", () => {
     if (todayDay > 1) expect(all[0].className).toBe("zero"); // previous day with no spending
   });
 
+  it("says in text, for screen readers, what each day with spending cost", async () => {
+    serve(summary(), [tx({ amountCents: 20000, date: today() })]);
+    renderApp(<Overview />);
+    await screen.findByText("4.376");
+    const ruler = screen.getByRole("region", { name: "Gastos por dia" });
+    const text = ruler.querySelector(".visually-hidden")?.textContent ?? "";
+    expect(text).toMatch(new RegExp(`Dia ${todayDay}: R\\$\\s200,00`));
+    expect(text).not.toMatch(/sem gastos/);
+  });
+
+  it("the recent lines are grouped under day headings one level below 'Recentes'", async () => {
+    serve(summary(), [tx({ amountCents: 20000, date: today() })]);
+    renderApp(<Overview />);
+    await screen.findByText("4.376");
+    expect(screen.getByRole("heading", { level: 3, name: /^Hoje,/ })).toBeTruthy();
+  });
+
   it("height is proportional (square root) to the month's largest expense", async () => {
     if (todayDay < 2) return; // needs two days in the month to compare
     const yesterday = today().slice(0, 8) + String(todayDay - 1).padStart(2, "0");

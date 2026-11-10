@@ -113,7 +113,8 @@ function Conversation() {
       {messages.length > 0 && (
         <div className="chat-thread" role="log" aria-label="Conversa">
           {messages.filter((m) => m.content || m.charts.length).map((m) => (
-            <div key={m.id} className={`msg msg-${m.role}`}>
+            // the answer being streamed is busy until done, so the log announces it once instead of every piece
+            <div key={m.id} className={`msg msg-${m.role}`} aria-busy={(streaming && m.id === live[1]?.id) || undefined}>
               {m.content && <p>{m.content}</p>}
               {m.charts.map((c, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: charts only grow at the end and have no id
