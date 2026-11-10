@@ -9,9 +9,13 @@ Controle financeiro pessoal e compartilhado. Um único binário Go serve a API e
 - Carteiras com membros e papéis (owner, editor, reader)
 - Gastos e entradas com categorias e formas de pagamento editáveis
 - Divisão de gastos entre membros (em basis points) e acertos
-- Recorrências mensais de gastos, entradas e acertos
+- Recorrências mensais de gastos, entradas e acertos (a divisão por porcentagem também vale para elas)
 - Orçamento mensal por categoria e resumo do mês
 - Atualização em tempo real entre membros (SSE)
+
+### Divisão padrão por pessoa
+
+Em Ajustes > Pessoas, quem é dono da carteira pode definir a "Parte padrão (%)" de cada membro que entra na divisão por padrão (por exemplo 60% e 40%). Quando todos que dividem por padrão têm uma porcentagem, um gasto novo é dividido por elas, ajustadas para somar 100%; se alguém ficar em branco, a divisão é igual. No lançamento (e em cada recorrência) o botão "Ajustar" permite escolher outras porcentagens só para aquele gasto, como 50% para uma pessoa e 25% para cada uma das outras duas.
 
 ## Stack
 

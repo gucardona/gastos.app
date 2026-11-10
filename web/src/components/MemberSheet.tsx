@@ -62,7 +62,7 @@ function MemberForm({ member, onClose }: { member: Member; onClose: () => void }
           />
           {splits && (
             <div className="list-row">
-              <label htmlFor="member-share" className="lr-label">Parte padrão (%)</label>
+              <label htmlFor="member-share" className="lr-label" style={{ whiteSpace: "nowrap" }}>Parte padrão (%)</label>
               <input id="member-share" className="desc-input" inputMode="decimal" placeholder="igual" aria-label={`Parte padrão de ${member.name} (%)`} value={share} onChange={(e) => setShare(e.target.value)} />
               {typedBp !== savedBp && <button type="button" className="chip" disabled={busy} onClick={() => void saveShare()}>Salvar</button>}
             </div>
