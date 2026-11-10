@@ -89,3 +89,45 @@ func TestWalletCRUD(t *testing.T) {
 		t.Fatalf("%d wallets after deleting, want 0", len(list))
 	}
 }
+
+func TestRemovingAMemberNeedsTheirRecurrencesAndBankAccountsChangedFirst(t *testing.T) {
+	app := newTestApp(t)
+	ana := app.register("Ana", "ana@example.com")
+	bia := app.register("Bia", "bia@example.com")
+	shareWallet(ana, bia, "editor")
+	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
+	start := monthsAgoFirst(t, app, 0)
+	cat := firstCategory(t, ana, "expense")
+	remove := func(want int) string {
+		t.Helper()
+		var res struct {
+			Error apiError `json:"error"`
+		}
+		ana.do("DELETE", ana.wpath("/members/%d", bia.user.ID), nil, want, &res)
+		return res.Error.Message
+	}
+
+	cases := []map[string]any{
+		{"kind": "expense", "amountCents": 100, "categoryId": cat, "dayOfMonth": 1, "startDate": start, "paidByUserId": bia.user.ID},
+		{"kind": "expense", "amountCents": 100, "categoryId": cat, "dayOfMonth": 1, "startDate": start,
+			"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 5000}, {"userId": bia.user.ID, "shareBp": 5000}}},
+		{"kind": "settlement", "amountCents": 100, "dayOfMonth": 1, "startDate": start, "paidByUserId": ana.user.ID, "toUserId": bia.user.ID},
+	}
+	for i, body := range cases {
+		var rec recurrenceDTO
+		ana.do("POST", ana.wpath("/recurrences"), body, 201, &rec)
+		if msg := remove(400); msg != "Antes, edite ou exclua as recorrências que envolvem essa pessoa" {
+			t.Errorf("case %d: message %q", i, msg)
+		}
+		body["enabled"] = false // a paused recurrence generates nothing, so it does not block
+		ana.do("PUT", ana.wpath("/recurrences/%d", rec.ID), body, 200, nil)
+	}
+
+	var acc bankAccountDTO
+	ana.do("POST", ana.wpath("/bank-accounts"), map[string]any{"name": "Conta da Bia", "paidByUserId": bia.user.ID}, 201, &acc)
+	if msg := remove(400); msg == "" {
+		t.Error("removal allowed while a bank account names her as payer")
+	}
+	ana.do("DELETE", ana.wpath("/bank-accounts/%d", acc.ID), nil, 204, nil)
+	ana.do("DELETE", ana.wpath("/members/%d", bia.user.ID), nil, 204, nil)
+}

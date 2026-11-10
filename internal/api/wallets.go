@@ -427,6 +427,23 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) error {
 	if cur.Role == "owner" {
 		return errBadRequest("O owner não pode ser removido nem sair da carteira")
 	}
+	// The materializer and imports would keep creating entries in the name of someone no longer in the wallet.
+	var inRecurrence, inBankAccount bool
+	if err := s.db.QueryRowContext(r.Context(), `
+		SELECT EXISTS(SELECT 1 FROM recurrences rc
+		              WHERE rc.wallet_id = ?1 AND rc.enabled = 1 AND (rc.end_date IS NULL OR rc.end_date >= ?3)
+		                AND (rc.paid_by_user_id = ?2 OR rc.to_user_id = ?2
+		                     OR EXISTS(SELECT 1 FROM recurrence_splits rs WHERE rs.recurrence_id = rc.id AND rs.user_id = ?2))),
+		       EXISTS(SELECT 1 FROM bank_accounts WHERE wallet_id = ?1 AND paid_by_user_id = ?2)`,
+		walletID, target, s.now().In(s.cfg.Location).Format(dateLayout)).Scan(&inRecurrence, &inBankAccount); err != nil {
+		return err
+	}
+	if inRecurrence {
+		return errBadRequest("Antes, edite ou exclua as recorrências que envolvem essa pessoa")
+	}
+	if inBankAccount {
+		return errBadRequest("Antes, edite ou exclua as contas bancárias que usam essa pessoa como pagadora")
+	}
 	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM wallet_members WHERE wallet_id = ? AND user_id = ?`,
 		walletID, target); err != nil {
 		return err
