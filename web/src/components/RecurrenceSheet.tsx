@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import type { Recurrence } from "../api/types";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
-import { amountProblem, centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents, typedAmount } from "../lib/money";
 import { percentsFromSplits } from "../lib/splits";
 import { ListGroup } from "./ListGroup";
 import { Sheet } from "./Sheet";
@@ -69,7 +69,7 @@ function RecurrenceForm({ r, onClose }: { r: Recurrence; onClose: () => void }) 
       <ListGroup>
         <div className="list-row">
           <label htmlFor="rec-amount" className="lr-label">Valor</label>
-          <input id="rec-amount" className="desc-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input id="rec-amount" className="desc-input" inputMode="numeric" value={amount} onChange={(e) => setAmount(typedAmount(e.target.value))} />
         </div>
         <div className="list-row">
           <label htmlFor="rec-desc" className="lr-label">Descrição</label>

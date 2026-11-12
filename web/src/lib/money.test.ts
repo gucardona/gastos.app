@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amountProblem, centsToInput, formatBRL, parseCents, splitBRL } from "./money";
+import { amountProblem, centsToInput, formatBRL, parseCents, splitBRL, typedAmount } from "./money";
 
 describe("parseCents", () => {
   it.each([
@@ -39,7 +39,7 @@ describe("centsToInput", () => {
   it("writes cents the way they are typed", () => {
     expect(centsToInput(12990)).toBe("129,90");
     expect(centsToInput(5)).toBe("0,05");
-    expect(centsToInput(100000)).toBe("1000,00");
+    expect(centsToInput(100000)).toBe("1.000,00");
   });
 });
 
@@ -56,5 +56,43 @@ describe("amountProblem", () => {
     expect(amountProblem("")).toBe("Informe um valor maior que zero.");
     expect(amountProblem("0,00")).toBe("Informe um valor maior que zero.");
     expect(amountProblem("abc")).toBe("Informe um valor maior que zero.");
+  });
+});
+
+describe("typedAmount: digits fill from the cents, like a card machine", () => {
+  it("each digit pushes the others to the left of the comma", () => {
+    expect(typedAmount("5")).toBe("0,05");
+    expect(typedAmount("58")).toBe("0,58");
+    expect(typedAmount("587")).toBe("5,87");
+    expect(typedAmount("58700")).toBe("587,00");
+    expect(typedAmount("123456")).toBe("1.234,56");
+  });
+
+  it("works on what the field holds after a keystroke: the old mask plus the new digit, or minus one", () => {
+    expect(typedAmount("5,877")).toBe("58,77"); // typed 7 after "5,87"
+    expect(typedAmount("5,8")).toBe("0,58"); // backspace on "5,87"
+    expect(typedAmount("1.234,567")).toBe("12.345,67");
+  });
+
+  it("empty, only zeros or no digits gives an empty field", () => {
+    expect(typedAmount("")).toBe("");
+    expect(typedAmount("0")).toBe("");
+    expect(typedAmount("0,0")).toBe("");
+    expect(typedAmount("R$ ")).toBe("");
+  });
+
+  it("ignores anything that is not a digit and caps at 12 digits (R$ 9.999.999.999,99)", () => {
+    expect(typedAmount("R$ 12a3")).toBe("1,23");
+    expect(typedAmount("1234567890123")).toBe(typedAmount("123456789012")); // the 13th digit is ignored
+    expect(typedAmount("123456789012")).toBe("1.234.567.890,12");
+  });
+
+  it("what it produces always parses back to the same cents", () => {
+    for (const d of ["5", "587", "58700", "123456", "100000000000"]) expect(parseCents(typedAmount(d))).toBe(Number(d));
+  });
+
+  it("an amount already saved shows the same way it would be typed", () => {
+    expect(centsToInput(587)).toBe("5,87");
+    expect(centsToInput(123456)).toBe("1.234,56");
   });
 });

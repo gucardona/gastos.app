@@ -29,7 +29,7 @@ describe("Budgets screen", () => {
     renderApp(<BudgetsSection />);
     await user.click(await screen.findByRole("button", { name: /Mercado/ }));
     const input = screen.getByLabelText("Limite mensal de Mercado") as HTMLInputElement;
-    expect(input.value).toBe("1500,00");
+    expect(input.value).toBe("1.500,00");
     await user.clear(input);
     await user.type(input, "1.800,50");
     await user.click(screen.getByRole("button", { name: "Definir" }));

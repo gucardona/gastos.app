@@ -5,7 +5,7 @@ import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
 import { useUndo } from "../hooks/useAction";
 import { dayLabel, today, yesterday } from "../lib/dates";
-import { amountProblem, centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents, typedAmount } from "../lib/money";
 import { percentsFromSplits } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
 import { CategoryGrid, DatePicker, OptionList, PickerView } from "./pickers";
@@ -165,7 +165,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       <div className="amount">
         <span className="cur">R$</span>
         <input
-          ref={amountRef} data-autofocus inputMode="decimal" enterKeyHint="done" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(e.target.value)} {...invalid("amountCents")}
+          ref={amountRef} data-autofocus inputMode="numeric" enterKeyHint="done" placeholder="0,00" aria-label="Valor" value={amount} onChange={(e) => setAmount(typedAmount(e.target.value))} {...invalid("amountCents")}
           // grows with the amount; where CSS field-sizing is missing, a width in ch from the length of the text
           style={globalThis.CSS?.supports?.("field-sizing", "content") ? undefined : { width: `${Math.max(amount.length, 4) + 0.5}ch` }}
         />

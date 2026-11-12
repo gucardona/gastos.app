@@ -4,7 +4,7 @@ import type { Settlement, Transfer } from "../api/types";
 import { firstName, useApp } from "../context";
 import { useAction, useUndo } from "../hooks/useAction";
 import { today } from "../lib/dates";
-import { amountProblem, centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents, typedAmount } from "../lib/money";
 import { ListGroup, ListRow } from "./ListGroup";
 import { OptionList, PickerView } from "./pickers";
 import { Sheet } from "./Sheet";
@@ -95,7 +95,7 @@ function SettlementForm({ settlement, draft, onClose }: { settlement?: Settlemen
         <ListRow id="row-to" label="Quem recebeu" value={name(to)} onClick={() => choose("to")} chevron />
         <div className="list-row">
           <label htmlFor="st-amount" className="lr-label">Valor</label>
-          <input id="st-amount" className="desc-input" inputMode="decimal" aria-label="Valor do acerto" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input id="st-amount" className="desc-input" inputMode="numeric" aria-label="Valor do acerto" value={amount} onChange={(e) => setAmount(typedAmount(e.target.value))} />
         </div>
         <div className="list-row">
           <label htmlFor="st-date" className="lr-label">Data</label>
