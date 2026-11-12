@@ -148,6 +148,12 @@ func (m *Materializer) insert(ctx context.Context, t template, o Occurrence) (bo
 	}
 	defer tx.Rollback()
 
+	var skipped bool // a person deleted this occurrence: it stays deleted
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM recurrence_skips WHERE recurrence_id = ? AND occurrence = ?)`,
+		t.id, o.Month).Scan(&skipped); err != nil || skipped {
+		return false, err
+	}
+
 	if t.kind == "settlement" {
 		var id int64
 		err := tx.QueryRowContext(ctx, `

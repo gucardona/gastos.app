@@ -527,11 +527,11 @@ describe("AddSheet: toasts", () => {
     await waitFor(() => expect(toast).toHaveBeenLastCalledWith("categoria arquivada"));
   });
 
-  it("a transaction made by a recurrence has no undo (the recurrence would make it again)", async () => {
+  it("a transaction made by a recurrence can be undone too: the server no longer makes a deleted occurrence again", async () => {
     mockFetch({ status: 204 });
     const { user, toast } = openWithToast({ tx: tx({ recurrenceId: 3, source: "recurring" }) });
     await user.click(screen.getByRole("button", { name: "Excluir lançamento" }));
     await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento excluído", undefined));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento excluído", expect.objectContaining({ action: expect.objectContaining({ label: "Desfazer" }) })));
   });
 });

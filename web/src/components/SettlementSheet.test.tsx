@@ -141,11 +141,11 @@ describe("SettlementSheet: toasts", () => {
     expect(bodyAt(fetch, 1)).toEqual({ fromUserId: 2, toUserId: 1, amountCents: 5000, date: "2026-09-20", note: "Pix do aluguel" });
   });
 
-  it("a settlement made by a recurrence has no undo", async () => {
+  it("a settlement made by a recurrence can be undone too", async () => {
     serve(204);
     const { user, toast } = openWithToast({ ...past, recurrenceId: 4 });
     await user.click(screen.getByRole("button", { name: "Excluir acerto" }));
     await user.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith("Acerto excluído", undefined));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Acerto excluído", expect.objectContaining({ action: expect.objectContaining({ label: "Desfazer" }) })));
   });
 });
