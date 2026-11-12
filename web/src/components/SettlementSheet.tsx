@@ -59,8 +59,8 @@ function SettlementForm({ settlement, draft, onClose }: { settlement?: Settlemen
   async function remove(s: Settlement) {
     if (!(await run(() => api.del(`${path}/${s.id}`)))) return;
     const again = { fromUserId: s.fromUserId, toUserId: s.toUserId, amountCents: s.amountCents, date: s.date, note: s.note };
-    // made by a recurrence: the recurrence makes it again, so a copy would count it twice
-    toast("Acerto excluído", s.recurrenceId === null ? { action: undo(() => api.post(path, again)) } : undefined);
+    // the copy is a plain settlement: a deleted occurrence of a recurrence is never made again by the server
+    toast("Acerto excluído", { action: undo(() => api.post(path, again)) });
     onClose();
   }
 

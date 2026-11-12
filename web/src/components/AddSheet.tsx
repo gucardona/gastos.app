@@ -105,8 +105,8 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       refresh(wallet.id);
       const { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId } = tx;
       const again = { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId, ...(tx.splits.length ? { splits: tx.splits.map((s) => ({ userId: s.userId, shareBp: s.shareBp })) } : {}) };
-      // made by a recurrence: a copy would sit next to the occurrence the recurrence makes again, so no undo
-      toast("Lançamento excluído", tx.recurrenceId === null ? { action: undo(() => api.post(`/wallets/${wallet.id}/transactions`, again)) } : undefined);
+      // the copy is a plain transaction: a deleted occurrence of a recurrence is never made again by the server
+      toast("Lançamento excluído", { action: undo(() => api.post(`/wallets/${wallet.id}/transactions`, again)) });
       onClose();
     } catch (e) {
       setGeneral(e instanceof ApiError ? e.message : "Sem conexão. Tente de novo.");

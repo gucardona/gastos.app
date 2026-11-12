@@ -119,8 +119,8 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v, col int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != latestVersion() || v != 5 {
-		t.Errorf("user_version = %d, want latest %d (5)", v, latestVersion())
+	if v != latestVersion() || v != 6 {
+		t.Errorf("user_version = %d, want latest %d (6)", v, latestVersion())
 	}
 	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&col)
 	if col != 1 {
@@ -269,8 +269,8 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 	defer d.Close()
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 5 {
-		t.Fatalf("user_version = %d, want 5", v)
+	if v != 6 {
+		t.Fatalf("user_version = %d, want 6", v)
 	}
 	for q, want := range map[string]int{
 		`SELECT COUNT(*) FROM users`:                                                               2,
@@ -278,8 +278,9 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 		`SELECT COUNT(*) FROM wallet_members WHERE default_share_bp IS NULL`:                       2,
 		`SELECT COUNT(*) FROM ai_settings WHERE daily_limit_cents = 500 AND api_key_enc = x'0102'`: 1,
 		`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`:                                  1,
-		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:                              1,
-		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`:                    10000,
+		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('recurrence_skips', 'transactions_remember_deleted_occurrence', 'settlements_remember_deleted_occurrence')`: 3,
+		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:           1,
+		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`: 10000,
 	} {
 		var n int
 		if err := d.QueryRow(q).Scan(&n); err != nil || n != want {
@@ -412,7 +413,9 @@ func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustExec(t, raw, `ALTER TABLE wallet_members DROP COLUMN default_share_bp; PRAGMA user_version=4;`)
+	// undo 0006 and then 0005, newest first, as docs/assistente.md says
+	mustExec(t, raw, `DROP TRIGGER transactions_remember_deleted_occurrence; DROP TRIGGER settlements_remember_deleted_occurrence;
+		DROP TABLE recurrence_skips; ALTER TABLE wallet_members DROP COLUMN default_share_bp; PRAGMA user_version=4;`)
 	raw.Close()
 	d, err = Open(path)
 	if err != nil {

@@ -47,8 +47,11 @@ const baseVersion = 4
 //go:embed migrations/0005_member_share.sql
 var migration0005 string
 
+//go:embed migrations/0006_recurrence_skips.sql
+var migration0006 string
+
 // migrations[i] takes the database from version baseVersion+i to baseVersion+i+1. Only append to it.
-var migrations = []string{migration0005}
+var migrations = []string{migration0005, migration0006}
 
 func latestVersion() int { return baseVersion + len(migrations) }
 
