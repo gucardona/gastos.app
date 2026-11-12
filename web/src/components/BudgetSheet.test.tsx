@@ -26,7 +26,7 @@ describe("BudgetSheet", () => {
   it("starts from the current limit, and saves a new one in cents", async () => {
     const fetch = serve();
     const { user, onClose } = open(mercado, 150000);
-    expect(field().value).toBe("1500,00");
+    expect(field().value).toBe("1.500,00");
     await user.clear(field());
     await user.type(field(), "1.800,50");
     await user.click(screen.getByRole("button", { name: "Definir" }));

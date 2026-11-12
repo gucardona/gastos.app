@@ -28,6 +28,32 @@ async function pickCategory(user: User, name: RegExp) {
   await user.click(screen.getByRole("button", { name }));
 }
 
+describe("AddSheet: the amount fills from the cents", () => {
+  it("typing 587 shows 5,87 and saves 587 cents; typing 58700 saves R$ 587,00", async () => {
+    const fetch = mockFetch({ status: 201, body: tx() });
+    const { user } = open();
+    const amount = screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement;
+    expect(amount.inputMode).toBe("numeric");
+    await user.type(amount, "587");
+    expect(amount.value).toBe("5,87");
+    await user.clear(amount);
+    await user.type(amount, "58700");
+    expect(amount.value).toBe("587,00");
+    await pickCategory(user, /Restaurante/);
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(bodyOf(fetch)).toMatchObject({ amountCents: 58700 });
+  });
+
+  it("backspace takes the last digit off", async () => {
+    mockFetch();
+    const { user } = open();
+    const amount = screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement;
+    await user.type(amount, "587{Backspace}");
+    expect(amount.value).toBe("0,58");
+  });
+});
+
 describe("AddSheet: new transaction", () => {
   it("does not submit and shows what is missing when the form is empty", async () => {
     const fetch = mockFetch();
@@ -38,16 +64,18 @@ describe("AddSheet: new transaction", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("an amount with more than 2 decimals says so, and the field points at its error", async () => {
+  it("an empty amount points the field at its error (typing can never give more than 2 decimals)", async () => {
     const fetch = mockFetch();
     const { user } = open();
-    const amount = screen.getByRole("textbox", { name: "Valor" });
+    const amount = screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement;
     expect(amount.getAttribute("aria-invalid")).toBeNull();
     await user.type(amount, "12,345");
+    expect(amount.value).toBe("123,45");
+    await user.clear(amount);
     await user.click(save());
-    expect(await screen.findByText("Use até 2 casas decimais.")).toBeTruthy();
+    expect(await screen.findByText("Informe um valor maior que zero.")).toBeTruthy();
     expect(amount.getAttribute("aria-invalid")).toBe("true");
-    expect(document.getElementById(amount.getAttribute("aria-describedby")!)?.textContent).toBe("Use até 2 casas decimais.");
+    expect(document.getElementById(amount.getAttribute("aria-describedby")!)?.textContent).toBe("Informe um valor maior que zero.");
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -113,7 +141,7 @@ describe("AddSheet: new transaction", () => {
     await user.click(row("Categoria"));
     expect(screen.queryByRole("button", { name: /Mercado/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Voltar" }));
-    await fill(user, "8500", "Salário de outubro");
+    await fill(user, "850000", "Salário de outubro");
     await user.click(save());
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(bodyOf(fetch)).toMatchObject({ kind: "income", amountCents: 850000, categoryId: 3 });
@@ -181,7 +209,8 @@ describe("AddSheet: amount formats", () => {
   it.each([
     ["48,90", 4890],
     ["1.234,56", 123456],
-    ["10", 1000],
+    ["1000", 1000],
+    ["10", 10],
   ])("%s is sent as %i cents", async (typed, cents) => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open();
@@ -234,10 +263,10 @@ describe("AddSheet: pickers", () => {
 
   it("Voltar returns to the form keeping what was typed, with the focus on the row that opened the picker", async () => {
     const { user } = open();
-    await fill(user, "12", "Café");
+    await fill(user, "1200", "Café");
     await user.click(row("Categoria"));
     await user.click(screen.getByRole("button", { name: "Voltar" }));
-    expect((screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement).value).toBe("12");
+    expect((screen.getByRole("textbox", { name: "Valor" }) as HTMLInputElement).value).toBe("12,00");
     expect((screen.getByRole("textbox", { name: "Descrição" }) as HTMLInputElement).value).toBe("Café");
     expect(document.activeElement).toBe(row("Categoria"));
   });

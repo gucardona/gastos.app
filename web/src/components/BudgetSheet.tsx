@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import type { Category } from "../api/types";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
-import { amountProblem, centsToInput, parseCents } from "../lib/money";
+import { amountProblem, centsToInput, parseCents, typedAmount } from "../lib/money";
 import { Sheet } from "./Sheet";
 
 /** The monthly limit of one expense category. `current` is the limit in cents, when there is one. Closed while `category` is null. */
@@ -38,7 +38,7 @@ function BudgetForm({ category, current, onClose }: { category: Category; curren
       </div>
       <div className="field-row">
         <label htmlFor="budget-limit" className="lr-label">Limite mensal, R$</label>
-        <input id="budget-limit" className="desc-input" inputMode="decimal" placeholder="sem limite" aria-label={`Limite mensal de ${category.name}`} value={value} onChange={(e) => { setValue(e.target.value); setProblem(""); }} />
+        <input id="budget-limit" className="desc-input" inputMode="numeric" placeholder="sem limite" aria-label={`Limite mensal de ${category.name}`} value={value} onChange={(e) => { setValue(typedAmount(e.target.value)); setProblem(""); }} />
       </div>
       {(problem || error) && <p className="error" role="alert">{problem || error}</p>}
       <div className="actions">
