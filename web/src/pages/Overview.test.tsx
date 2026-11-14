@@ -13,7 +13,7 @@ const summary = (over: Partial<Summary> = {}): Summary => ({
     { categoryId: 2, kind: "expense", cents: 64000, budgetCents: 50000 },
     { categoryId: 3, kind: "income", cents: 850000, budgetCents: null },
   ],
-  byEssentiality: {}, previous: { incomeCents: 0, expenseCents: 398000 }, ...over,
+  byEssentiality: {}, previous: { incomeCents: 0, expenseCents: 398000 }, upcomingIncomeCents: 0, upcomingExpenseCents: 0, upcoming: [], ...over,
 });
 
 function serve(s: Summary, txs: Transaction[]) {
@@ -408,5 +408,76 @@ describe("Overview: blocks", () => {
     renderApp(<Overview />, appCtx({ canEdit: false, wallet: { ...wallet, role: "reader" } }));
     const row = await screen.findByRole("button", { name: /Padaria/ });
     expect((row as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("Overview: what is still to come", () => {
+  const next = addMonths(today().slice(0, 7), 1);
+  const salary = { recurrenceId: 7, date: `${next}-15`, kind: "income" as const, amountCents: 500000, description: "Salário", categoryId: 3, paymentMethodId: null };
+  const internet = { recurrenceId: 8, date: `${next}-28`, kind: "expense" as const, amountCents: 8990, description: "Internet", categoryId: 1, paymentMethodId: 2 };
+  const ahead = summary({ upcomingIncomeCents: 500000, upcomingExpenseCents: 8990, upcoming: [salary, internet] });
+
+  it("without anything upcoming, the cards carry no projection", async () => {
+    serve(summary(), [tx()]);
+    renderApp(<Overview />);
+    await screen.findByText("4.376");
+    expect(screen.queryByText(/a receber/)).toBeNull();
+    expect(screen.queryByText(/a pagar/)).toBeNull();
+    expect(screen.queryByText(/Previsto para o fim do mês/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Próximos" })).toBeNull();
+  });
+
+  it("adds what is to receive and to pay under each total, and the forecast under the balance", async () => {
+    serve(ahead, [tx()]);
+    renderApp(<Overview />);
+    await screen.findByText("4.376");
+    expect(screen.getByText(/a receber/).textContent).toMatch(/^\+ R\$\s5\.000,00 a receber$/);
+    expect(screen.getByText(/a pagar/, { selector: ".ahead" }).textContent).toMatch(/^\+ R\$\s89,90 a pagar$/);
+    const forecast = screen.getByText(/Previsto para o fim do mês/);
+    expect(forecast.textContent).toMatch(/R\$\s9\.286,70/); // 4.376,60 + 5.000,00 − 89,90
+    expect(forecast.querySelector(".negative")).toBeNull();
+  });
+
+  it("only the side that has something upcoming gets a line; a negative forecast is red", async () => {
+    serve(summary({ balanceCents: -100, upcomingExpenseCents: 8990, upcoming: [internet] }), [tx()]);
+    renderApp(<Overview />);
+    await screen.findByText(/a pagar/, { selector: ".ahead" });
+    expect(screen.queryByText(/a receber/)).toBeNull();
+    const value = screen.getByText(/Previsto para o fim do mês/).querySelector(".num")!;
+    expect(value.textContent).toMatch(/^-R\$\s90,90$/);
+    expect(value.className).toContain("negative");
+  });
+
+  it("a future month with only upcoming entries shows the cards and 'Próximos', not the empty state", async () => {
+    serve(summary({ month: next, incomeCents: 0, expenseCents: 0, balanceCents: 0, byCategory: [], upcomingIncomeCents: 500000, upcomingExpenseCents: 8990, upcoming: [salary, internet] }), []);
+    renderApp(<Overview />, appCtx({ month: next }));
+    expect(await screen.findByRole("heading", { name: "Próximos" })).toBeTruthy();
+    expect(screen.queryByText(/Nada lançado/)).toBeNull();
+    expect(screen.getByText(/a receber/)).toBeTruthy();
+    const rows = screen.getAllByText("previsto").map((tag) => tag.closest(".row")!);
+    expect(rows.map((r) => r.querySelector(".desc")!.textContent)).toEqual(["Salário", "Internet"]);
+    expect(rows[0].querySelector(".val")!.textContent).toMatch(/^\+R\$\s5\.000,00$/);
+    expect(rows[1].querySelector(".val")!.textContent).toMatch(/^−R\$\s89,90$/);
+    expect(screen.queryByRole("heading", { name: "Recentes" })).toBeNull(); // nothing realized yet
+  });
+
+  it("the ruler draws an outlined bar on the days with a projected expense and says the total", async () => {
+    serve(summary({ month: next, upcomingIncomeCents: 500000, upcomingExpenseCents: 8990, upcoming: [salary, internet] }), [tx({ date: `${next}-10` })]);
+    const { container } = renderApp(<Overview />, appCtx({ month: next }));
+    await screen.findByText("4.376");
+    const all = ticks(container) as HTMLElement[];
+    expect(all.filter((t) => t.classList.contains("projected"))).toEqual([all[27]]); // day 28; income is not drawn
+    expect(all[27].style.height).not.toBe("");
+    expect(all[27].getAttribute("title")).toMatch(/Dia 28: R\$\s89,90 previsto/);
+    const text = container.querySelector(".strip .visually-hidden")!.textContent!;
+    expect(text).toMatch(/Previsto: R\$\s89,90 a pagar/);
+  });
+
+  it("tapping an upcoming entry opens its recurrence for editing", async () => {
+    const rec = { id: 8, kind: "expense", amountCents: 8990, description: "Internet", categoryId: 1, paymentMethodId: 2, paidByUserId: 1, toUserId: null, dayOfMonth: 28, startDate: "2026-01-01", endDate: null, enabled: true, nextDate: null, splits: [] };
+    mockFetch((url) => ({ body: url.includes("/summary") ? summary({ upcoming: [internet], upcomingExpenseCents: 8990 }) : url.includes("/recurrences") ? [rec] : [tx()] }));
+    renderApp(<Overview />);
+    await userEvent.click(await screen.findByRole("button", { name: /Internet/ }));
+    expect(await screen.findByRole("dialog", { name: "Editar recorrência" })).toBeTruthy();
   });
 });

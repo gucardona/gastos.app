@@ -55,6 +55,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const methods = paymentMethods.filter((p) => !p.archived || p.id === tx?.paymentMethodId);
   const method = methods.find((p) => p.id === methodId) ?? (tx ? undefined : methods[0]);
 
+  const methodLabel = kind === "income" ? "Recebido por" : "Pago com";
   const splitting = wallet.splittingEnabled && kind === "expense" && members.length > 1;
   const nameOf = (id: number) => members.find((m) => m.userId === id)?.name.split(" ")[0] ?? "";
   const cents = parseCents(amount);
@@ -140,7 +141,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   }
   if (picker === "method") {
     return (
-      <PickerView title="Pago com" onBack={back}>
+      <PickerView title={methodLabel} onBack={back}>
         <OptionList options={methods.map((p) => ({ value: p.id, label: p.name }))} value={method?.id ?? null} onPick={(id) => { setMethodId(id); back(); }} />
       </PickerView>
     );
@@ -175,7 +176,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       <ListGroup>
         <ListRow id="row-category" label="Categoria" value={category ? `${category.icon} ${category.name}` : "Escolha"} onClick={() => choose("category")} chevron />
         <ListRow id="row-date" label="Quando" value={dateLabel} onClick={() => choose("date")} chevron />
-        {methods.length > 0 && <ListRow id="row-method" label="Pago com" value={method?.name ?? "Nenhuma"} onClick={() => choose("method")} chevron />}
+        {methods.length > 0 && <ListRow id="row-method" label={methodLabel} value={method?.name ?? "Nenhuma"} onClick={() => choose("method")} chevron />}
         <div className="list-row">
           <label htmlFor="desc" className="lr-label">Descrição</label>
           <input id="desc" className="desc-input" placeholder="opcional" enterKeyHint="done" value={description} onChange={(e) => setDescription(e.target.value)} {...invalid("description")} />

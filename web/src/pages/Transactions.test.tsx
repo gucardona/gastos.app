@@ -1,8 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { Transaction } from "../api/types";
-import { today } from "../lib/dates";
+import type { Transaction, Upcoming } from "../api/types";
+import { addMonths, today } from "../lib/dates";
 import { appCtx, mockFetch, renderApp, tx } from "../test/fixtures";
 import { Transactions } from "./Transactions";
 
@@ -12,7 +12,8 @@ const items: Transaction[] = [
   tx({ id: 3, kind: "income", categoryId: 3, description: "Salário", amountCents: 850000 }),
 ];
 
-const serve = (list: Transaction[] = items) => mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : list }));
+const noneAhead = { upcomingIncomeCents: 0, upcomingExpenseCents: 0, upcoming: [] };
+const serve = (list: Transaction[] = items) => mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? noneAhead : list }));
 const rows = () => screen.queryAllByRole("button", { name: /Padaria|Feira|Salário/ });
 
 describe("Transactions", () => {
@@ -150,6 +151,61 @@ describe("Transactions: new look", () => {
     const { container } = renderApp(<Transactions />);
     await screen.findByText("Padaria");
     expect(container.querySelector(".flows .in")?.textContent).toMatch(/Entrou.*8.500,00/);
+    expect(container.querySelector(".flows .out")?.textContent).toMatch(/Saiu/); // the expense total is red, like every expense
     expect(container.querySelectorAll(".flows span")).toHaveLength(2);
+  });
+});
+
+describe("Transactions: Próximos", () => {
+  const next = addMonths(today().slice(0, 7), 1);
+  const upcoming: Upcoming[] = [
+    { recurrenceId: 7, date: `${next}-15`, kind: "income", amountCents: 500000, description: "Salário", categoryId: 3, paymentMethodId: null },
+    { recurrenceId: 8, date: `${next}-28`, kind: "expense", amountCents: 8990, description: "Internet", categoryId: 2, paymentMethodId: 2 },
+  ];
+  const serveAhead = (list: Transaction[] = items) =>
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 500000, upcomingExpenseCents: 8990, upcoming } : list }));
+  const ahead = () => {
+    const h = screen.queryByRole("heading", { name: "Próximos" });
+    return h ? Array.from(h.parentElement!.querySelectorAll(".row .desc")).map((d) => d.textContent) : [];
+  };
+
+  it("lists the month's upcoming entries above the realized ones, marked 'previsto', and the totals show what is to come", async () => {
+    serveAhead();
+    renderApp(<Transactions />, appCtx({ month: next }));
+    expect(await screen.findByRole("heading", { name: "Próximos" })).toBeTruthy();
+    expect(ahead()).toEqual(["Salário", "Internet"]);
+    expect(screen.getAllByText("previsto")).toHaveLength(2);
+    const heading = screen.getByRole("heading", { name: "Próximos" });
+    expect(heading.compareDocumentPosition(screen.getByText("Padaria")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // the realized ones get their own title, so they do not read as part of Próximos; their days sit under it
+    const done = screen.getByRole("heading", { name: "Lançados", level: 2 });
+    expect(heading.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(done.parentElement!.querySelector("h3")).toBeTruthy();
+    expect(screen.getByText(/a receber/).textContent).toMatch(/^\+ R\$\s5\.000,00 a receber$/);
+    expect(screen.getByText(/a pagar/).textContent).toMatch(/^\+ R\$\s89,90 a pagar$/);
+  });
+
+  it("without anything to come there is no Lançados title: the list stands alone as before", async () => {
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 0, upcomingExpenseCents: 0, upcoming: [] } : items }));
+    renderApp(<Transactions />);
+    await screen.findByText("Padaria");
+    expect(screen.queryByRole("heading", { name: "Lançados" })).toBeNull();
+  });
+
+  it("follows the filters and the search", async () => {
+    serveAhead();
+    const user = userEvent.setup();
+    renderApp(<Transactions />, appCtx({ month: next }));
+    await screen.findByRole("heading", { name: "Próximos" });
+    await user.click(screen.getByRole("button", { name: "Gastos" }));
+    expect(ahead()).toEqual(["Internet"]);
+    await user.click(screen.getByRole("button", { name: "Entradas" }));
+    expect(ahead()).toEqual(["Salário"]);
+    await user.click(screen.getByRole("button", { name: "Tudo" }));
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "credito"); // the payment method
+    expect(ahead()).toEqual(["Internet"]);
+    await user.clear(screen.getByRole("searchbox", { name: "Buscar" }));
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "padaria");
+    expect(screen.queryByRole("heading", { name: "Próximos" })).toBeNull();
   });
 });

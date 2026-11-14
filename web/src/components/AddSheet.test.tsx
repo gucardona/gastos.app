@@ -291,6 +291,15 @@ describe("AddSheet: pickers", () => {
     expect(bodyOf(fetch, 1).date).toBe("2026-01-15");
   });
 
+  it("an income says Recebido por instead of Pago com, in the row and in its picker", async () => {
+    mockFetch();
+    const { user } = open();
+    await user.click(screen.getByRole("button", { name: "Entrada" }));
+    expect(screen.queryByText("Pago com")).toBeNull();
+    await user.click(row("Recebido por"));
+    expect(screen.getByRole("heading", { name: "Recebido por" })).toBeTruthy();
+  });
+
   it("Pago com: picks another payment method", async () => {
     const fetch = mockFetch({ status: 201, body: tx() });
     const { user } = open();

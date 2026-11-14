@@ -632,3 +632,45 @@ test("a person changes the provisional password and signs in with the new one", 
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByText("Saldo do mês")).toBeVisible();
 });
+
+test("recurring entries still to come show as 'a receber'/'a pagar' and in Próximos, this month and the next", async ({ page }) => {
+  await signUpAndEnter(page, "Rui");
+  // days relative to the real date: the income on the month's last day (later than today unless today is the last day)
+  const lastDayToday = await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const thisFirst = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    const nextFirst = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-01`;
+    const me = await j("/api/me");
+    const w = me.wallets[0].id;
+    const cats = await j(`/api/wallets/${w}/categories`);
+    const cat = (k: string) => cats.find((c: { kind: string }) => c.kind === k).id;
+    const isLast = now.getDate() === last;
+    await j(`/api/wallets/${w}/recurrences`, "POST", { kind: "income", amountCents: 500000, description: "Salário extra", categoryId: cat("income"), paymentMethodId: null, paidByUserId: me.user.id, dayOfMonth: 31, startDate: isLast ? nextFirst : thisFirst });
+    await j(`/api/wallets/${w}/recurrences`, "POST", { kind: "expense", amountCents: 8990, description: "Seguro", categoryId: cat("expense"), paymentMethodId: null, paidByUserId: me.user.id, dayOfMonth: 10, startDate: nextFirst });
+    return isLast;
+  });
+  await page.reload();
+  const upcoming = page.getByRole("heading", { name: "Próximos" }).locator("..");
+  if (!lastDayToday) {
+    await expect(page.getByText("+ R$ 5.000,00 a receber")).toBeVisible();
+    await expect(page.getByText(/Previsto para o fim do mês/)).toContainText("5.000,00");
+    await expect(upcoming.getByText("Salário extra")).toBeVisible();
+    await expect(page.getByText(/a pagar$/)).toHaveCount(0);
+  }
+
+  await page.getByRole("button", { name: "Próximo mês" }).click();
+  await expect(page.getByText("+ R$ 5.000,00 a receber")).toBeVisible();
+  await expect(page.getByText("+ R$ 89,90 a pagar")).toBeVisible();
+  await expect(page.getByText(/Nada lançado/)).toHaveCount(0);
+  await expect(upcoming.getByText("Salário extra")).toBeVisible();
+  await expect(upcoming.getByText("Seguro")).toBeVisible();
+  await expect(upcoming.getByText("previsto")).toHaveCount(2);
+
+  await page.getByRole("link", { name: /Lançamentos/ }).first().click();
+  await expect(upcoming.getByText("Seguro")).toBeVisible();
+  await expect(page.getByText("+ R$ 89,90 a pagar")).toBeVisible();
+});
