@@ -27,13 +27,26 @@ GASTOS_DB_PATH=/var/lib/gastos/production/gastos.db
 GASTOS_BACKUP_DIR=/var/lib/gastos/production/backups
 ```
 
-**Cadastro.** O site é público, então o cadastro é fechado por padrão: só a **primeira conta** é criada sem código; depois disso ninguém consegue se cadastrar. Para convidar outra pessoa (a Bia, por exemplo), acrescente uma linha ao arquivo, reinicie o serviço e passe o código a ela por onde preferir:
+**Cadastro.** O site é público, então o cadastro é fechado por padrão: só a **primeira conta** é criada sem código; depois disso ninguém consegue se cadastrar. Para convidar outra pessoa, gere um código no servidor e passe-o a ela por onde preferir.
 
-```
-GASTOS_INVITE_CODE=<um segredo de pelo menos 8 caracteres>
+**Uma vez só**, instale o script num lugar que só o root pode alterar (a cópia que vem com cada deploy pertence ao usuário de deploy; rodá-la com `sudo` daria root a quem tivesse a chave de deploy do CI):
+
+```bash
+sudo install -m 755 -o root -g root /opt/gastos/production/current/invite.sh /usr/local/sbin/gastos-invite
 ```
 
-Quando todo mundo já tiver conta, **remova a linha** e reinicie para fechar o cadastro de novo. Quem já tem conta não é afetado.
+Depois, para cada convite:
+
+```bash
+sudo gastos-invite       # vale 24h
+sudo gastos-invite 2h    # ou outra duração: 30m, 2h, 3d... (de 5m a 7d)
+```
+
+O script só lê a configuração do serviço e roda o programa da versão no ar como o usuário `gastos`, então a cópia instalada continua valendo nos próximos deploys; reinstale apenas se o próprio `scripts/invite.sh` mudar. Nunca rode com `sudo` a cópia de dentro de `/opt/gastos/production/`.
+
+Sai uma linha só, por exemplo `Código: K3J9-XQ2M-7PRT (vale até 15/11/2026 às 14:30, uso único)`. O código serve para **um** cadastro e expira no horário indicado; enquanto houver um código válido, a tela de entrada mostra o campo "Código de convite" (maiúsculas, minúsculas, espaços e traços tanto faz). Não é preciso reiniciar o serviço, e o código não fica guardado em lugar nenhum (o banco guarda só um hash). Códigos usados ou vencidos há mais de 7 dias são apagados sozinhos. A cópia instalada usa sempre o binário da versão no ar.
+
+`GASTOS_INVITE_CODE` não é mais necessário. Ele continua funcionando como alternativa (um código fixo, de pelo menos 8 caracteres, que vale para qualquer número de cadastros enquanto estiver no arquivo, e que exige reiniciar o serviço ao entrar ou sair); se usar, **remova a linha** e reinicie quando todo mundo tiver conta.
 
 **Assistente.** Para habilitar o chat de consulta, acrescente a chave mestra (gere com `openssl rand -base64 32`; o valor fica só no servidor). Sem ela o assistente fica indisponível e o resto funciona normalmente. Detalhes e cuidados em [Assistente de consulta](../assistente.md).
 

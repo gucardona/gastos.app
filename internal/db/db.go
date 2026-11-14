@@ -50,8 +50,11 @@ var migration0005 string
 //go:embed migrations/0006_recurrence_skips.sql
 var migration0006 string
 
+//go:embed migrations/0007_invite_codes.sql
+var migration0007 string
+
 // migrations[i] takes the database from version baseVersion+i to baseVersion+i+1. Only append to it.
-var migrations = []string{migration0005, migration0006}
+var migrations = []string{migration0005, migration0006, migration0007}
 
 func latestVersion() int { return baseVersion + len(migrations) }
 

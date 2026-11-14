@@ -14,19 +14,19 @@ func TestRegistrationMode(t *testing.T) {
 	tests := []struct {
 		name  string
 		users int
-		code  string
+		code  bool
 		want  registrationMode
 	}{
-		{"empty database is open, even with a code configured", 0, testInvite, modeOpen},
-		{"empty database with no code is open", 0, "", modeOpen},
-		{"users exist and a code is configured", 1, testInvite, modeCode},
-		{"users exist and there is no code", 1, "", modeClosed},
-		{"many users and a code", 40, testInvite, modeCode},
+		{"empty database is open, even with a code available", 0, true, modeOpen},
+		{"empty database with no code available is open", 0, false, modeOpen},
+		{"users exist and a code is available", 1, true, modeCode},
+		{"users exist and there is no code", 1, false, modeClosed},
+		{"many users and a code", 40, true, modeCode},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := modeFor(tc.users, tc.code); got != tc.want {
-				t.Errorf("modeFor(%d, %q) = %q, want %q", tc.users, tc.code, got, tc.want)
+				t.Errorf("modeFor(%d, %v) = %q, want %q", tc.users, tc.code, got, tc.want)
 			}
 		})
 	}

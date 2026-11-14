@@ -119,8 +119,8 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v, col int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != latestVersion() || v != 6 {
-		t.Errorf("user_version = %d, want latest %d (6)", v, latestVersion())
+	if v != latestVersion() || v != 7 {
+		t.Errorf("user_version = %d, want latest %d (7)", v, latestVersion())
 	}
 	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&col)
 	if col != 1 {
@@ -269,8 +269,8 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 	defer d.Close()
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 6 {
-		t.Fatalf("user_version = %d, want 6", v)
+	if v != 7 {
+		t.Fatalf("user_version = %d, want 7", v)
 	}
 	for q, want := range map[string]int{
 		`SELECT COUNT(*) FROM users`:                                                               2,
@@ -279,8 +279,9 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 		`SELECT COUNT(*) FROM ai_settings WHERE daily_limit_cents = 500 AND api_key_enc = x'0102'`: 1,
 		`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`:                                  1,
 		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('recurrence_skips', 'transactions_remember_deleted_occurrence', 'settlements_remember_deleted_occurrence')`: 3,
-		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:           1,
-		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`: 10000,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'invite_codes'`:                                                                            1,
+		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:                                                                                                  1,
+		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`:                                                                                        10000,
 	} {
 		var n int
 		if err := d.QueryRow(q).Scan(&n); err != nil || n != want {
@@ -413,7 +414,8 @@ func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// undo 0006 and then 0005, newest first, as docs/assistente.md says
+	// undo 0007, 0006 and then 0005, newest first, as docs/assistente.md says
+	mustExec(t, raw, `DROP TABLE invite_codes; PRAGMA user_version=6;`)
 	mustExec(t, raw, `DROP TRIGGER transactions_remember_deleted_occurrence; DROP TRIGGER settlements_remember_deleted_occurrence;
 		DROP TABLE recurrence_skips; ALTER TABLE wallet_members DROP COLUMN default_share_bp; PRAGMA user_version=4;`)
 	raw.Close()
@@ -422,10 +424,23 @@ func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
 		t.Fatalf("reopening after the rollback: %v", err)
 	}
 	defer d.Close()
-	var v, cols int
+	var v, cols, invites int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
 	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&cols)
-	if v != latestVersion() || cols != 1 {
-		t.Fatalf("version %d, column %d; want %d, 1", v, cols, latestVersion())
+	d.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'invite_codes'`).Scan(&invites)
+	if v != latestVersion() || cols != 1 || invites != 1 {
+		t.Fatalf("version %d, column %d, invite_codes %d; want %d, 1, 1", v, cols, invites, latestVersion())
+	}
+}
+
+func TestInviteCodeUserDeletedKeepsTheCode(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h')`)
+	mustExec(t, d, `INSERT INTO invite_codes (code_hash, expires_at, used_at, used_by) VALUES (x'01', '2026-11-15T00:00:00Z', '2026-11-14T00:00:00Z', 1)`)
+	mustExec(t, d, `DELETE FROM users WHERE id = 1`)
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM invite_codes WHERE used_by IS NULL AND used_at IS NOT NULL AND created_at <> ''`).Scan(&n)
+	if n != 1 {
+		t.Fatal("deleting the user should keep the used code, with used_by set to NULL")
 	}
 }

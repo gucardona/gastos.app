@@ -7,7 +7,7 @@ import (
 	"gastos/internal/db"
 )
 
-// Housekeeping removes expired sessions and chat, ensures a daily backup and refreshes the USD-BRL rate daily, until ctx is cancelled.
+// Housekeeping removes expired sessions, chat and old invite codes, ensures a daily backup and refreshes the USD-BRL rate daily, until ctx is cancelled.
 func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 	run := func() {
 		now := s.now().UTC()
@@ -18,6 +18,10 @@ func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 		if _, err := s.db.ExecContext(ctx, `DELETE FROM chat_messages WHERE created_at <= strftime('%Y-%m-%dT%H:%M:%SZ', ?, '-' ||
 			COALESCE((SELECT retention_days FROM ai_settings WHERE user_id = chat_messages.user_id), 7) || ' days')`, now.Format(tsLayout)); err != nil && ctx.Err() == nil {
 			s.log.Error("clean up chat messages", "err", err)
+		}
+		weekAgo := now.AddDate(0, 0, -7).Format(tsLayout)
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM invite_codes WHERE used_at <= ? OR expires_at <= ?`, weekAgo, weekAgo); err != nil && ctx.Err() == nil {
+			s.log.Error("clean up invite codes", "err", err)
 		}
 		if db.LastBackupAge(s.cfg.BackupDir, now) > 24*time.Hour {
 			if p, err := db.Backup(ctx, s.db, s.cfg.BackupDir, s.cfg.BackupKeep, now); err != nil {
