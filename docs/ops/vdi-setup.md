@@ -27,13 +27,16 @@ GASTOS_DB_PATH=/var/lib/gastos/production/gastos.db
 GASTOS_BACKUP_DIR=/var/lib/gastos/production/backups
 ```
 
-**Cadastro.** O site é público, então o cadastro é fechado por padrão: só a **primeira conta** é criada sem código; depois disso ninguém consegue se cadastrar. Para convidar outra pessoa (a Bia, por exemplo), acrescente uma linha ao arquivo, reinicie o serviço e passe o código a ela por onde preferir:
+**Cadastro.** O site é público, então o cadastro é fechado por padrão: só a **primeira conta** é criada sem código; depois disso ninguém consegue se cadastrar. Para convidar outra pessoa, gere um código no servidor e passe-o a ela por onde preferir:
 
-```
-GASTOS_INVITE_CODE=<um segredo de pelo menos 8 caracteres>
+```bash
+sudo /opt/gastos/production/current/invite.sh       # vale 24h
+sudo /opt/gastos/production/current/invite.sh 2h    # ou outra duração: 30m, 2h, 3d... (de 5m a 7d)
 ```
 
-Quando todo mundo já tiver conta, **remova a linha** e reinicie para fechar o cadastro de novo. Quem já tem conta não é afetado.
+Sai uma linha só, por exemplo `Código: K3J9-XQ2M-7PRT (vale até 15/11/2026 às 14:30, uso único)`. O código serve para **um** cadastro e expira no horário indicado; enquanto houver um código válido, a tela de entrada mostra o campo "Código de convite" (maiúsculas, minúsculas, espaços e traços tanto faz). Não é preciso reiniciar o serviço, e o código não fica guardado em lugar nenhum (o banco guarda só um hash). Códigos usados ou vencidos há mais de 7 dias são apagados sozinhos. O script vem com cada deploy e usa o binário da versão no ar.
+
+`GASTOS_INVITE_CODE` não é mais necessário. Ele continua funcionando como alternativa (um código fixo, de pelo menos 8 caracteres, que vale para qualquer número de cadastros enquanto estiver no arquivo, e que exige reiniciar o serviço ao entrar ou sair); se usar, **remova a linha** e reinicie quando todo mundo tiver conta.
 
 **Assistente.** Para habilitar o chat de consulta, acrescente a chave mestra (gere com `openssl rand -base64 32`; o valor fica só no servidor). Sem ela o assistente fica indisponível e o resto funciona normalmente. Detalhes e cuidados em [Assistente de consulta](../assistente.md).
 
