@@ -62,6 +62,12 @@ export function Transactions() {
               <p>{all.length === 0 ? "Nenhum lançamento neste mês." : "Nenhum lançamento corresponde ao filtro."}</p>
               {all.length === 0 && canEdit && <button type="button" className="btn" onClick={() => openAdd()}>Novo lançamento</button>}
             </div>
+          ) : ahead.length > 0 ? (
+            // after Próximos the realized list needs its own title, or it reads as more of what is to come
+            <section className="sec">
+              <h2>Lançados</h2>
+              <TransactionList items={shown} headingLevel={3} />
+            </section>
           ) : (
             <TransactionList items={shown} />
           )}

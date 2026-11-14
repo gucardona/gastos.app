@@ -177,8 +177,19 @@ describe("Transactions: Próximos", () => {
     expect(screen.getAllByText("previsto")).toHaveLength(2);
     const heading = screen.getByRole("heading", { name: "Próximos" });
     expect(heading.compareDocumentPosition(screen.getByText("Padaria")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // the realized ones get their own title, so they do not read as part of Próximos; their days sit under it
+    const done = screen.getByRole("heading", { name: "Lançados", level: 2 });
+    expect(heading.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(done.parentElement!.querySelector("h3")).toBeTruthy();
     expect(screen.getByText(/a receber/).textContent).toMatch(/^\+ R\$\s5\.000,00 a receber$/);
     expect(screen.getByText(/a pagar/).textContent).toMatch(/^\+ R\$\s89,90 a pagar$/);
+  });
+
+  it("without anything to come there is no Lançados title: the list stands alone as before", async () => {
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 0, upcomingExpenseCents: 0, upcoming: [] } : items }));
+    renderApp(<Transactions />);
+    await screen.findByText("Padaria");
+    expect(screen.queryByRole("heading", { name: "Lançados" })).toBeNull();
   });
 
   it("follows the filters and the search", async () => {
