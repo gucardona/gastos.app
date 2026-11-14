@@ -42,6 +42,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const [paidBy, setPaidBy] = useState(tx?.paidByUserId ?? user.id);
   const [percents, setPercents] = useState<Percents | null>(tx?.splits.length ? percentsFromSplits(tx.splits) : null);
   const [repeat, setRepeat] = useState(false);
+  const [endDate, setEndDate] = useState("");
   const [picker, setPicker] = useState<Picker | null>(null);
   const openedFrom = useRef<Picker | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -64,6 +65,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     const errs: Record<string, string> = {};
     if (!cents) errs.amountCents = amountProblem(amount);
     if (!category) errs.categoryId = "Escolha uma categoria.";
+    if (repeat && endDate && endDate < date) errs.endDate = "A data final precisa ser no dia do início ou depois.";
     const { splits, error: splitsError } = splitting ? resolveSplits(percents) : {};
     if (splitsError) errs.splits = splitsError;
     setErrors(errs);
@@ -78,7 +80,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     try {
       const wp = `/wallets/${wallet.id}`;
       if (tx) await api.put(`${wp}/transactions/${tx.id}`, { ...base, date });
-      else if (repeat) await api.post(`${wp}/recurrences`, { ...base, dayOfMonth: Number(date.slice(8)), startDate: date });
+      else if (repeat) await api.post(`${wp}/recurrences`, { ...base, dayOfMonth: Number(date.slice(8)), startDate: date, ...(endDate ? { endDate } : {}) });
       else await api.post(`${wp}/transactions`, { ...base, date });
       refresh(wallet.id);
       toast(!tx && repeat ? "Recorrência criada" : "Lançamento salvo");
@@ -86,12 +88,13 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
         setAmount("");
         setDescription("");
         setRepeat(false);
+        setEndDate("");
         amountRef.current?.focus();
       } else onClose();
     } catch (e) {
       if (e instanceof ApiError) {
         setErrors(e.fields);
-        setGeneral(generalError(e, ["amountCents", "categoryId", "description", "date", ...(splitting ? ["splits"] : [])]));
+        setGeneral(generalError(e, ["amountCents", "categoryId", "description", "date", "endDate", ...(splitting ? ["splits"] : [])]));
       } else setGeneral("Sem conexão. Tente de novo.");
     } finally {
       setBusy(false);
@@ -183,10 +186,17 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
         </div>
         {splitting && <ListRow id="row-paidBy" label="Quem pagou" value={nameOf(paidBy)} onClick={() => choose("paidBy")} chevron />}
         {!tx && <ListRow label="Repetir todo mês" trailing={<Switch checked={repeat} onChange={setRepeat} label="Repetir todo mês" />} />}
+        {!tx && repeat && (
+          <div className="list-row">
+            <label htmlFor="add-end" className="lr-label">Data final (opcional)</label>
+            <input id="add-end" className="date-input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+        )}
       </ListGroup>
       {err("categoryId")}
       {err("description")}
       {err("date")}
+      {err("endDate")}
 
       {splitting && <SplitEditor value={percents} onChange={setPercents} paidBy={paidBy} cents={cents} error={errors.splits} />}
 
