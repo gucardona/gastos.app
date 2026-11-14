@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
@@ -69,7 +70,22 @@ type client struct {
 
 func (a *testApp) anon() *client {
 	jar, _ := cookiejar.New(nil)
-	return &client{app: a, http: &http.Client{Jar: jar}}
+	return &client{app: a, http: &http.Client{Jar: serverClockJar{jar}}}
+}
+
+// serverClockJar keeps cookies without their expiry date. Tests freeze the server clock (s.now) in the past,
+// so the session cookie's Expires is computed from that frozen date, while the standard jar compares it with
+// the real clock and silently drops it once it is more than 30 days old. The server still checks the session
+// against its own clock. Deletions (logout: an empty value or an expiry in the past) still go through.
+type serverClockJar struct{ http.CookieJar }
+
+func (j serverClockJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	for _, c := range cookies {
+		if c.Value != "" && c.MaxAge >= 0 {
+			c.Expires = time.Time{}
+		}
+	}
+	j.CookieJar.SetCookies(u, cookies)
 }
 
 // register creates a user, keeps the cookie and the personal wallet.
