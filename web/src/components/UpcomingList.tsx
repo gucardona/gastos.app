@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRecurrences } from "../api/queries";
-import type { Recurrence, Upcoming } from "../api/types";
+import type { Recurrence, Transaction, Upcoming } from "../api/types";
 import { useApp } from "../context";
 import { dayLabel } from "../lib/dates";
 import { RecurrenceSheet } from "./RecurrenceSheet";
@@ -8,9 +8,9 @@ import { money } from "./TransactionList";
 
 const signed = (u: Upcoming) => (u.kind === "income" ? u.amountCents : -u.amountCents);
 
-/** The month's recurring entries still to come, by day (soonest first); tapping one edits its recurrence. */
-export function UpcomingList({ items }: { items: Upcoming[] }) {
-  const { wallet, categories, paymentMethods, canEdit } = useApp();
+/** What the month still holds, by day (soonest first); tapping a projection edits its recurrence, a transaction dated after today opens it (from txs). */
+export function UpcomingList({ items, txs }: { items: Upcoming[]; txs: Transaction[] }) {
+  const { wallet, categories, paymentMethods, canEdit, openAdd } = useApp();
   const recs = useRecurrences(wallet.id);
   const [editing, setEditing] = useState<Recurrence | null>(null);
 
@@ -33,9 +33,11 @@ export function UpcomingList({ items }: { items: Upcoming[] }) {
           {d.items.map((u) => {
             const c = categories.find((x) => x.id === u.categoryId);
             const method = paymentMethods.find((p) => p.id === u.paymentMethodId)?.name;
-            const rec = recs.data?.find((r) => r.id === u.recurrenceId);
+            const t = u.transactionId != null ? txs.find((x) => x.id === u.transactionId) : undefined;
+            const rec = u.transactionId == null ? recs.data?.find((r) => r.id === u.recurrenceId) : undefined;
+            const open = t ? () => openAdd(t) : rec ? () => setEditing(rec) : undefined;
             return (
-              <button type="button" className="row upcoming" key={u.recurrenceId} disabled={!canEdit || !rec} onClick={() => setEditing(rec ?? null)} style={{ cursor: canEdit && rec ? "pointer" : "default" }}>
+              <button type="button" className="row upcoming" key={u.transactionId != null ? `t${u.transactionId}` : `r${u.recurrenceId}`} disabled={!canEdit || !open} onClick={open} style={{ cursor: canEdit && open ? "pointer" : "default" }}>
                 <span className="emoji" aria-hidden>{c?.icon}</span>
                 <span>
                   <span className="desc">{u.description}</span>
