@@ -54,12 +54,13 @@ const (
 )
 
 // modeFor decides who may sign up: anyone while the database has no users (so the first account can be
-// created), afterwards only people holding the invite code, if one is configured.
-func modeFor(userCount int, inviteCode string) registrationMode {
+// created), afterwards only people holding an invite code, if one can be used (GASTOS_INVITE_CODE or a valid
+// single-use code).
+func modeFor(userCount int, codeAvailable bool) registrationMode {
 	switch {
 	case userCount == 0:
 		return modeOpen
-	case inviteCode != "":
+	case codeAvailable:
 		return modeCode
 	default:
 		return modeClosed
@@ -70,29 +71,59 @@ func modeFor(userCount int, inviteCode string) registrationMode {
 var errSignupClosed = &apiError{Status: 403, Code: "forbidden", Message: "O cadastro está fechado. Peça um convite."}
 
 func (s *Server) currentMode(ctx context.Context, q querier) (registrationMode, error) {
-	var n int
-	if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+	var users int
+	var dbCode bool
+	if err := q.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM users),
+		EXISTS (SELECT 1 FROM invite_codes WHERE used_at IS NULL AND expires_at > ?)`,
+		s.now().UTC().Format(tsLayout)).Scan(&users, &dbCode); err != nil {
 		return "", err
 	}
-	return modeFor(n, s.cfg.InviteCode), nil
+	return modeFor(users, s.cfg.InviteCode != "" || dbCode), nil
 }
 
 // checkRegistration applies the sign-up policy. q is the transaction when called from inside one,
-// so two simultaneous "first" sign-ups cannot both succeed.
-func (s *Server) checkRegistration(ctx context.Context, q querier, code string) error {
+// so two simultaneous "first" sign-ups cannot both succeed. dbCode reports that the code is a valid
+// single-use one, which the caller must consume (useInvite) in the transaction that creates the user.
+func (s *Server) checkRegistration(ctx context.Context, q querier, code string) (dbCode bool, err error) {
 	mode, err := s.currentMode(ctx, q)
 	if err != nil {
-		return err
+		return false, err
 	}
 	switch mode {
 	case modeOpen:
-		return nil
+		return false, nil
 	case modeCode:
-		if subtle.ConstantTimeCompare([]byte(code), []byte(s.cfg.InviteCode)) == 1 {
-			return nil
+		if s.cfg.InviteCode != "" && subtle.ConstantTimeCompare([]byte(code), []byte(s.cfg.InviteCode)) == 1 {
+			return false, nil
+		}
+		var ok bool
+		if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM invite_codes WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?)`,
+			inviteHash(code), s.now().UTC().Format(tsLayout)).Scan(&ok); err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
 		}
 	}
-	return errSignupClosed
+	return false, errSignupClosed
+}
+
+// useInvite marks a single-use code as used by userID; the conditional update lets only one sign-up have it.
+func (s *Server) useInvite(ctx context.Context, tx *sql.Tx, code string, userID int64) error {
+	now := s.now().UTC().Format(tsLayout)
+	res, err := tx.ExecContext(ctx, `UPDATE invite_codes SET used_at = ?, used_by = ?
+		WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?`, now, userID, inviteHash(code), now)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errSignupClosed
+	}
+	return nil
 }
 
 // registrationInfo tells the sign-in screen what to show. It is public and reveals only the mode.
@@ -119,7 +150,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	// refuse early, before spending a bcrypt hash; the check is repeated inside the transaction
-	if err := s.checkRegistration(r.Context(), s.db, in.InviteCode); err != nil {
+	if _, err := s.checkRegistration(r.Context(), s.db, in.InviteCode); err != nil {
 		return err
 	}
 	in.Name = strings.TrimSpace(in.Name)
@@ -147,10 +178,11 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 
 	var userID int64
 	err = s.inTx(r.Context(), func(tx *sql.Tx) error {
-		if err := s.checkRegistration(r.Context(), tx, in.InviteCode); err != nil {
+		dbCode, err := s.checkRegistration(r.Context(), tx, in.InviteCode)
+		if err != nil {
 			return err
 		}
-		err := tx.QueryRowContext(r.Context(),
+		err = tx.QueryRowContext(r.Context(),
 			`INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?) RETURNING id`,
 			in.Name, in.Email, string(hash)).Scan(&userID)
 		if err != nil {
@@ -158,6 +190,11 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 				return errConflict("E-mail já cadastrado")
 			}
 			return err
+		}
+		if dbCode {
+			if err := s.useInvite(r.Context(), tx, in.InviteCode, userID); err != nil {
+				return err
+			}
 		}
 		_, err = createWallet(r.Context(), tx, "Pessoal", userID, false)
 		return err
