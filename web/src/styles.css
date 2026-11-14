@@ -200,6 +200,8 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 .list-row .lr-check { color: var(--accent); font-weight: 700; }
 .date-other { margin-top: 12px; }
 .date-input { min-height: 44px; border: 0; background: none; color: var(--muted); font: inherit; }
+/* the row around it already draws the ring */
+.date-input:focus-visible { outline: none; }
 
 /* ---------- quick-add details ---------- */
 .desc-input { flex: 1.4; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: right; outline: none; }

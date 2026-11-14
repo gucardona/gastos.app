@@ -54,6 +54,47 @@ describe("AddSheet: the amount fills from the cents", () => {
   });
 });
 
+describe("AddSheet: a recurrence can end", () => {
+  async function repeating(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByRole("textbox", { name: "Valor" }), "8990");
+    await pickCategory(user, /Restaurante/);
+    await user.click(screen.getByRole("switch", { name: "Repetir todo mês" }));
+  }
+
+  it("with Repetir todo mês on, an optional Data final appears and is sent with the recurrence", async () => {
+    const fetch = mockFetch({ status: 201, body: {} });
+    const { user } = open();
+    expect(screen.queryByLabelText("Data final (opcional)")).toBeNull();
+    await repeating(user);
+    const end = screen.getByLabelText("Data final (opcional)") as HTMLInputElement;
+    expect(end.type).toBe("date");
+    fireEvent.change(end, { target: { value: "2099-12-31" } });
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(fetch.mock.calls[0][0]).toBe("/api/wallets/1/recurrences");
+    expect(bodyOf(fetch)).toMatchObject({ amountCents: 8990, endDate: "2099-12-31" });
+  });
+
+  it("without a Data final the recurrence has no end, as before", async () => {
+    const fetch = mockFetch({ status: 201, body: {} });
+    const { user } = open();
+    await repeating(user);
+    await user.click(save());
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(bodyOf(fetch).endDate).toBeUndefined();
+  });
+
+  it("a Data final before the start is refused before anything is sent", async () => {
+    const fetch = mockFetch({ status: 201, body: {} });
+    const { user } = open();
+    await repeating(user);
+    fireEvent.change(screen.getByLabelText("Data final (opcional)"), { target: { value: "2000-01-01" } });
+    await user.click(save());
+    expect(await screen.findByText("A data final precisa ser no dia do início ou depois.")).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("AddSheet: new transaction", () => {
   it("does not submit and shows what is missing when the form is empty", async () => {
     const fetch = mockFetch();
