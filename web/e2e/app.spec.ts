@@ -674,3 +674,42 @@ test("recurring entries still to come show as 'a receber'/'a pagar' and in Próx
   await expect(upcoming.getByText("Seguro")).toBeVisible();
   await expect(page.getByText("+ R$ 89,90 a pagar")).toBeVisible();
 });
+
+test("an expense typed with a date in the next month is still to come, not spent", async ({ page }) => {
+  await signUpAndEnter(page, "Lia");
+  await addExpense(page, "48,90", "Padaria");
+  const nextDay = await page.evaluate(() => {
+    const d = new Date();
+    const next = new Date(d.getFullYear(), d.getMonth() + 1, 11);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-11`;
+  });
+  await page.getByRole("button", { name: "Novo lançamento" }).first().click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("textbox", { name: "Valor" }).fill("275,00");
+  await sheet.getByLabel("Descrição").fill("Limpeza placas solares");
+  await pickCategory(sheet, "Mercado");
+  await sheet.getByRole("button", { name: /^Quando/ }).click();
+  await sheet.getByLabel("Data do lançamento").fill(nextDay);
+  await sheet.getByRole("button", { name: "Voltar" }).click();
+  await sheet.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(sheet).toBeHidden();
+
+  // this month: only what was spent
+  await expect(page.getByText("Saiu").locator("..")).toContainText("48,90");
+  await expect(page.getByText("Saiu").locator("..")).not.toContainText("275,00");
+  await expect(page.getByText("Limpeza placas solares")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Próximo mês" }).click();
+  const upcoming = page.getByRole("heading", { name: "Próximos" }).locator("..");
+  await expect(upcoming.getByText("Limpeza placas solares")).toBeVisible();
+  await expect(upcoming.getByText("previsto")).toHaveCount(1);
+  await expect(page.getByText("+ R$ 275,00 a pagar")).toBeVisible();
+  await expect(page.locator(".balance")).toHaveText("R$0,00");
+  await expect(page.getByText(/Previsto para o fim do mês/)).toContainText("275,00");
+  await expect(page.getByRole("heading", { name: "Recentes" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Para onde foi" })).toHaveCount(0);
+
+  // it is a real transaction: tapping it opens its edit sheet
+  await upcoming.getByRole("button", { name: /Limpeza placas solares/ }).click();
+  await expect(page.getByRole("dialog").getByLabel("Descrição")).toHaveValue("Limpeza placas solares");
+});

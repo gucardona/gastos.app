@@ -107,9 +107,10 @@ export interface Summary {
   upcoming: Upcoming[];
 }
 
-/** A recurring entry expected later this month (not a transaction yet). */
+/** An entry expected later this month: a projected recurring occurrence, or a transaction dated after today (transactionId). */
 export interface Upcoming {
   recurrenceId: number;
+  transactionId?: number | null;
   date: string;
   kind: Kind;
   amountCents: number;

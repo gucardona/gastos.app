@@ -1,8 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Transaction, Upcoming } from "../api/types";
-import { addMonths, today } from "../lib/dates";
+import { addDays, addMonths, today } from "../lib/dates";
 import { appCtx, mockFetch, renderApp, tx } from "../test/fixtures";
 import { Transactions } from "./Transactions";
 
@@ -207,5 +207,49 @@ describe("Transactions: Próximos", () => {
     await user.clear(screen.getByRole("searchbox", { name: "Buscar" }));
     await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "padaria");
     expect(screen.queryByRole("heading", { name: "Próximos" })).toBeNull();
+  });
+});
+
+describe("Transactions: a transaction dated after today", () => {
+  const later = addDays(today(), 1);
+  const solar = tx({ id: 9, description: "Placas solares", amountCents: 27500, date: later });
+  const upcoming: Upcoming[] = [{ recurrenceId: 0, transactionId: 9, date: later, kind: "expense", amountCents: 27500, description: "Placas solares", categoryId: 1, paymentMethodId: 1 }];
+  const serveFuture = () =>
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 0, upcomingExpenseCents: 27500, upcoming } : [solar, ...items] }));
+
+  it("is left out of the realized list and totals, and listed in Próximos; tapping it opens the transaction", async () => {
+    serveFuture();
+    const ctx = appCtx();
+    renderApp(<Transactions />, ctx);
+    const ahead = (await screen.findByRole("heading", { name: "Próximos" })).parentElement!;
+    expect(screen.getByText(/Saiu/).textContent).toMatch(/299,50/); // Padaria + Feira only
+    expect(screen.getByText(/a pagar/).textContent).toMatch(/^\+ R\$\s275,00 a pagar$/);
+    const done = screen.getByRole("heading", { name: "Lançados", level: 2 }).parentElement!;
+    expect(within(done).queryByText("Placas solares")).toBeNull();
+    const row = within(ahead).getByRole("button", { name: /Placas solares/ });
+    expect(within(row).getByText("previsto")).toBeTruthy();
+    await userEvent.click(row);
+    expect(ctx.openAdd).toHaveBeenCalledWith(expect.objectContaining({ id: 9 }));
+  });
+
+  it("follows the filters and the search", async () => {
+    serveFuture();
+    const user = userEvent.setup();
+    renderApp(<Transactions />);
+    await screen.findByRole("heading", { name: "Próximos" });
+    await user.click(screen.getByRole("button", { name: "Entradas" }));
+    expect(screen.queryByRole("heading", { name: "Próximos" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Gastos" }));
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "placas");
+    expect(screen.getByRole("heading", { name: "Próximos" })).toBeTruthy();
+    expect(screen.getByText("Nenhum lançamento corresponde ao filtro.")).toBeTruthy();
+  });
+
+  it("a month holding only it shows it in Próximos and nothing realized, as with a projection", async () => {
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 0, upcomingExpenseCents: 27500, upcoming } : [solar] }));
+    renderApp(<Transactions />);
+    expect(await screen.findByRole("heading", { name: "Próximos" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Lançados" })).toBeNull();
+    expect(screen.getByText("Nenhum lançamento neste mês.")).toBeTruthy();
   });
 });

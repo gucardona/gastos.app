@@ -44,7 +44,9 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
   const expenses = summary.byCategory.filter((c) => c.kind === "expense");
   const expenseTotal = expenses.reduce((s, c) => s + c.cents, 0);
   const pie = groupTop(expenses.map((c) => ({ label: categories.find((x) => x.id === c.categoryId)?.name ?? "?", value: c.cents })), 7, "Outros");
-  const empty = txs.length === 0 && summary.byCategory.length === 0 && summary.upcoming.length === 0;
+  const now = today();
+  const realized = txs.filter((t) => t.date <= now); // a transaction dated after today is still to come: it shows in Próximos
+  const empty = realized.length === 0 && summary.byCategory.length === 0 && summary.upcoming.length === 0;
   const forecast = summary.balanceCents + summary.upcomingIncomeCents - summary.upcomingExpenseCents;
 
   return (
@@ -68,7 +70,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
         </div>
       ) : (
         <>
-          <Ruler month={month} txs={txs} summary={summary} />
+          <Ruler month={month} txs={realized} summary={summary} />
           <div className="cols">
             {summary.byCategory.some((c) => c.kind === "expense") && (
             <section className="sec">
@@ -101,17 +103,17 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
             )}
             <div>
               <Settle summary={summary} />
-              {txs.length > 0 && (
+              {realized.length > 0 && (
               <section className="sec">
                 <h2>Recentes</h2>
-                <TransactionList items={txs.slice(0, 6)} headingLevel={3} />
-                {txs.length > 6 && <p style={{ marginTop: 14 }}><Link className="link" to={`/lancamentos?m=${month}`}>Ver todos os lançamentos</Link></p>}
+                <TransactionList items={realized.slice(0, 6)} headingLevel={3} />
+                {realized.length > 6 && <p style={{ marginTop: 14 }}><Link className="link" to={`/lancamentos?m=${month}`}>Ver todos os lançamentos</Link></p>}
               </section>
               )}
               {summary.upcoming.length > 0 && (
               <section className="sec">
                 <h2>Próximos</h2>
-                <UpcomingList items={summary.upcoming} />
+                <UpcomingList items={summary.upcoming} txs={txs} />
               </section>
               )}
             </div>
