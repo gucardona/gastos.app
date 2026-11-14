@@ -44,3 +44,10 @@ describe("the pie on the overview", () => {
     expect(chartRules.every((s) => s.startsWith(".chart-card"))).toBe(true);
   });
 });
+
+describe("money that leaves is red", () => {
+  it("the 'Saiu' total and its dot use the over color, as 'Entrou' uses the income color", () => {
+    expect(css).toMatch(/\.flows \.out b\s*\{[^}]*color:\s*var\(--over\)/);
+    expect(css).toMatch(/\.flows \.out::before\s*\{[^}]*background:\s*var\(--over\)/);
+  });
+});

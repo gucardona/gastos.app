@@ -150,6 +150,7 @@ describe("Transactions: new look", () => {
     const { container } = renderApp(<Transactions />);
     await screen.findByText("Padaria");
     expect(container.querySelector(".flows .in")?.textContent).toMatch(/Entrou.*8.500,00/);
+    expect(container.querySelector(".flows .out")?.textContent).toMatch(/Saiu/); // the expense total is red, like every expense
     expect(container.querySelectorAll(".flows span")).toHaveLength(2);
   });
 });

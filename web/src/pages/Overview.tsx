@@ -55,7 +55,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
         </div>
         <div className="flows">
           <span className="in">Entrou <b className="num">{formatBRL(summary.incomeCents)}</b></span>
-          <span>Saiu <b className="num">{formatBRL(summary.expenseCents)}</b></span>
+          <span className="out">Saiu <b className="num">{formatBRL(summary.expenseCents)}</b></span>
         </div>
       </section>
 

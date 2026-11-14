@@ -33,6 +33,7 @@ button { cursor: pointer; }
 .flows { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 14px 0 0; color: var(--muted); }
 .flows b { color: var(--ink); font-weight: 600; }
 .flows .in b { color: var(--income); }
+.flows .out b { color: var(--over); }
 
 .strip { margin: 26px 0 8px; }
 .ruler { display: grid; grid-template-columns: repeat(31, 1fr); gap: 3px; height: 72px; align-items: end; }
@@ -206,6 +207,7 @@ dialog.sheet[open] { animation: rise 0.18s ease-out; }
 /* ---------- overview blocks ---------- */
 .flows span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--ink); vertical-align: 1px; }
 .flows .in::before { background: var(--income); }
+.flows .out::before { background: var(--over); }
 .list-group > .rail { padding: 12px 0; border-top: 1px solid var(--line); }
 .list-group > .rail:first-child, .list-group > .row:first-child { border-top: 0; }
 .sec h2 { letter-spacing: -0.01em; }

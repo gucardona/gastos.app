@@ -46,7 +46,7 @@ export function Transactions() {
         <>
           <div className="flows">
             <span className="in">Entrou <b className="num">{formatBRL(sum("income"))}</b></span>
-            <span>Saiu <b className="num">{formatBRL(sum("expense"))}</b></span>
+            <span className="out">Saiu <b className="num">{formatBRL(sum("expense"))}</b></span>
           </div>
           <input className="search" type="search" placeholder="Buscar por descrição ou categoria" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
           <Segmented<Filter> label="Filtros" value={kind} onChange={setKind} options={FILTERS.map((f) => ({ value: f.id, label: f.label }))} />
