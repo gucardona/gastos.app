@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Prints a new single-use invite code for production. Run on the VPS: sudo /opt/gastos/production/current/invite.sh [duration]
+# Prints a new single-use invite code for production. Install once as root (see docs/ops/vdi-setup.md):
+#   sudo install -m 755 -o root -g root /opt/gastos/production/current/invite.sh /usr/local/sbin/gastos-invite
+# then run: sudo gastos-invite [duration]. Never run the deploy-owned copy with sudo.
 # The duration is optional (default 24h): 30m, 2h, 3d... from 5m to 7d.
 # Root is needed only to read the root-only env file; the binary runs as the service's user so the
 # database files it touches (-wal, -shm) stay owned by gastos.
