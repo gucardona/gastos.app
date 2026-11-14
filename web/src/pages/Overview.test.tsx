@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Summary, Transaction } from "../api/types";
-import { addMonths, monthLabel, monthRange, today } from "../lib/dates";
+import { addDays, addMonths, monthLabel, monthRange, today } from "../lib/dates";
 import { appCtx, bodyOf, mockFetch, renderApp, tx, wallet } from "../test/fixtures";
 import { Overview } from "./Overview";
 
@@ -479,5 +479,46 @@ describe("Overview: what is still to come", () => {
     renderApp(<Overview />);
     await userEvent.click(await screen.findByRole("button", { name: /Internet/ }));
     expect(await screen.findByRole("dialog", { name: "Editar recorrência" })).toBeTruthy();
+  });
+});
+
+describe("Overview: a transaction dated after today", () => {
+  const later = addDays(today(), 1);
+  const solar = tx({ id: 2, description: "Placas solares", amountCents: 27500, date: later });
+  const solarAhead = { recurrenceId: 0, transactionId: 2, date: later, kind: "expense" as const, amountCents: 27500, description: "Placas solares", categoryId: 1, paymentMethodId: 1 };
+
+  it("is not in Recentes but in Próximos, and tapping it opens the transaction", async () => {
+    serve(summary({ upcomingExpenseCents: 27500, upcoming: [solarAhead] }), [solar, tx({ id: 1, description: "Padaria" })]);
+    const ctx = appCtx();
+    renderApp(<Overview />, ctx);
+    const recent = await screen.findByRole("heading", { name: "Recentes" });
+    expect(within(recent.parentElement!).queryByText("Placas solares")).toBeNull();
+    expect(within(recent.parentElement!).getByText("Padaria")).toBeTruthy();
+    const ahead = screen.getByRole("heading", { name: "Próximos" }).parentElement!;
+    const row = within(ahead).getByRole("button", { name: /Placas solares/ });
+    expect(within(row).getByText("previsto")).toBeTruthy();
+    await userEvent.click(row);
+    expect(ctx.openAdd).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }));
+  });
+
+  it("a reader sees it but cannot open it", async () => {
+    serve(summary({ upcomingExpenseCents: 27500, upcoming: [solarAhead] }), [solar]);
+    renderApp(<Overview />, appCtx({ canEdit: false, wallet: { ...wallet, role: "reader" } }));
+    const row = await screen.findByRole("button", { name: /Placas solares/ });
+    expect((row as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("in a future month holding only it, the cards and Próximos show, and the ruler draws it as projected", async () => {
+    const next = addMonths(today().slice(0, 7), 1);
+    const jan = { ...solar, date: `${next}-11` };
+    serve(summary({ month: next, incomeCents: 0, expenseCents: 0, balanceCents: 0, byCategory: [], upcomingExpenseCents: 27500, upcoming: [{ ...solarAhead, date: jan.date }] }), [jan]);
+    const { container } = renderApp(<Overview />, appCtx({ month: next }));
+    expect(await screen.findByRole("heading", { name: "Próximos" })).toBeTruthy();
+    expect(screen.queryByText(/Nada lançado/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Recentes" })).toBeNull();
+    expect(screen.getByText(/a pagar/, { selector: ".ahead" }).textContent).toMatch(/R\$\s275,00 a pagar/);
+    const all = ticks(container) as HTMLElement[];
+    expect(all.filter((t) => t.classList.contains("projected"))).toEqual([all[10]]);
+    expect(all[10].getAttribute("title")).toMatch(/Dia 11: R\$\s275,00 previsto/);
   });
 });

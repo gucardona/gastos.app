@@ -43,14 +43,16 @@ type summaryDTO struct {
 	// Only present when splitting is enabled on the wallet.
 	MemberBalances       any `json:"memberBalances,omitempty"`
 	SuggestedSettlements any `json:"suggestedSettlements,omitempty"`
-	// Projection of the month's recurring entries still to come; the totals above stay realized only.
+	// What is still to come this month (recurring projections and transactions dated after today); the totals above are realized only.
 	UpcomingIncomeCents  int64      `json:"upcomingIncomeCents"`
 	UpcomingExpenseCents int64      `json:"upcomingExpenseCents"`
 	Upcoming             []upcoming `json:"upcoming"`
 }
 
+// upcoming is either a projected recurring occurrence (RecurrenceID) or a transaction dated after today (TransactionID).
 type upcoming struct {
 	RecurrenceID    int64  `json:"recurrenceId"`
+	TransactionID   *int64 `json:"transactionId,omitempty"`
 	Date            string `json:"date"`
 	Kind            string `json:"kind"`
 	AmountCents     int64  `json:"amountCents"`
@@ -99,12 +101,16 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		return errValidation(map[string]string{"month": "obrigatório (YYYY-MM)"})
 	}
 	prevFirst, prevLast, _ := monthRange(mustDate(first).AddDate(0, -1, 0).Format("2006-01"))
+	now := s.now().In(s.cfg.Location)
+	// realized money is what is dated up to today; later dates are still to come (see upcoming)
+	today := now.Format(dateLayout)
+	realizedTo := min(last, today)
 
-	cur, err := s.totals(ctx, walletID, first, last)
+	cur, err := s.totals(ctx, walletID, first, realizedTo)
 	if err != nil {
 		return err
 	}
-	prev, err := s.totals(ctx, walletID, prevFirst, prevLast)
+	prev, err := s.totals(ctx, walletID, prevFirst, min(prevLast, today))
 	if err != nil {
 		return err
 	}
@@ -116,7 +122,6 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		ByCategory:     []categoryTotal{},
 	}
 
-	now := s.now().In(s.cfg.Location)
 	nowMonth := now.Format("2006-01")
 	days := int64(0)
 	switch {
@@ -128,7 +133,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if days > 0 {
 		out.DailyAverageCents = cur.ExpenseCents / days
 	}
-	if out.Upcoming, err = s.upcoming(ctx, walletID, first, last, now.Format(dateLayout)); err != nil {
+	if out.Upcoming, err = s.upcoming(ctx, walletID, first, last, today); err != nil {
 		return err
 	}
 	for _, u := range out.Upcoming {
@@ -147,7 +152,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		WHERE c.wallet_id = ?
 		GROUP BY c.id, b.limit_cents
 		HAVING cents > 0 OR b.limit_cents IS NOT NULL
-		ORDER BY cents DESC, c.id`, first, last, walletID)
+		ORDER BY cents DESC, c.id`, first, realizedTo, walletID)
 	if err != nil {
 		return err
 	}
@@ -168,7 +173,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		SELECT c.essentiality, SUM(t.amount_cents)
 		FROM transactions t JOIN categories c ON c.id = t.category_id
 		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.date BETWEEN ? AND ?
-		GROUP BY c.essentiality`, walletID, first, last)
+		GROUP BY c.essentiality`, walletID, first, realizedTo)
 	if err != nil {
 		return err
 	}
@@ -191,7 +196,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if splitting {
-		net, order, err := s.memberNet(ctx, walletID)
+		net, order, err := s.memberNet(ctx, walletID, today)
 		if err != nil {
 			return err
 		}
@@ -206,8 +211,9 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// upcoming projects the month's occurrences of enabled expense/income recurrences that fall after today
-// (today's are materialized already), leaving out those already present as a transaction or deleted by a person.
+// upcoming lists what the month still holds after today: the occurrences of enabled expense/income recurrences
+// (today's are materialized already), leaving out those already present as a transaction or deleted by a person,
+// and the transactions dated after today.
 func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, today string) ([]upcoming, error) {
 	out := []upcoming{}
 	if last <= today {
@@ -246,19 +252,52 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	rows.Close()
+
+	// transactions typed with a later date are still to come too (an occurrence is materialized only up to today)
+	trows, err := s.db.QueryContext(ctx, `
+		SELECT t.id, t.kind, t.amount_cents, COALESCE(NULLIF(t.description, ''), c.name, ''), t.category_id, t.payment_method_id, t.date
+		FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+		WHERE t.wallet_id = ? AND t.date > ? AND t.date BETWEEN ? AND ?`, walletID, today, first, last)
+	if err != nil {
+		return nil, err
+	}
+	defer trows.Close()
+	for trows.Next() {
+		var u upcoming
+		var id int64
+		if err := trows.Scan(&id, &u.Kind, &u.AmountCents, &u.Description, &u.CategoryID, &u.PaymentMethodID, &u.Date); err != nil {
+			return nil, err
+		}
+		u.TransactionID = &id
+		out = append(out, u)
+	}
+	if err := trows.Err(); err != nil {
+		return nil, err
+	}
+	// by date, then the transactions (recurrenceId 0) by id, then the projections by recurrence
+	key := func(u upcoming) int64 {
+		if u.TransactionID != nil {
+			return *u.TransactionID
+		}
+		return 0
+	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Date != out[j].Date {
 			return out[i].Date < out[j].Date
 		}
-		return out[i].RecurrenceID < out[j].RecurrenceID
+		if out[i].RecurrenceID != out[j].RecurrenceID {
+			return out[i].RecurrenceID < out[j].RecurrenceID
+		}
+		return key(out[i]) < key(out[j])
 	})
 	return out, nil
 }
 
-// memberNet computes each member's balance over the wallet's entire history:
+// memberNet computes each member's balance over the wallet's history up to today (later dates have not happened yet):
 // whoever paid a split expense is credited the total; each participant is debited their share
 // (allocated in cents, the same as the transaction list shows); settlements move balance from the sender to the receiver.
-func (s *Server) memberNet(ctx context.Context, walletID int64) (map[int64]int64, []int64, error) {
+func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (map[int64]int64, []int64, error) {
 	net := map[int64]int64{}
 	var order []int64
 
@@ -283,7 +322,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64) (map[int64]int64
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT t.id, t.amount_cents, t.paid_by_user_id, ts.user_id, ts.share_bp
 		FROM transactions t JOIN transaction_splits ts ON ts.transaction_id = t.id
-		WHERE t.wallet_id = ? AND t.kind = 'expense' ORDER BY t.id, ts.user_id`, walletID)
+		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.date <= ? ORDER BY t.id, ts.user_id`, walletID, today)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -318,7 +357,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64) (map[int64]int64
 	flush()
 	rows.Close()
 
-	srows, err := s.db.QueryContext(ctx, `SELECT from_user_id, to_user_id, amount_cents FROM settlements WHERE wallet_id = ?`, walletID)
+	srows, err := s.db.QueryContext(ctx, `SELECT from_user_id, to_user_id, amount_cents FROM settlements WHERE wallet_id = ? AND date <= ?`, walletID, today)
 	if err != nil {
 		return nil, nil, err
 	}

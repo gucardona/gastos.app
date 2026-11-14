@@ -7,6 +7,7 @@ import { Segmented } from "../components/Segmented";
 import { TransactionList } from "../components/TransactionList";
 import { UpcomingList } from "../components/UpcomingList";
 import { useApp } from "../context";
+import { today } from "../lib/dates";
 
 const FILTERS = [
   { id: "all", label: "Tudo" },
@@ -26,7 +27,9 @@ export function Transactions() {
   const [kind, setKind] = useState<Filter>("all");
   const [q, setQ] = useState("");
 
-  const all = txs.data ?? [];
+  const now = today();
+  // a transaction dated after today is still to come: it shows in Próximos, not among the realized ones (as the summary counts)
+  const all = (txs.data ?? []).filter((t) => t.date <= now);
   const term = fold(q.trim());
   // a row with no description shows its category, so the category (and the payment method) can be searched too
   const text = (t: { description: string; categoryId: number | null; paymentMethodId: number | null }) => fold([t.description, categories.find((c) => c.id === t.categoryId)?.name, paymentMethods.find((p) => p.id === t.paymentMethodId)?.name].join(" "));
@@ -54,7 +57,7 @@ export function Transactions() {
           {ahead.length > 0 && (
             <section className="sec">
               <h2>Próximos</h2>
-              <UpcomingList items={ahead} />
+              <UpcomingList items={ahead} txs={txs.data} />
             </section>
           )}
           {shown.length === 0 ? (
