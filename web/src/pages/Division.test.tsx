@@ -8,7 +8,7 @@ import { Division } from "./Division";
 
 const summary = (over: Partial<Summary> = {}): Summary => ({
   month: "2026-10", incomeCents: 0, expenseCents: 38000, balanceCents: -38000, dailyAverageCents: 0, byCategory: [], byEssentiality: {},
-  previous: { incomeCents: 0, expenseCents: 0 },
+  previous: { incomeCents: 0, expenseCents: 0 }, upcomingIncomeCents: 0, upcomingExpenseCents: 0, upcoming: [],
   memberBalances: [{ userId: 1, netCents: 19000 }, { userId: 2, netCents: -19000 }],
   suggestedSettlements: [{ fromUserId: 2, toUserId: 1, amountCents: 19000 }],
   ...over,

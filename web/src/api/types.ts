@@ -101,6 +101,21 @@ export interface Summary {
   previous: { incomeCents: number; expenseCents: number };
   memberBalances?: { userId: number; netCents: number }[];
   suggestedSettlements?: Transfer[];
+  /** Projection of the month's recurring entries still to come; the totals above are realized only. */
+  upcomingIncomeCents: number;
+  upcomingExpenseCents: number;
+  upcoming: Upcoming[];
+}
+
+/** A recurring entry expected later this month (not a transaction yet). */
+export interface Upcoming {
+  recurrenceId: number;
+  date: string;
+  kind: Kind;
+  amountCents: number;
+  description: string;
+  categoryId: number | null;
+  paymentMethodId: number | null;
 }
 
 export interface Recurrence {

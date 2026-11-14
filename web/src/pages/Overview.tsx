@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useSummary, useTransactions } from "../api/queries";
-import type { Transaction, Transfer } from "../api/types";
+import type { Transaction, Transfer, Upcoming } from "../api/types";
+import { Flows } from "../components/Flows";
 import { MonthSwitcher, PageBar } from "../components/PageBar";
 import { SettlementSheet } from "../components/SettlementSheet";
 import { TransactionList } from "../components/TransactionList";
+import { UpcomingList } from "../components/UpcomingList";
 import { firstName, useApp } from "../context";
 import { monthOf, monthRange, today } from "../lib/dates";
 import { formatBRL, splitBRL } from "../lib/money";
@@ -42,7 +44,8 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
   const expenses = summary.byCategory.filter((c) => c.kind === "expense");
   const expenseTotal = expenses.reduce((s, c) => s + c.cents, 0);
   const pie = groupTop(expenses.map((c) => ({ label: categories.find((x) => x.id === c.categoryId)?.name ?? "?", value: c.cents })), 7, "Outros");
-  const empty = txs.length === 0 && summary.byCategory.length === 0;
+  const empty = txs.length === 0 && summary.byCategory.length === 0 && summary.upcoming.length === 0;
+  const forecast = summary.balanceCents + summary.upcomingIncomeCents - summary.upcomingExpenseCents;
 
   return (
     <>
@@ -52,11 +55,11 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
           <p className={`balance num ${summary.balanceCents < 0 ? "negative" : ""}`}>
             <span className="cur">R$</span>{reais}<span className="cents">,{cents}</span>
           </p>
+          {summary.upcoming.length > 0 && (
+            <p className="forecast">Previsto para o fim do mês: <b className={`num ${forecast < 0 ? "negative" : ""}`}>{formatBRL(forecast)}</b></p>
+          )}
         </div>
-        <div className="flows">
-          <span className="in">Entrou <b className="num">{formatBRL(summary.incomeCents)}</b></span>
-          <span className="out">Saiu <b className="num">{formatBRL(summary.expenseCents)}</b></span>
-        </div>
+        <Flows income={summary.incomeCents} expense={summary.expenseCents} toReceive={summary.upcomingIncomeCents} toPay={summary.upcomingExpenseCents} />
       </section>
 
       {empty ? (
@@ -98,11 +101,19 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
             )}
             <div>
               <Settle summary={summary} />
+              {txs.length > 0 && (
               <section className="sec">
                 <h2>Recentes</h2>
                 <TransactionList items={txs.slice(0, 6)} headingLevel={3} />
                 {txs.length > 6 && <p style={{ marginTop: 14 }}><Link className="link" to={`/lancamentos?m=${month}`}>Ver todos os lançamentos</Link></p>}
               </section>
+              )}
+              {summary.upcoming.length > 0 && (
+              <section className="sec">
+                <h2>Próximos</h2>
+                <UpcomingList items={summary.upcoming} />
+              </section>
+              )}
             </div>
           </div>
         </>
@@ -112,7 +123,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
 }
 
 /** The month as a ruler: one tick per day, the future dotted. */
-function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; summary: { dailyAverageCents: number; previous: { expenseCents: number } } }) {
+function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; summary: { dailyAverageCents: number; previous: { expenseCents: number }; upcoming: Upcoming[]; upcomingExpenseCents: number } }) {
   const days = Number(monthRange(month).to.slice(8));
   const now = today();
   const todayMonth = monthOf(now);
@@ -120,16 +131,22 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
 
   const spent = Array<number>(days).fill(0);
   for (const t of txs) if (t.kind === "expense") spent[Number(t.date.slice(8)) - 1] += t.amountCents;
-  const max = Math.max(...spent, 1);
+  const projected = Array<number>(days).fill(0); // upcoming entries are always after today
+  for (const u of summary.upcoming) if (u.kind === "expense") projected[Number(u.date.slice(8)) - 1] += u.amountCents;
+  const max = Math.max(...spent, ...projected, 1);
+  const height = (v: number) => Math.max(6, Math.round(Math.sqrt(v / max) * RULER_HEIGHT));
 
   return (
     <section className="strip" aria-label="Gastos por dia">
       <div className="ruler" style={{ gridTemplateColumns: `repeat(${days}, 1fr)` }}>
         {spent.map((v, i) => {
           const d = i + 1;
-          if (d > todayDay) return <i key={d} className="future" />;
+          if (d > todayDay) {
+            const p = projected[i];
+            return p > 0 ? <i key={d} className="future projected" style={{ height: height(p) }} title={`Dia ${d}: ${formatBRL(p)} previsto`} /> : <i key={d} className="future" />;
+          }
           if (v === 0) return <i key={d} className="zero" title={`Dia ${d}: sem gastos`} />;
-          return <i key={d} className={d === todayDay && month === todayMonth ? "today" : ""} style={{ height: Math.max(6, Math.round(Math.sqrt(v / max) * RULER_HEIGHT)) }} title={`Dia ${d}: ${formatBRL(v)}`} />;
+          return <i key={d} className={d === todayDay && month === todayMonth ? "today" : ""} style={{ height: height(v) }} title={`Dia ${d}: ${formatBRL(v)}`} />;
         })}
       </div>
       <div className="ruler-axis" style={{ gridTemplateColumns: `repeat(${days}, 1fr)` }} aria-hidden>
@@ -141,6 +158,7 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
       </div>
       <p className="visually-hidden">
         {spent.map((v, i) => (v > 0 && i < todayDay ? `Dia ${i + 1}: ${formatBRL(v)}.` : "")).filter(Boolean).join(" ") || "Sem gastos até agora."}
+        {summary.upcomingExpenseCents > 0 && ` Previsto: ${formatBRL(summary.upcomingExpenseCents)} a pagar (${projected.map((p, i) => (p > 0 ? `dia ${i + 1}: ${formatBRL(p)}` : "")).filter(Boolean).join("; ")}).`}
       </p>
       <p className="strip-note">
         {summary.dailyAverageCents > 0 && <>Média de <b className="num">{formatBRL(summary.dailyAverageCents)}</b> por dia. </>}

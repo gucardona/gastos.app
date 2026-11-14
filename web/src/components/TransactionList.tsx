@@ -4,7 +4,7 @@ import { dayLabel } from "../lib/dates";
 import { formatBRL } from "../lib/money";
 
 const signed = (t: Transaction) => (t.kind === "income" ? t.amountCents : -t.amountCents);
-const money = (cents: number) => `${cents < 0 ? "−" : "+"}${formatBRL(Math.abs(cents))}`;
+export const money = (cents: number) => `${cents < 0 ? "−" : "+"}${formatBRL(Math.abs(cents))}`;
 
 /** Transactions grouped by day, in the order received (the API already returns newest first). */
 export function TransactionList({ items, headingLevel = 2 }: { items: Transaction[]; headingLevel?: 2 | 3 }) {
