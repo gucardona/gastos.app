@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"net/http"
+	"sort"
 	"time"
 
 	"gastos/internal/money"
+	"gastos/internal/recurrence"
 )
 
 func (s *Server) summaryRoutes(mux *http.ServeMux, wallet routeWrap) {
@@ -41,6 +43,20 @@ type summaryDTO struct {
 	// Only present when splitting is enabled on the wallet.
 	MemberBalances       any `json:"memberBalances,omitempty"`
 	SuggestedSettlements any `json:"suggestedSettlements,omitempty"`
+	// Projection of the month's recurring entries still to come; the totals above stay realized only.
+	UpcomingIncomeCents  int64      `json:"upcomingIncomeCents"`
+	UpcomingExpenseCents int64      `json:"upcomingExpenseCents"`
+	Upcoming             []upcoming `json:"upcoming"`
+}
+
+type upcoming struct {
+	RecurrenceID    int64  `json:"recurrenceId"`
+	Date            string `json:"date"`
+	Kind            string `json:"kind"`
+	AmountCents     int64  `json:"amountCents"`
+	Description     string `json:"description"`
+	CategoryID      *int64 `json:"categoryId"`
+	PaymentMethodID *int64 `json:"paymentMethodId"`
 }
 
 func monthRange(month string) (first, last string, ok bool) {
@@ -112,6 +128,16 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if days > 0 {
 		out.DailyAverageCents = cur.ExpenseCents / days
 	}
+	if out.Upcoming, err = s.upcoming(ctx, walletID, first, last, now.Format(dateLayout)); err != nil {
+		return err
+	}
+	for _, u := range out.Upcoming {
+		if u.Kind == "income" {
+			out.UpcomingIncomeCents += u.AmountCents
+		} else {
+			out.UpcomingExpenseCents += u.AmountCents
+		}
+	}
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT c.id, c.kind, COALESCE(SUM(t.amount_cents), 0) AS cents, b.limit_cents
@@ -178,6 +204,55 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	}
 	writeJSON(w, http.StatusOK, out)
 	return nil
+}
+
+// upcoming projects the month's occurrences of enabled expense/income recurrences that fall after today
+// (today's are materialized already), leaving out those already present as a transaction or deleted by a person.
+func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, today string) ([]upcoming, error) {
+	out := []upcoming{}
+	if last <= today {
+		return out, nil
+	}
+	month := first[:7]
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT r.id, r.kind, r.amount_cents, COALESCE(NULLIF(r.description, ''), c.name, ''), r.category_id, r.payment_method_id,
+		       r.day_of_month, r.start_date, COALESCE(r.end_date, '')
+		FROM recurrences r LEFT JOIN categories c ON c.id = r.category_id
+		WHERE r.wallet_id = ? AND r.enabled = 1 AND r.kind IN ('expense', 'income')
+		  AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.recurrence_id = r.id AND t.occurrence = ?)
+		  AND NOT EXISTS (SELECT 1 FROM recurrence_skips k WHERE k.recurrence_id = r.id AND k.occurrence = ?)`,
+		walletID, month, month)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u upcoming
+		var day int
+		var start, end string
+		if err := rows.Scan(&u.RecurrenceID, &u.Kind, &u.AmountCents, &u.Description, &u.CategoryID, &u.PaymentMethodID,
+			&day, &start, &end); err != nil {
+			return nil, err
+		}
+		occ, err := recurrence.Occurrences(day, start, end, last)
+		if err != nil || len(occ) == 0 {
+			continue // an invalid recurrence is logged by the materializer
+		}
+		if o := occ[len(occ)-1]; o.Date > today && o.Date >= first {
+			u.Date = o.Date
+			out = append(out, u)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Date != out[j].Date {
+			return out[i].Date < out[j].Date
+		}
+		return out[i].RecurrenceID < out[j].RecurrenceID
+	})
+	return out, nil
 }
 
 // memberNet computes each member's balance over the wallet's entire history:
