@@ -73,3 +73,9 @@ describe("a stacked row (a long label on its own line, above a full-width input)
     for (const r of stacked) expect(r.body, r.selector).not.toMatch(/outline|box-shadow|border/);
   });
 });
+
+describe("a date field inside a row", () => {
+  it("does not draw its own ring inside the ring of its row: one ring, not two", () => {
+    expect(css).toMatch(/\.date-input:focus-visible\s*\{[^}]*outline:\s*none/);
+  });
+});
