@@ -147,8 +147,9 @@ jobs:
           sha=${GITHUB_SHA::7}
           ssh="ssh -i ~/.ssh/id deploy@$DEPLOY_HOST"
           $ssh "mkdir -p /opt/gastos/$TARGET/releases/$sha"
-          scp -i ~/.ssh/id gastos "deploy@$DEPLOY_HOST:/opt/gastos/$TARGET/releases/$sha/gastos"
-          $ssh "chmod +x /opt/gastos/$TARGET/releases/$sha/gastos"
+          # invite.sh rides with the release, so /opt/gastos/<env>/current/invite.sh always matches the running binary
+          scp -i ~/.ssh/id gastos scripts/invite.sh "deploy@$DEPLOY_HOST:/opt/gastos/$TARGET/releases/$sha/"
+          $ssh "chmod 755 /opt/gastos/$TARGET/releases/$sha/gastos /opt/gastos/$TARGET/releases/$sha/invite.sh"
           $ssh "bash -s -- $TARGET $sha $PORT" < scripts/remote-deploy.sh
       # The script checks /healthz on localhost; this checks the way users reach the app (DNS, TLS, Caddy).
       # Set the PUBLIC_URL repository variable (for example https://gastos.gupa.dev) to enable it.
