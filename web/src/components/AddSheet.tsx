@@ -60,6 +60,10 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const splitting = wallet.splittingEnabled && kind === "expense" && members.length > 1;
   const nameOf = (id: number) => members.find((m) => m.userId === id)?.name.split(" ")[0] ?? "";
   const cents = parseCents(amount);
+  // the server's duplicate warning holds only while what it compared (never the description) stays the same
+  const [dupFor, setDupFor] = useState<{ key: string; message: string } | null>(null);
+  const dupKey = [kind, cents, category?.id, method?.id, date].join("|");
+  const dup = dupFor?.key === dupKey ? dupFor.message : "";
 
   async function save(again: boolean) {
     const errs: Record<string, string> = {};
@@ -82,7 +86,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       let saved: Transaction | undefined;
       if (tx) saved = await api.put<Transaction>(`${wp}/transactions/${tx.id}`, { ...base, date });
       else if (repeat) await api.post(`${wp}/recurrences`, { ...base, dayOfMonth: Number(date.slice(8)), startDate: date, ...(endDate ? { endDate } : {}) });
-      else saved = await api.post<Transaction>(`${wp}/transactions`, { ...base, date });
+      else saved = await api.post<Transaction>(`${wp}/transactions`, { ...base, date, ...(dup ? { allowDuplicate: true } : {}) });
       refresh(wallet.id);
       // a card purchase after the closing leaves this month: say where it went
       const invoice = saved && laterInvoice(saved);
@@ -95,7 +99,8 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
         amountRef.current?.focus();
       } else onClose();
     } catch (e) {
-      if (e instanceof ApiError) {
+      if (e instanceof ApiError && e.code === "duplicate") setDupFor({ key: dupKey, message: e.message });
+      else if (e instanceof ApiError) {
         setErrors(e.fields);
         setGeneral(generalError(e, ["amountCents", "categoryId", "description", "date", "endDate", ...(splitting ? ["splits"] : [])]));
       } else setGeneral("Sem conexão. Tente de novo.");
@@ -111,7 +116,7 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       await api.del(`/wallets/${wallet.id}/transactions/${tx.id}`);
       refresh(wallet.id);
       const { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId } = tx;
-      const again = { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId, ...(tx.splits.length ? { splits: tx.splits.map((s) => ({ userId: s.userId, shareBp: s.shareBp })) } : {}) };
+      const again = { kind, amountCents, description, categoryId, paymentMethodId, date, paidByUserId, allowDuplicate: true, ...(tx.splits.length ? { splits: tx.splits.map((s) => ({ userId: s.userId, shareBp: s.shareBp })) } : {}) };
       // the copy is a plain transaction: a deleted occurrence of a recurrence is never made again by the server
       toast("Lançamento excluído", { action: undo(() => api.post(`/wallets/${wallet.id}/transactions`, again)) });
       onClose();
@@ -204,8 +209,9 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
       {splitting && <SplitEditor value={percents} onChange={setPercents} paidBy={paidBy} cents={cents} error={errors.splits} />}
 
       {general && <p className="error" role="alert">{general}</p>}
+      {dup && <p className="error" role="alert">{dup} É outro lançamento?</p>}
       <div className="actions">
-        <button type="submit" className="btn full" disabled={busy}>{busy ? "Salvando…" : "Salvar"}</button>
+        <button type="submit" className="btn full" disabled={busy}>{busy ? "Salvando…" : dup ? "Lançar mesmo assim" : "Salvar"}</button>
         {!tx && <button type="button" className="btn ghost full" disabled={busy} onClick={() => void save(true)}>Salvar e lançar outro</button>}
         {tx && (confirmDelete
           ? <button key="confirm" type="button" className="btn danger full" disabled={busy} onClick={(e) => e.detail < 2 && void remove()}>Confirmar exclusão</button>
