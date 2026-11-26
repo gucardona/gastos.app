@@ -119,8 +119,8 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v, col int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != latestVersion() || v != 7 {
-		t.Errorf("user_version = %d, want latest %d (7)", v, latestVersion())
+	if v != latestVersion() || v != 8 {
+		t.Errorf("user_version = %d, want latest %d (8)", v, latestVersion())
 	}
 	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&col)
 	if col != 1 {
@@ -269,8 +269,8 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 	defer d.Close()
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 7 {
-		t.Fatalf("user_version = %d, want 7", v)
+	if v != 8 {
+		t.Fatalf("user_version = %d, want 8", v)
 	}
 	for q, want := range map[string]int{
 		`SELECT COUNT(*) FROM users`:                                                               2,
@@ -280,6 +280,7 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 		`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`:                                  1,
 		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('recurrence_skips', 'transactions_remember_deleted_occurrence', 'settlements_remember_deleted_occurrence')`: 3,
 		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'invite_codes'`:                                                                            1,
+		`SELECT COUNT(*) FROM transactions WHERE month = '2026-10' AND invoice_due IS NULL`: 1,
 		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:                                                                                                  1,
 		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`:                                                                                        10000,
 	} {
@@ -414,7 +415,10 @@ func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// undo 0007, 0006 and then 0005, newest first, as docs/assistente.md says
+	// undo 0008, 0007, 0006 and then 0005, newest first, as docs/assistente.md says
+	mustExec(t, raw, `DROP INDEX transactions_wallet_month; ALTER TABLE transactions DROP COLUMN month; ALTER TABLE transactions DROP COLUMN invoice_due;
+		ALTER TABLE payment_methods DROP COLUMN closing_day; ALTER TABLE payment_methods DROP COLUMN due_day; ALTER TABLE payment_methods DROP COLUMN issuer;
+		ALTER TABLE payment_methods DROP COLUMN card_form; ALTER TABLE payment_methods DROP COLUMN last4; PRAGMA user_version=7;`)
 	mustExec(t, raw, `DROP TABLE invite_codes; PRAGMA user_version=6;`)
 	mustExec(t, raw, `DROP TRIGGER transactions_remember_deleted_occurrence; DROP TRIGGER settlements_remember_deleted_occurrence;
 		DROP TABLE recurrence_skips; ALTER TABLE wallet_members DROP COLUMN default_share_bp; PRAGMA user_version=4;`)
@@ -442,5 +446,42 @@ func TestInviteCodeUserDeletedKeepsTheCode(t *testing.T) {
 	d.QueryRow(`SELECT COUNT(*) FROM invite_codes WHERE used_by IS NULL AND used_at IS NOT NULL AND created_at <> ''`).Scan(&n)
 	if n != 1 {
 		t.Fatal("deleting the user should keep the used code, with used_by set to NULL")
+	}
+}
+
+func TestCardColumnsCheck(t *testing.T) {
+	d := openTemp(t)
+	mustExec(t, d, `INSERT INTO wallets (id, name) VALUES (1, 'W')`)
+	mustExec(t, d, `INSERT INTO payment_methods (id, wallet_id, name, icon, closing_day, due_day, card_form, last4) VALUES (1, 1, 'C', 'x', 20, 27, 'virtual', '0042')`)
+	for _, bad := range []string{`last4 = '12a4'`, `last4 = '12345'`, `closing_day = 0`, `due_day = 32`, `card_form = 'plastic'`} {
+		if _, err := d.Exec(`UPDATE payment_methods SET ` + bad + ` WHERE id = 1`); err == nil {
+			t.Errorf("%s should violate a CHECK", bad)
+		}
+	}
+}
+
+// TestRollbackFrom8 runs the rollback documented in docs/assistente.md, so it is known to work on a real database.
+func TestRollbackFrom8(t *testing.T) {
+	path := filepath.Join(testutil.TempDir(t), "t.db")
+	seedV4(t, path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, d, `UPDATE payment_methods SET closing_day = 20, due_day = 27, last4 = '1234', card_form = 'physical', issuer = 'X'`)
+	mustExec(t, d, `UPDATE transactions SET invoice_due = '2026-11-27'`)
+	mustExec(t, d, `DROP INDEX transactions_wallet_month; ALTER TABLE transactions DROP COLUMN month; ALTER TABLE transactions DROP COLUMN invoice_due;
+		ALTER TABLE payment_methods DROP COLUMN closing_day; ALTER TABLE payment_methods DROP COLUMN due_day; ALTER TABLE payment_methods DROP COLUMN issuer;
+		ALTER TABLE payment_methods DROP COLUMN card_form; ALTER TABLE payment_methods DROP COLUMN last4; PRAGMA user_version=7;`)
+	d.Close()
+	d, err = Open(path) // migrates to 8 again
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM transactions WHERE month = '2026-10'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("after rollback and re-upgrade, %d transactions in 2026-10, want 1", n)
 	}
 }
