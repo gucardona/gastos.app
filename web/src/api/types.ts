@@ -31,6 +31,8 @@ export interface Member {
   splitsByDefault: boolean;
   /** Basis points; 0 = not set. */
   defaultShareBp: number;
+  /** The method this member's new transactions start with; null = the first one. */
+  defaultPaymentMethodId: number | null;
 }
 
 export interface Category {

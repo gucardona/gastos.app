@@ -119,8 +119,8 @@ func TestOpenCreatesFullSchema(t *testing.T) {
 	}
 	var v, col int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != latestVersion() || v != 8 {
-		t.Errorf("user_version = %d, want latest %d (8)", v, latestVersion())
+	if v != latestVersion() || v != 9 {
+		t.Errorf("user_version = %d, want latest %d (9)", v, latestVersion())
 	}
 	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('wallet_members') WHERE name = 'default_share_bp'`).Scan(&col)
 	if col != 1 {
@@ -269,13 +269,14 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 	defer d.Close()
 	var v int
 	d.QueryRow(`PRAGMA user_version`).Scan(&v)
-	if v != 8 {
-		t.Fatalf("user_version = %d, want 8", v)
+	if v != 9 {
+		t.Fatalf("user_version = %d, want 9", v)
 	}
 	for q, want := range map[string]int{
 		`SELECT COUNT(*) FROM users`:                                                               2,
 		`SELECT COUNT(*) FROM wallets`:                                                             1,
 		`SELECT COUNT(*) FROM wallet_members WHERE default_share_bp IS NULL`:                       2,
+		`SELECT COUNT(*) FROM wallet_members WHERE default_payment_method_id IS NULL`:              2,
 		`SELECT COUNT(*) FROM ai_settings WHERE daily_limit_cents = 500 AND api_key_enc = x'0102'`: 1,
 		`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`:                                  1,
 		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('recurrence_skips', 'transactions_remember_deleted_occurrence', 'settlements_remember_deleted_occurrence')`: 3,
@@ -415,7 +416,8 @@ func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// undo 0008, 0007, 0006 and then 0005, newest first, as docs/assistente.md says
+	// undo 0009, 0008, 0007, 0006 and then 0005, newest first, as docs/assistente.md says
+	mustExec(t, raw, `ALTER TABLE wallet_members DROP COLUMN default_payment_method_id; PRAGMA user_version=8;`)
 	mustExec(t, raw, `DROP INDEX transactions_wallet_month; ALTER TABLE transactions DROP COLUMN month; ALTER TABLE transactions DROP COLUMN invoice_due;
 		ALTER TABLE payment_methods DROP COLUMN closing_day; ALTER TABLE payment_methods DROP COLUMN due_day; ALTER TABLE payment_methods DROP COLUMN issuer;
 		ALTER TABLE payment_methods DROP COLUMN card_form; ALTER TABLE payment_methods DROP COLUMN last4; PRAGMA user_version=7;`)
@@ -460,7 +462,7 @@ func TestCardColumnsCheck(t *testing.T) {
 	}
 }
 
-// TestRollbackFrom8 runs the rollback documented in docs/assistente.md, so it is known to work on a real database.
+// TestRollbackFrom8 runs the rollbacks (9 to 8, then 8 to 7) documented in docs/assistente.md, so it is known to work on a real database.
 func TestRollbackFrom8(t *testing.T) {
 	path := filepath.Join(testutil.TempDir(t), "t.db")
 	seedV4(t, path)
@@ -470,11 +472,13 @@ func TestRollbackFrom8(t *testing.T) {
 	}
 	mustExec(t, d, `UPDATE payment_methods SET closing_day = 20, due_day = 27, last4 = '1234', card_form = 'physical', issuer = 'X'`)
 	mustExec(t, d, `UPDATE transactions SET invoice_due = '2026-11-27'`)
-	mustExec(t, d, `DROP INDEX transactions_wallet_month; ALTER TABLE transactions DROP COLUMN month; ALTER TABLE transactions DROP COLUMN invoice_due;
+	mustExec(t, d, `UPDATE wallet_members SET default_payment_method_id = 1`)
+	mustExec(t, d, `ALTER TABLE wallet_members DROP COLUMN default_payment_method_id; PRAGMA user_version=8;
+		DROP INDEX transactions_wallet_month; ALTER TABLE transactions DROP COLUMN month; ALTER TABLE transactions DROP COLUMN invoice_due;
 		ALTER TABLE payment_methods DROP COLUMN closing_day; ALTER TABLE payment_methods DROP COLUMN due_day; ALTER TABLE payment_methods DROP COLUMN issuer;
 		ALTER TABLE payment_methods DROP COLUMN card_form; ALTER TABLE payment_methods DROP COLUMN last4; PRAGMA user_version=7;`)
 	d.Close()
-	d, err = Open(path) // migrates to 8 again
+	d, err = Open(path) // migrates to 9 again
 	if err != nil {
 		t.Fatal(err)
 	}

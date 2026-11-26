@@ -5,7 +5,9 @@ import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
 import { CardFields, cardBody, cardDraft } from "./CardFields";
 import { EmojiPicker } from "./EmojiPicker";
+import { ListGroup, ListRow } from "./ListGroup";
 import { Sheet } from "./Sheet";
+import { Switch } from "./Switch";
 
 /**
  * Create (`"new"`) or edit a payment method; closed while `method` is null. A credit card (`card`, or a method that is
@@ -23,7 +25,7 @@ export function PaymentSheet({ method, card = false, onClose }: { method: Paymen
 const titleOf = (isNew: boolean, isCard: boolean) => (isCard ? (isNew ? "Novo cartão" : "Editar cartão") : isNew ? "Nova forma de pagamento" : "Editar forma de pagamento");
 
 function PaymentForm({ method, isCard, onClose }: { method: PaymentMethod | "new"; isCard: boolean; onClose: () => void }) {
-  const { wallet } = useApp();
+  const { wallet, user, members } = useApp();
   const { run, busy, error } = useAction();
   const p = method === "new" ? null : method;
   const [name, setName] = useState(p?.name ?? "");
@@ -38,6 +40,8 @@ function PaymentForm({ method, isCard, onClose }: { method: PaymentMethod | "new
   const noun = isCard ? "Cartão" : "Forma de pagamento";
   const ending = isCard ? "o" : "a"; // "Cartão salvo", "Forma de pagamento salva"
   const title = titleOf(!p, isCard);
+  // only for me: each member chooses the method their new transactions start with
+  const isDefault = p !== null && members.find((m) => m.userId === user.id)?.defaultPaymentMethodId === p.id;
 
   return (
     <form onSubmit={async (e) => { e.preventDefault(); done(await run(() => (p ? put(p.archived, withCard) : api.post(`/wallets/${wallet.id}/payment-methods`, { name, icon, ...withCard })), `${noun} ${p ? "salv" : "criad"}${ending}`)); }}>
@@ -54,6 +58,11 @@ function PaymentForm({ method, isCard, onClose }: { method: PaymentMethod | "new
         <input id="pm-name" className="desc-input" aria-label={isCard ? "Nome do cartão" : "Nome da forma de pagamento"} placeholder={isCard ? "Ex.: Nubank" : undefined} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       {isCard && <CardFields value={card} onChange={setCard} />}
+      {p && !p.archived && (
+        <ListGroup>
+          <ListRow label="Padrão ao lançar" trailing={<Switch checked={isDefault} disabled={busy} label="Padrão ao lançar" onChange={(on) => void run(() => api.put(`/wallets/${wallet.id}/default-payment-method`, { paymentMethodId: on ? p.id : null }), on ? `Seus lançamentos começam com ${p.name}` : "Seus lançamentos começam com a primeira forma de pagamento")} />} />
+        </ListGroup>
+      )}
       <h3 className="sheet-sub">Ícone</h3>
       <EmojiPicker value={icon} onPick={setIcon} />
       {error && <p className="error" role="alert">{error}</p>}

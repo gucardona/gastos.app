@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Category } from "../api/types";
@@ -155,6 +155,15 @@ describe("AddSheet: new transaction", () => {
     await user.click(save());
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(bodyOf(fetch)).toMatchObject({ amountCents: 4890, description: "" });
+  });
+
+  it("a new transaction starts with the payment method I chose as default; editing keeps the transaction's", async () => {
+    const mine = appCtx({ members: members.map((m) => (m.userId === 1 ? { ...m, defaultPaymentMethodId: 2 } : m)) });
+    open({}, mine);
+    expect(row("Pago com").textContent).toContain("Crédito");
+    cleanup();
+    open({ tx: tx({ paymentMethodId: 1 }) }, mine);
+    expect(row("Pago com").textContent).toContain("Pix");
   });
 
   it("creates the expense with the default payment method and closes", async () => {

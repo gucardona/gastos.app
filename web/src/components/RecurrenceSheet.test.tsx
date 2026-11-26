@@ -128,7 +128,7 @@ describe("RecurrenceSheet", () => {
 
     it("three people: 50/25/25", async () => {
       const fetch = serve();
-      const caio = { userId: 3, name: "Caio Dias", email: "caio@example.com", role: "editor" as const, splitsByDefault: true, defaultShareBp: 0 };
+      const caio = { userId: 3, name: "Caio Dias", email: "caio@example.com", role: "editor" as const, splitsByDefault: true, defaultShareBp: 0, defaultPaymentMethodId: null };
       const { user, onClose } = open(netflix, splitting([caio]));
       await type(user, "Ana Souza", "50");
       await type(user, "Bia Lima", "25");
