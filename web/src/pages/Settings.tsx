@@ -25,6 +25,7 @@ export const SETTINGS_SECTIONS = [
   { id: "pessoas", label: "Pessoas", group: 1 },
   { id: "categorias", label: "Categorias", group: 1 },
   { id: "pagamentos", label: "Formas de pagamento", group: 1 },
+  { id: "cartoes", label: "Cartões de crédito", group: 1 },
   { id: "orcamentos", label: "Orçamentos", group: 1 },
   { id: "bancos", label: "Contas bancárias", group: 2 },
   { id: "recorrentes", label: "Recorrentes", group: 2 },
@@ -100,6 +101,7 @@ function Screen({ id }: { id: (typeof SETTINGS_SECTIONS)[number]["id"] }) {
     case "pessoas": return <MembersSection />;
     case "categorias": return <CategoriesSection />;
     case "pagamentos": return <PaymentsSection />;
+    case "cartoes": return <PaymentsSection cards />;
     case "orcamentos": return <BudgetsSection />;
     case "bancos": return <BankSection />;
     case "recorrentes": return <RecurringSection />;

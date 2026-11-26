@@ -89,13 +89,25 @@ describe("PaymentSheet as a credit card", () => {
     id: 3, name: "Itaú Black", icon: "💳", sortOrder: 2, archived: false,
     card: { closingDay: 20, dueDay: 27, issuer: "Itaú", cardForm: "virtual", last4: "1234", bestPurchaseDay: 21 },
   };
+  const openCard = (method: PaymentMethod | "new") => {
+    const onClose = vi.fn();
+    renderApp(<PaymentSheet method={method} card onClose={onClose} />);
+    return { onClose, user: userEvent.setup() };
+  };
 
-  it("turning the switch on shows the card fields and the best purchase day", async () => {
-    serve(201);
-    const { user } = open("new");
+  it("a plain payment method has no card switch nor card fields", () => {
+    serve();
+    open("new");
+    expect(screen.queryByRole("switch", { name: "Cartão de crédito" })).toBeNull();
     expect(screen.queryByLabelText("Compras até o dia")).toBeNull();
-    await user.click(screen.getByRole("switch", { name: "Cartão de crédito" }));
-    for (const f of ["Banco ou bandeira", "Final do cartão", "Compras até o dia", "Vence no dia"]) expect(screen.getByLabelText(f)).toBeTruthy();
+  });
+
+  it("a new card shows its fields right away, and the best purchase day", async () => {
+    serve(201);
+    const { user } = openCard("new");
+    expect(screen.getByRole("heading", { name: "Novo cartão" })).toBeTruthy();
+    expect(screen.queryByRole("switch")).toBeNull();
+    for (const f of ["Nome do cartão", "Banco ou bandeira", "Final do cartão", "Compras até o dia", "Vence no dia"]) expect(screen.getByLabelText(f)).toBeTruthy();
     expect(screen.getByRole("group", { name: "Tipo do cartão" })).toBeTruthy();
     await user.type(screen.getByLabelText("Compras até o dia"), "20");
     expect(screen.getByText("Melhor dia de compra: 21")).toBeTruthy();
@@ -106,9 +118,8 @@ describe("PaymentSheet as a credit card", () => {
 
   it("creates a card with its fields", async () => {
     const fetch = serve(201);
-    const { user, onClose } = open("new");
-    await user.type(screen.getByLabelText("Nome da forma de pagamento"), "Itaú Black");
-    await user.click(screen.getByRole("switch", { name: "Cartão de crédito" }));
+    const { user, onClose } = openCard("new");
+    await user.type(screen.getByLabelText("Nome do cartão"), "Itaú Black");
     await user.type(screen.getByLabelText("Banco ou bandeira"), "Itaú");
     await user.click(screen.getByRole("button", { name: "Virtual" }));
     await user.type(screen.getByLabelText("Final do cartão"), "1234");
@@ -119,26 +130,17 @@ describe("PaymentSheet as a credit card", () => {
     expect(bodyAt(fetch)).toEqual({ name: "Itaú Black", icon: "💳", card: { closingDay: 20, dueDay: 27, issuer: "Itaú", cardForm: "virtual", last4: "1234" } });
   });
 
-  it("an existing card opens with the switch on and its values", () => {
+  it("an existing card opens as a card, with its values", () => {
     serve();
-    open(card);
-    expect(screen.getByRole("switch", { name: "Cartão de crédito" }).getAttribute("aria-checked")).toBe("true");
+    open(card); // a card opens as one even without the card prop
+    expect(screen.getByRole("heading", { name: "Editar cartão" })).toBeTruthy();
     expect((screen.getByLabelText("Compras até o dia") as HTMLInputElement).value).toBe("20");
     expect((screen.getByLabelText("Final do cartão") as HTMLInputElement).value).toBe("1234");
   });
 
-  it("turning it off sends card: null", async () => {
-    const fetch = serve();
-    const { user, onClose } = open(card);
-    await user.click(screen.getByRole("switch", { name: "Cartão de crédito" }));
-    await user.click(screen.getByRole("button", { name: "Salvar" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(bodyAt(fetch)).toMatchObject({ card: null });
-  });
-
   it("archiving a card sends no card fields, so the server keeps them", async () => {
     const fetch = serve();
-    const { user } = open(card);
+    const { user } = openCard(card);
     await user.click(screen.getByRole("button", { name: "Arquivar" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(bodyAt(fetch)).not.toHaveProperty("card");

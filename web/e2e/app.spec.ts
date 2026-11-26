@@ -716,11 +716,10 @@ test("an expense typed with a date in the next month is still to come, not spent
 
 test("a credit card: a purchase after the closing counts in the next invoice's month", async ({ page }) => {
   await signUpAndEnter(page, "Caio");
-  await page.goto("/ajustes/pagamentos");
-  await page.getByRole("button", { name: "Nova forma de pagamento" }).click();
+  await page.goto("/ajustes/cartoes");
+  await page.getByRole("button", { name: "Novo cartão" }).click();
   const sheet = page.getByRole("dialog");
-  await sheet.getByLabel("Nome da forma de pagamento").fill("Cartão Black");
-  await sheet.getByRole("switch", { name: "Cartão de crédito" }).click();
+  await sheet.getByLabel("Nome do cartão").fill("Cartão Black");
   await sheet.getByLabel("Final do cartão").fill("1234");
   await sheet.getByLabel("Compras até o dia").fill("20");
   await sheet.getByLabel("Vence no dia").fill("27");
@@ -728,6 +727,9 @@ test("a credit card: a purchase after the closing counts in the next invoice's m
   await sheet.getByRole("button", { name: "Criar" }).click();
   await expect(sheet).toBeHidden();
   await expect(page.getByRole("button", { name: /Cartão Black/ })).toContainText("fecha 20 · vence 27 · final 1234");
+  // it is also a payment method, managed only from Cartões de crédito
+  await page.goto("/ajustes/pagamentos");
+  await expect(page.getByRole("link", { name: /Cartão Black/ })).toContainText("Em Cartões de crédito");
 
   // a purchase on the 21st of last month (always in the past) closes in this month's invoice
   await page.evaluate(async () => {
