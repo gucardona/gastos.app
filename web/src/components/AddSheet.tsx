@@ -4,7 +4,7 @@ import { useRefresh } from "../api/queries";
 import type { Kind, Transaction } from "../api/types";
 import { useApp } from "../context";
 import { useUndo } from "../hooks/useAction";
-import { dayLabel, today, yesterday } from "../lib/dates";
+import { dayLabel, laterInvoice, monthLong, today, yesterday } from "../lib/dates";
 import { amountProblem, centsToInput, parseCents, typedAmount } from "../lib/money";
 import { percentsFromSplits } from "../lib/splits";
 import { ListGroup, ListRow } from "./ListGroup";
@@ -79,11 +79,14 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
     setBusy(true);
     try {
       const wp = `/wallets/${wallet.id}`;
-      if (tx) await api.put(`${wp}/transactions/${tx.id}`, { ...base, date });
+      let saved: Transaction | undefined;
+      if (tx) saved = await api.put<Transaction>(`${wp}/transactions/${tx.id}`, { ...base, date });
       else if (repeat) await api.post(`${wp}/recurrences`, { ...base, dayOfMonth: Number(date.slice(8)), startDate: date, ...(endDate ? { endDate } : {}) });
-      else await api.post(`${wp}/transactions`, { ...base, date });
+      else saved = await api.post<Transaction>(`${wp}/transactions`, { ...base, date });
       refresh(wallet.id);
-      toast(!tx && repeat ? "Recorrência criada" : "Lançamento salvo");
+      // a card purchase after the closing leaves this month: say where it went
+      const invoice = saved && laterInvoice(saved);
+      toast(invoice ? `Lançado na fatura de ${monthLong(invoice)}` : !tx && repeat ? "Recorrência criada" : "Lançamento salvo");
       if (again) {
         setAmount("");
         setDescription("");

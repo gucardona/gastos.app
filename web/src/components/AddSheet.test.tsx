@@ -585,3 +585,24 @@ describe("AddSheet: toasts", () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento excluído", expect.objectContaining({ action: expect.objectContaining({ label: "Desfazer" }) })));
   });
 });
+
+describe("AddSheet: a purchase on a card that falls in a later invoice", () => {
+  it("says which invoice it went to", async () => {
+    mockFetch({ status: 201, body: tx({ date: "2026-11-22", invoiceDue: "2026-12-27" }) });
+    const onClose = vi.fn();
+    const { toast } = renderApp(<AddSheet state={{}} onClose={onClose} />, appCtx());
+    const user = userEvent.setup();
+    await fill(user);
+    await user.click(save());
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançado na fatura de dezembro"));
+  });
+
+  it("keeps 'Lançamento salvo' when the invoice is in the purchase's month", async () => {
+    mockFetch({ status: 201, body: tx({ date: "2026-11-10", invoiceDue: "2026-11-27" }) });
+    const { toast } = renderApp(<AddSheet state={{}} onClose={vi.fn()} />, appCtx());
+    const user = userEvent.setup();
+    await fill(user);
+    await user.click(save());
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento salvo"));
+  });
+});
