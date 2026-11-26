@@ -280,7 +280,7 @@ func TestOpenUpgradesVersion4InPlace(t *testing.T) {
 		`SELECT COUNT(*) FROM chat_messages WHERE content = 'oi'`:                                  1,
 		`SELECT COUNT(*) FROM sqlite_master WHERE name IN ('recurrence_skips', 'transactions_remember_deleted_occurrence', 'settlements_remember_deleted_occurrence')`: 3,
 		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'invite_codes'`:                                                                            1,
-		`SELECT COUNT(*) FROM transactions WHERE month = '2026-10' AND invoice_due IS NULL`: 1,
+		`SELECT COUNT(*) FROM transactions WHERE month = '2026-10' AND invoice_due IS NULL`:                                                                            1,
 		`SELECT COUNT(*) FROM transactions WHERE amount_cents = 1000`:                                                                                                  1,
 		`SELECT SUM(share_bp) FROM transaction_splits WHERE transaction_id = 1`:                                                                                        10000,
 	} {
