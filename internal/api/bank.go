@@ -694,7 +694,7 @@ func acceptLine(ctx context.Context, tx *sql.Tx, walletID, userID int64, l pendi
 	}
 	return transaction{ID: txID, Kind: in.Kind, AmountCents: abs, Description: description, CategoryID: categoryID,
 		PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID, CreatedBy: userID,
-		Source: "bank", Splits: withAmounts(abs, in.Splits)}, nil
+		Source: "bank", InvoiceDue: in.invoiceDue, Splits: withAmounts(abs, in.Splits)}, nil
 }
 
 func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {

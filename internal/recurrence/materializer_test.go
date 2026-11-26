@@ -244,3 +244,20 @@ func TestRunSkipsInvalidTemplateAndKeepsGoing(t *testing.T) {
 		t.Fatalf("%d transactions, want 1", n)
 	}
 }
+
+func TestArchivedCardStillStamps(t *testing.T) {
+	m, d := setup(t, time.Date(2026, 11, 25, 15, 0, 0, 0, time.UTC))
+	if _, err := d.Exec(`INSERT INTO payment_methods (id, wallet_id, name, icon, closing_day, due_day, archived_at) VALUES (9, 1, 'Cartão', 'x', 20, 27, '2026-11-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	id := addExpenseRecurrence(t, d, 22, "2026-11-01")
+	if _, err := d.Exec(`UPDATE recurrences SET payment_method_id = 9 WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Run(context.Background(), 0); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, d, `SELECT COUNT(*) FROM transactions WHERE date = '2026-11-22' AND invoice_due = '2026-12-27' AND month = '2026-12'`); n != 1 {
+		t.Fatalf("%d occurrences stamped with the invoice, want 1", n)
+	}
+}

@@ -92,3 +92,87 @@ func TestCardSurvivesArchiveAndTurnsOff(t *testing.T) {
 		t.Fatalf("card: null should turn it into a plain method, got %+v", m.Card)
 	}
 }
+
+// purchase posts a transaction on the given method and returns it.
+func purchase(c *client, kind, date string, method int64) transaction {
+	c.app.t.Helper()
+	var tx transaction
+	c.do("POST", c.wpath("/transactions"), map[string]any{"kind": kind, "amountCents": 8700, "description": "Jantar",
+		"categoryId": firstCategory(c.app.t, c, kind), "paymentMethodId": method, "date": date, "paidByUserId": c.user.ID}, 201, &tx)
+	return tx
+}
+
+func due(tx transaction) string {
+	if tx.InvoiceDue == nil {
+		return "<nil>"
+	}
+	return *tx.InvoiceDue
+}
+
+func TestCardPurchaseGetsInvoiceDue(t *testing.T) {
+	c := newTestApp(t).register("Ana", "ana@x.com")
+	card := card2027(c)
+	for _, x := range []struct{ kind, date, want string }{
+		{"expense", "2026-11-22", "2026-12-27"},
+		{"expense", "2026-11-20", "2026-11-27"},
+		{"income", "2026-11-22", "2026-12-27"}, // a refund credits the same invoice
+	} {
+		if got := due(purchase(c, x.kind, x.date, card.ID)); got != x.want {
+			t.Errorf("%s on %s: invoiceDue %s, want %s", x.kind, x.date, got, x.want)
+		}
+	}
+	var list []transaction
+	c.do("GET", c.wpath("/transactions?from=2026-11-01&to=2026-11-30"), nil, 200, &list)
+	if len(list) != 3 || due(list[0]) == "<nil>" {
+		t.Fatalf("the list carries invoiceDue too: %+v", list)
+	}
+}
+
+func TestPlainMethodStampsNothing(t *testing.T) {
+	c := newTestApp(t).register("Ana", "ana@x.com")
+	var methods []methodDTO
+	c.do("GET", c.wpath("/payment-methods"), nil, 200, &methods)
+	if got := due(purchase(c, "expense", "2026-11-22", methods[0].ID)); got != "<nil>" {
+		t.Fatalf("invoiceDue %s on %s", got, methods[0].Name)
+	}
+}
+
+func TestEditKeepsInvoiceWhenDateAndMethodUnchanged(t *testing.T) {
+	c := newTestApp(t).register("Ana", "ana@x.com")
+	card := card2027(c)
+	tx := purchase(c, "expense", "2026-11-22", card.ID)
+	c.do("PUT", c.wpath("/payment-methods/%d", card.ID), map[string]any{"name": card.Name, "icon": "💳",
+		"card": map[string]any{"closingDay": 25, "dueDay": 27}}, 200, nil)
+	body := map[string]any{"kind": "expense", "amountCents": 9900, "description": "Jantar e vinho", "categoryId": tx.CategoryID,
+		"paymentMethodId": card.ID, "date": "2026-11-22", "paidByUserId": c.user.ID}
+	c.do("PUT", c.wpath("/transactions/%d", tx.ID), body, 200, &tx)
+	if due(tx) != "2026-12-27" {
+		t.Fatalf("an edit of the amount moved the purchase: %s", due(tx))
+	}
+	body["date"] = "2026-11-24" // a new date follows the card's current rule: 24 <= 25
+	c.do("PUT", c.wpath("/transactions/%d", tx.ID), body, 200, &tx)
+	if due(tx) != "2026-11-27" {
+		t.Fatalf("after changing the date: %s, want 2026-11-27", due(tx))
+	}
+	var methods []methodDTO
+	c.do("GET", c.wpath("/payment-methods"), nil, 200, &methods)
+	body["paymentMethodId"] = methods[0].ID // Pix
+	c.do("PUT", c.wpath("/transactions/%d", tx.ID), body, 200, &tx)
+	if due(tx) != "<nil>" {
+		t.Fatalf("moving to a plain method keeps invoiceDue %s", due(tx))
+	}
+}
+
+func TestBankAcceptOnCardAccount(t *testing.T) {
+	c := newTestApp(t).register("Ana", "ana@x.com")
+	card := card2027(c)
+	acc := newAccount(t, c, "Cartão")
+	c.do("PUT", c.wpath("/bank-accounts/%d", acc.ID), map[string]any{"name": "Cartão", "paymentMethodId": card.ID, "enabled": true}, 200, nil)
+	importFile(t, c, acc.ID, ofxRows("20261122|-48.90|C1|RESTAURANTE"), 200)
+	item := findByDescription(t, pending(t, c), "RESTAURANTE")
+	var tx transaction
+	c.do("POST", c.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": firstCategory(t, c, "expense")}, 201, &tx)
+	if due(tx) != "2026-12-27" {
+		t.Fatalf("accepted line: invoiceDue %s", due(tx))
+	}
+}

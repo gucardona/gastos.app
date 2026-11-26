@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"regexp"
@@ -100,3 +101,33 @@ func (c *cardScan) toDTO() *cardDTO {
 	return &cardDTO{ClosingDay: closing, DueDay: int(c.due.Int64), Issuer: c.issuer, CardForm: c.cardForm, Last4: c.last4,
 		BestPurchaseDay: billing.BestPurchaseDay(closing)}
 }
+
+// invoiceDueFor returns the due date of the invoice a purchase on date falls in when the method is a credit card
+// (archived or not), and NULL otherwise.
+func invoiceDueFor(ctx context.Context, q querier, paymentMethodID *int64, date string) (sql.NullString, error) {
+	if paymentMethodID == nil {
+		return sql.NullString{}, nil
+	}
+	var closing, dueDay sql.NullInt64
+	err := q.QueryRowContext(ctx, `SELECT closing_day, due_day FROM payment_methods WHERE id = ?`, *paymentMethodID).Scan(&closing, &dueDay)
+	if err == sql.ErrNoRows {
+		return sql.NullString{}, nil // a missing method is reported by validate
+	}
+	if err != nil || !closing.Valid || !dueDay.Valid {
+		return sql.NullString{}, err
+	}
+	d, err := billing.InvoiceDue(date, int(closing.Int64), int(dueDay.Int64))
+	return sql.NullString{String: d, Valid: err == nil}, err
+}
+
+// stampInvoice sets in.invoiceDue from its payment method and date.
+func (in *transactionInput) stampInvoice(ctx context.Context, q querier) error {
+	d, err := invoiceDueFor(ctx, q, in.PaymentMethodID, in.Date)
+	in.invoiceDue = nil
+	if d.Valid {
+		in.invoiceDue = &d.String
+	}
+	return err
+}
+
+func sameID(a, b *int64) bool { return (a == nil && b == nil) || (a != nil && b != nil && *a == *b) }
