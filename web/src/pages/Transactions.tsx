@@ -8,6 +8,7 @@ import { TransactionList } from "../components/TransactionList";
 import { UpcomingList } from "../components/UpcomingList";
 import { useApp } from "../context";
 import { today } from "../lib/dates";
+import { matcher, type Searchable } from "../lib/search";
 
 const FILTERS = [
   { id: "all", label: "Tudo" },
@@ -17,11 +18,8 @@ const FILTERS = [
 
 type Filter = (typeof FILTERS)[number]["id"];
 
-/** Lowercase without accents, so "credito" finds "Crédito". */
-const fold = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-
 export function Transactions() {
-  const { wallet, month, canEdit, openAdd, categories, paymentMethods } = useApp();
+  const { wallet, month, canEdit, openAdd, categories, paymentMethods, members } = useApp();
   const txs = useTransactions(wallet.id, month);
   const summary = useSummary(wallet.id, month);
   const [kind, setKind] = useState<Filter>("all");
@@ -30,10 +28,8 @@ export function Transactions() {
   const now = today();
   // a transaction dated after today is still to come: it shows in Próximos, not among the realized ones (as the summary counts)
   const all = (txs.data ?? []).filter((t) => t.date <= now);
-  const term = fold(q.trim());
-  // a row with no description shows its category, so the category (and the payment method) can be searched too
-  const text = (t: { description: string; categoryId: number | null; paymentMethodId: number | null }) => fold([t.description, categories.find((c) => c.id === t.categoryId)?.name, paymentMethods.find((p) => p.id === t.paymentMethodId)?.name].join(" "));
-  const matches = (t: { kind: string } & Parameters<typeof text>[0]) => (kind === "all" || t.kind === kind) && (!term || text(t).includes(term));
+  const found = matcher(q, { categories, paymentMethods, members });
+  const matches = (t: { kind: string } & Searchable) => (kind === "all" || t.kind === kind) && found(t);
   const shown = all.filter(matches);
   const ahead = (summary.data?.upcoming ?? []).filter(matches);
   const sum = (k: string) => all.filter((t) => t.kind === k).reduce((s, t) => s + t.amountCents, 0);
@@ -52,7 +48,7 @@ export function Transactions() {
       ) : (
         <>
           <Flows income={sum("income")} expense={sum("expense")} toReceive={summary.data?.upcomingIncomeCents ?? 0} toPay={summary.data?.upcomingExpenseCents ?? 0} />
-          <input className="search" type="search" placeholder="Buscar por descrição ou categoria" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="search" type="search" placeholder="Buscar por descrição, valor, data, categoria, pagamento…" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
           <Segmented<Filter> label="Filtros" value={kind} onChange={setKind} options={FILTERS.map((f) => ({ value: f.id, label: f.label }))} />
           {ahead.length > 0 && (
             <section className="sec">
@@ -76,7 +72,7 @@ export function Transactions() {
           )}
         </>
       )}
-      <RecurringSection />
+      <RecurringSection matches={q.trim() || kind !== "all" ? matches : undefined} />
     </>
   );
 }
