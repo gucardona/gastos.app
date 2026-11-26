@@ -100,7 +100,7 @@ describe("Transactions", () => {
     const fetch = serve([]);
     renderApp(<Transactions />, appCtx({ month: "2026-02" }));
     await screen.findByText("Nenhum lançamento neste mês.");
-    expect(fetch.mock.calls.map((c) => c[0])).toContain("/api/wallets/1/transactions?from=2026-02-01&to=2026-02-28");
+    expect(fetch.mock.calls.map((c) => c[0])).toContain("/api/wallets/1/transactions?month=2026-02");
   });
 
   it("groups by day, with today identified", async () => {

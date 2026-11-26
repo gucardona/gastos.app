@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
-import { addDays, monthRange, today } from "../lib/dates";
+import { addDays, today } from "../lib/dates";
 import { api } from "./client";
 import type { AISettings, BankAccount, Budget, Category, ChatMessage, InboxItem, Me, Member, PaymentMethod, Recurrence, Rule, Settlement, Summary, Transaction } from "./types";
 
@@ -35,13 +35,12 @@ export const useSettlements = (id: number) => {
 export const useSummary = (id: number, month: string) =>
   useQuery({ queryKey: w(id, "summary", month), queryFn: () => api.get<Summary>(`/wallets/${id}/summary?month=${month}`) });
 
-export const useTransactions = (id: number, month: string) => {
-  const { from, to } = monthRange(month);
-  return useQuery({
+// by month, so a card purchase shows in the month its invoice is due
+export const useTransactions = (id: number, month: string) =>
+  useQuery({
     queryKey: w(id, "transactions", month),
-    queryFn: () => api.get<Transaction[]>(`/wallets/${id}/transactions?from=${from}&to=${to}`),
+    queryFn: () => api.get<Transaction[]>(`/wallets/${id}/transactions?month=${month}`),
   });
-};
 
 /** Refreshes the active wallet's data (and `me`, which carries the wallets' name and role). */
 export function useRefresh() {

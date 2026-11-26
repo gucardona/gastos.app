@@ -83,3 +83,64 @@ describe("PaymentSheet", () => {
     expect(bodyAt(fetch)).toMatchObject({ archived: true });
   });
 });
+
+describe("PaymentSheet as a credit card", () => {
+  const card: PaymentMethod = {
+    id: 3, name: "Itaú Black", icon: "💳", sortOrder: 2, archived: false,
+    card: { closingDay: 20, dueDay: 27, issuer: "Itaú", cardForm: "virtual", last4: "1234", bestPurchaseDay: 21 },
+  };
+
+  it("turning the switch on shows the card fields and the best purchase day", async () => {
+    serve(201);
+    const { user } = open("new");
+    expect(screen.queryByLabelText("Compras até o dia")).toBeNull();
+    await user.click(screen.getByRole("switch", { name: "Cartão de crédito" }));
+    for (const f of ["Banco ou bandeira", "Final do cartão", "Compras até o dia", "Vence no dia"]) expect(screen.getByLabelText(f)).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Tipo do cartão" })).toBeTruthy();
+    await user.type(screen.getByLabelText("Compras até o dia"), "20");
+    expect(screen.getByText("Melhor dia de compra: 21")).toBeTruthy();
+    await user.clear(screen.getByLabelText("Compras até o dia"));
+    await user.type(screen.getByLabelText("Compras até o dia"), "31");
+    expect(screen.getByText("Melhor dia de compra: 1")).toBeTruthy();
+  });
+
+  it("creates a card with its fields", async () => {
+    const fetch = serve(201);
+    const { user, onClose } = open("new");
+    await user.type(screen.getByLabelText("Nome da forma de pagamento"), "Itaú Black");
+    await user.click(screen.getByRole("switch", { name: "Cartão de crédito" }));
+    await user.type(screen.getByLabelText("Banco ou bandeira"), "Itaú");
+    await user.click(screen.getByRole("button", { name: "Virtual" }));
+    await user.type(screen.getByLabelText("Final do cartão"), "1234");
+    await user.type(screen.getByLabelText("Compras até o dia"), "20");
+    await user.type(screen.getByLabelText("Vence no dia"), "27");
+    await user.click(screen.getByRole("button", { name: "Criar" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(bodyAt(fetch)).toEqual({ name: "Itaú Black", icon: "💳", card: { closingDay: 20, dueDay: 27, issuer: "Itaú", cardForm: "virtual", last4: "1234" } });
+  });
+
+  it("an existing card opens with the switch on and its values", () => {
+    serve();
+    open(card);
+    expect(screen.getByRole("switch", { name: "Cartão de crédito" }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByLabelText("Compras até o dia") as HTMLInputElement).value).toBe("20");
+    expect((screen.getByLabelText("Final do cartão") as HTMLInputElement).value).toBe("1234");
+  });
+
+  it("turning it off sends card: null", async () => {
+    const fetch = serve();
+    const { user, onClose } = open(card);
+    await user.click(screen.getByRole("switch", { name: "Cartão de crédito" }));
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(bodyAt(fetch)).toMatchObject({ card: null });
+  });
+
+  it("archiving a card sends no card fields, so the server keeps them", async () => {
+    const fetch = serve();
+    const { user } = open(card);
+    await user.click(screen.getByRole("button", { name: "Arquivar" }));
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(bodyAt(fetch)).not.toHaveProperty("card");
+  });
+});
