@@ -12,7 +12,7 @@ import { Switch } from "./Switch";
 const longDate = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
 
 /** Everything that repeats every month: pause it with the switch, tap the row to edit. */
-export function RecurringSection() {
+export function RecurringSection({ matches }: { matches?: (r: Recurrence) => boolean }) {
   const { wallet, canEdit } = useApp();
   const list = useRecurrences(wallet.id);
   const [editing, setEditing] = useState<Recurrence | null>(null);
@@ -20,15 +20,18 @@ export function RecurringSection() {
   if (list.error) return <p className="muted sec-note">Não foi possível carregar as recorrências.</p>;
   if (!list.data) return null;
   if (list.data.length === 0 && !canEdit) return null;
+  const shown = matches ? list.data.filter(matches) : list.data;
 
   return (
     <section className="sec">
       <h2>Repetem todo mês</h2>
       {list.data.length === 0 ? (
         <p className="sub">Nenhuma recorrência ainda. Ao lançar um gasto ou uma entrada, ative "Repetir todo mês".</p>
+      ) : shown.length === 0 ? (
+        <p className="sub">Nenhuma recorrência corresponde ao filtro.</p>
       ) : (
         <ListGroup>
-          {list.data.map((r) => <Row key={r.id} r={r} onOpen={() => setEditing(r)} />)}
+          {shown.map((r) => <Row key={r.id} r={r} onOpen={() => setEditing(r)} />)}
         </ListGroup>
       )}
       <RecurrenceSheet recurrence={editing} onClose={() => setEditing(null)} />

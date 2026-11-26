@@ -134,6 +134,21 @@ describe("Transactions: recurrences section", () => {
     expect(await screen.findByText("Nenhum lançamento neste mês.")).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "Repetem todo mês" })).toBeTruthy();
   });
+
+  it("the search finds by amount and also filters what repeats every month", async () => {
+    const rec = (id: number, description: string, amountCents: number) => ({ id, kind: "expense", amountCents, description, categoryId: 1, paymentMethodId: null, paidByUserId: 1, toUserId: null, dayOfMonth: 8, startDate: "2026-01-08", endDate: null, enabled: true, nextDate: null, splits: [] });
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [rec(1, "Moradia", 5462), rec(2, "Internet", 8990)] : url.includes("/summary") ? noneAhead : items }));
+    const user = userEvent.setup();
+    renderApp(<Transactions />);
+    await screen.findByText("Internet");
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "54,62");
+    expect(screen.getByText("Moradia")).toBeTruthy();
+    expect(screen.queryByText("Internet")).toBeNull();
+    await user.clear(screen.getByRole("searchbox", { name: "Buscar" }));
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "281,50");
+    expect(rows().map((r) => r.textContent)).toEqual([expect.stringContaining("Feira da semana")]);
+    expect(screen.getByText("Nenhuma recorrência corresponde ao filtro.")).toBeTruthy();
+  });
 });
 
 describe("Transactions: new look", () => {
