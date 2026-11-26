@@ -106,7 +106,7 @@ Mudar o fechamento ou o vencimento do cartão vale para as compras novas ou edit
 ## O que muda em cada lugar
 
 - **Resumo do mês, mês anterior, por categoria, essencial e Próximos**: filtram por `month`.
-  O "realizado" continua sendo data ≤ hoje (ver Questão em aberto).
+  O "realizado" continua sendo data ≤ hoje (ver Decisões).
 - **Lista de lançamentos**: a API aceita `?month=YYYY-MM` (o front passa a usar esse parâmetro; `from`/`to` continuam
   para quem precisa de datas). Uma compra cujo mês é diferente do mês da data mostra a data real e uma marca
   "fatura de dez".
@@ -143,7 +143,10 @@ Nomes de funções e componentes, onde mora a função do vencimento (pacote pr�
 textos finos de erro, e os testes: a tabela acima, cada consulta por mês com um lançamento de cartão que atravessa o
 mês, a edição que não move, a recorrência no cartão, a importação e a migração sobre um banco com dados.
 
-## Questão em aberto
+## Decisões
 
-Ver a mensagem de 2026-11-25 ao Gustavo: no mês da fatura, a compra já feita conta como **saiu** ou como **a pagar**
-até o vencimento.
+- **Uma compra já feita conta como "Saiu" no mês da fatura** (opção A, aprovada pelo Gustavo em 2026-11-25). O
+  realizado continua sendo data ≤ hoje, então os limites por categoria pegam a compra no dia em que ela foi feita. A
+  alternativa, "a pagar" até o vencimento, deixaria a Visão mais fiel ao dinheiro na conta, mas os limites só
+  contariam no vencimento, ou o app teria dois números para a mesma coisa.
+- O mês é o do **vencimento** da fatura, e conta em tudo (Visão, limites, assistente).
