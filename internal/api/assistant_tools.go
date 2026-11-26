@@ -185,14 +185,26 @@ func chartFromInput(input json.RawMessage) (*chartDTO, error) {
 	return c, nil
 }
 
-// walletFilter builds "t.wallet_id IN (...) AND t.date BETWEEN ? AND ?" with its args.
-func walletFilter(walletIDs []int64, p period) (string, []any) {
+// wholeMonths says the period runs from a month's first day to a month's last day.
+func (p period) wholeMonths() bool {
+	to, err := time.Parse(dateLayout, p.Ate)
+	return err == nil && strings.HasSuffix(p.De, "-01") && to.AddDate(0, 0, 1).Day() == 1
+}
+
+// walletFilter builds "t.wallet_id IN (...) AND <period>" with its args. byMonth filters on the month a transaction
+// counts in (a card purchase: its invoice's), as the Visão does; it is used only for whole months, so a range like
+// "up to the 15th" keeps filtering on the date.
+func walletFilter(walletIDs []int64, p period, byMonth bool) (string, []any) {
 	args := make([]any, 0, len(walletIDs)+2)
 	for _, id := range walletIDs {
 		args = append(args, id)
 	}
 	args = append(args, p.De, p.Ate)
-	return "t.wallet_id IN (?" + strings.Repeat(",?", len(walletIDs)-1) + ") AND t.date BETWEEN ? AND ?", args
+	where := "t.wallet_id IN (?" + strings.Repeat(",?", len(walletIDs)-1) + ") AND "
+	if byMonth {
+		return where + "t.month BETWEEN substr(?, 1, 7) AND substr(?, 1, 7)", args
+	}
+	return where + "t.date BETWEEN ? AND ?", args
 }
 
 func (s *Server) toolCategorySummary(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
@@ -203,7 +215,7 @@ func (s *Server) toolCategorySummary(ctx context.Context, walletIDs []int64, inp
 	if err := in.validate(); err != nil {
 		return nil, err
 	}
-	where, args := walletFilter(walletIDs, in)
+	where, args := walletFilter(walletIDs, in, in.wholeMonths())
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT w.name, c.name, SUM(t.amount_cents) AS cents
 		FROM transactions t JOIN categories c ON c.id = t.category_id AND c.wallet_id = t.wallet_id JOIN wallets w ON w.id = t.wallet_id
@@ -262,19 +274,13 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 		bucket = "date(t.date, 'weekday 0', '-6 days')"
 	case "mes", "":
 		bucket = "strftime('%Y-%m', t.date)"
+		if in.wholeMonths() {
+			bucket = "t.month" // a card purchase counts in the month its invoice is due
+		}
 	default:
 		return nil, inputErr("'agrupar' deve ser dia, semana ou mes")
 	}
-	var sum monthTotals
-	for _, id := range walletIDs {
-		m, err := s.totals(ctx, id, in.De, in.Ate)
-		if err != nil {
-			return nil, err
-		}
-		sum.IncomeCents += m.IncomeCents
-		sum.ExpenseCents += m.ExpenseCents
-	}
-	where, args := walletFilter(walletIDs, in.period)
+	where, args := walletFilter(walletIDs, in.period, bucket == "t.month")
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+bucket+` AS b,
 		  COALESCE(SUM(CASE WHEN t.kind = 'expense' THEN t.amount_cents END), 0),
@@ -289,12 +295,15 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 		Despesas int64  `json:"despesas"`
 		Receitas int64  `json:"receitas"`
 	}
+	var sum monthTotals
 	items := []item{}
 	for rows.Next() {
 		var it item
 		if err := rows.Scan(&it.Periodo, &it.Despesas, &it.Receitas); err != nil {
 			return nil, err
 		}
+		sum.ExpenseCents += it.Despesas
+		sum.IncomeCents += it.Receitas
 		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {
@@ -307,7 +316,7 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 
 // queryTx runs the shared transaction listing; extra is an additional WHERE clause (may be empty).
 func (s *Server) queryTx(ctx context.Context, walletIDs []int64, p period, extra string, extraArgs []any, order string, limit int) ([]txItem, error) {
-	where, args := walletFilter(walletIDs, p)
+	where, args := walletFilter(walletIDs, p, p.wholeMonths())
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT t.date, t.kind, t.description, c.name, t.amount_cents, w.name
 		FROM transactions t JOIN categories c ON c.id = t.category_id AND c.wallet_id = t.wallet_id JOIN wallets w ON w.id = t.wallet_id

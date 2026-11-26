@@ -446,7 +446,7 @@ test("the overview does not scroll sideways at the narrowest desktop width, even
     const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
     const w = (await j("/api/me")).wallets[0].id;
     const cats = await j(`/api/wallets/${w}/categories`);
-    const iso = new Date().toISOString().slice(0, 10);
+    const iso = new Date().toLocaleDateString("sv"); // local YYYY-MM-DD: the UTC date is already tomorrow late in the evening
     await j(`/api/wallets/${w}/transactions`, "POST", { kind: "income", amountCents: 1820000, description: "Salário", categoryId: cats.find((c: { kind: string }) => c.kind === "income").id, date: iso, paymentMethodId: null });
     await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 585433, description: "Aluguel", categoryId: cats.find((c: { kind: string }) => c.kind === "expense").id, date: iso, paymentMethodId: null });
   });
@@ -497,7 +497,7 @@ test("long descriptions never make Lançamentos or the Caixa scroll sideways", a
     const user = (await j("/api/me")).user.id;
     const cats = await j(`/api/wallets/${w}/categories`);
     const cat = cats.find((c: { kind: string }) => c.kind === "expense").id;
-    const iso = new Date().toISOString().slice(0, 10);
+    const iso = new Date().toLocaleDateString("sv"); // local YYYY-MM-DD: the UTC date is already tomorrow late in the evening
     const long = "PAG*JOSEDASILVACOMERCIODEALIMENTOSLTDA".repeat(4); // one unbroken token, as banks send them
     await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 123456789, description: long, categoryId: cat, date: iso, paymentMethodId: null });
     await j(`/api/wallets/${w}/recurrences`, "POST", { kind: "expense", amountCents: 5590, description: long, categoryId: cat, paymentMethodId: null, paidByUserId: user, dayOfMonth: 5, startDate: iso });
@@ -555,7 +555,7 @@ test("Divisão does not scroll sideways, even with a long unbroken note", async 
     const w = me.wallets[0].id;
     const members = await j(`/api/wallets/${w}/members`);
     const other = members.find((m: { userId: number }) => m.userId !== me.user.id).userId;
-    const iso = new Date().toISOString().slice(0, 10);
+    const iso = new Date().toLocaleDateString("sv"); // local YYYY-MM-DD: the UTC date is already tomorrow late in the evening
     await j(`/api/wallets/${w}/settlements`, "POST", { fromUserId: other, toUserId: me.user.id, amountCents: 123456789, date: iso, note: "PIXDOALUGUELDOAPARTAMENTOCENTRAL".repeat(5) });
   });
   await ana.goto("/divisao");
@@ -570,7 +570,7 @@ test("a real double click on Excluir does not confirm the deletion", async ({ pa
     const w = (await j("/api/me")).wallets[0].id;
     await j(`/api/wallets/${w}/payment-methods`, "POST", { name: "Cheque", icon: "🧾" });
     const cats = await j(`/api/wallets/${w}/categories`);
-    const iso = new Date().toISOString().slice(0, 10);
+    const iso = new Date().toLocaleDateString("sv"); // local YYYY-MM-DD: the UTC date is already tomorrow late in the evening
     await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 1990, description: "Padaria", categoryId: cats.find((c: { kind: string }) => c.kind === "expense").id, date: iso, paymentMethodId: null });
   });
   await page.goto("/ajustes/pagamentos");
@@ -712,4 +712,42 @@ test("an expense typed with a date in the next month is still to come, not spent
   // it is a real transaction: tapping it opens its edit sheet
   await upcoming.getByRole("button", { name: /Limpeza placas solares/ }).click();
   await expect(page.getByRole("dialog").getByLabel("Descrição")).toHaveValue("Limpeza placas solares");
+});
+
+test("a credit card: a purchase after the closing counts in the next invoice's month", async ({ page }) => {
+  await signUpAndEnter(page, "Caio");
+  await page.goto("/ajustes/pagamentos");
+  await page.getByRole("button", { name: "Nova forma de pagamento" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("Nome da forma de pagamento").fill("Cartão Black");
+  await sheet.getByRole("switch", { name: "Cartão de crédito" }).click();
+  await sheet.getByLabel("Final do cartão").fill("1234");
+  await sheet.getByLabel("Compras até o dia").fill("20");
+  await sheet.getByLabel("Vence no dia").fill("27");
+  await expect(sheet.getByText("Melhor dia de compra: 21")).toBeVisible();
+  await sheet.getByRole("button", { name: "Criar" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole("button", { name: /Cartão Black/ })).toContainText("fecha 20 · vence 27 · final 1234");
+
+  // a purchase on the 21st of last month (always in the past) closes in this month's invoice
+  await page.evaluate(async () => {
+    const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
+    const now = new Date();
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 21);
+    const date = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}-21`;
+    const me = await j("/api/me");
+    const w = me.wallets[0].id;
+    const cat = (await j(`/api/wallets/${w}/categories`)).find((c: { kind: string }) => c.kind === "expense").id;
+    const card = (await j(`/api/wallets/${w}/payment-methods`)).find((p: { name: string }) => p.name === "Cartão Black").id;
+    await j(`/api/wallets/${w}/transactions`, "POST", { kind: "expense", amountCents: 8700, description: "Jantar no cartão", categoryId: cat, paymentMethodId: card, paidByUserId: me.user.id, date });
+  });
+  await page.goto("/");
+  await page.getByRole("link", { name: /Lançamentos/ }).first().click();
+  const row = page.getByRole("button", { name: /Jantar no cartão/ });
+  await expect(row).toBeVisible();
+  await expect(row.getByText(/^fatura de /)).toBeVisible();
+  await expect(page.getByText("Saiu").locator("..")).toContainText("87,00");
+
+  await page.getByRole("button", { name: "Mês anterior" }).click();
+  await expect(page.getByText("Jantar no cartão")).toHaveCount(0);
 });

@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"sort"
 	"time"
 
+	"gastos/internal/billing"
 	"gastos/internal/money"
 	"gastos/internal/recurrence"
 )
@@ -69,11 +71,12 @@ func monthRange(month string) (first, last string, ok bool) {
 	return t.Format(dateLayout), t.AddDate(0, 1, -1).Format(dateLayout), true
 }
 
-func (s *Server) totals(ctx context.Context, walletID int64, from, to string) (monthTotals, error) {
+// totals sums what the month (a card purchase counts in its invoice's month) realized up to today.
+func (s *Server) totals(ctx context.Context, walletID int64, month, today string) (monthTotals, error) {
 	var m monthTotals
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ? GROUP BY kind`,
-		walletID, from, to)
+		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND month = ? AND date <= ? GROUP BY kind`,
+		walletID, month, today)
 	if err != nil {
 		return m, err
 	}
@@ -100,17 +103,16 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if !ok {
 		return errValidation(map[string]string{"month": "obrigatório (YYYY-MM)"})
 	}
-	prevFirst, prevLast, _ := monthRange(mustDate(first).AddDate(0, -1, 0).Format("2006-01"))
+	prevMonth := mustDate(first).AddDate(0, -1, 0).Format("2006-01")
 	now := s.now().In(s.cfg.Location)
 	// realized money is what is dated up to today; later dates are still to come (see upcoming)
 	today := now.Format(dateLayout)
-	realizedTo := min(last, today)
 
-	cur, err := s.totals(ctx, walletID, first, realizedTo)
+	cur, err := s.totals(ctx, walletID, month, today)
 	if err != nil {
 		return err
 	}
-	prev, err := s.totals(ctx, walletID, prevFirst, min(prevLast, today))
+	prev, err := s.totals(ctx, walletID, prevMonth, today)
 	if err != nil {
 		return err
 	}
@@ -147,12 +149,12 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT c.id, c.kind, COALESCE(SUM(t.amount_cents), 0) AS cents, b.limit_cents
 		FROM categories c
-		LEFT JOIN transactions t ON t.category_id = c.id AND t.date BETWEEN ? AND ?
+		LEFT JOIN transactions t ON t.category_id = c.id AND t.month = ? AND t.date <= ?
 		LEFT JOIN budgets b ON b.category_id = c.id
 		WHERE c.wallet_id = ?
 		GROUP BY c.id, b.limit_cents
 		HAVING cents > 0 OR b.limit_cents IS NOT NULL
-		ORDER BY cents DESC, c.id`, first, realizedTo, walletID)
+		ORDER BY cents DESC, c.id`, month, today, walletID)
 	if err != nil {
 		return err
 	}
@@ -172,8 +174,8 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	ess, err := s.db.QueryContext(ctx, `
 		SELECT c.essentiality, SUM(t.amount_cents)
 		FROM transactions t JOIN categories c ON c.id = t.category_id
-		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.date BETWEEN ? AND ?
-		GROUP BY c.essentiality`, walletID, first, realizedTo)
+		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.month = ? AND t.date <= ?
+		GROUP BY c.essentiality`, walletID, month, today)
 	if err != nil {
 		return err
 	}
@@ -222,43 +224,69 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	month := first[:7]
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.kind, r.amount_cents, COALESCE(NULLIF(r.description, ''), c.name, ''), r.category_id, r.payment_method_id,
-		       r.day_of_month, r.start_date, COALESCE(r.end_date, '')
-		FROM recurrences r LEFT JOIN categories c ON c.id = r.category_id
-		WHERE r.wallet_id = ? AND r.enabled = 1 AND r.kind IN ('expense', 'income')
-		  AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.recurrence_id = r.id AND t.occurrence = ?)
-		  AND NOT EXISTS (SELECT 1 FROM recurrence_skips k WHERE k.recurrence_id = r.id AND k.occurrence = ?)`,
-		walletID, month, month)
+		       r.day_of_month, r.start_date, COALESCE(r.end_date, ''), pm.closing_day, pm.due_day
+		FROM recurrences r LEFT JOIN categories c ON c.id = r.category_id LEFT JOIN payment_methods pm ON pm.id = r.payment_method_id
+		WHERE r.wallet_id = ? AND r.enabled = 1 AND r.kind IN ('expense', 'income')`, walletID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	type candidate struct {
+		u     upcoming
+		occur string // the occurrence's own month, the key it is materialized or skipped under
+	}
+	var candidates []candidate
 	for rows.Next() {
 		var u upcoming
 		var day int
 		var start, end string
+		var closing, dueDay sql.NullInt64
 		if err := rows.Scan(&u.RecurrenceID, &u.Kind, &u.AmountCents, &u.Description, &u.CategoryID, &u.PaymentMethodID,
-			&day, &start, &end); err != nil {
+			&day, &start, &end, &closing, &dueDay); err != nil {
 			return nil, err
 		}
 		occ, err := recurrence.Occurrences(day, start, end, last)
-		if err != nil || len(occ) == 0 {
+		if err != nil {
 			continue // an invalid recurrence is logged by the materializer
 		}
-		if o := occ[len(occ)-1]; o.Date > today && o.Date >= first {
-			u.Date = o.Date
-			out = append(out, u)
+		// on a card, an occurrence counts in its invoice's month, up to two months after its own
+		for _, o := range occ[max(0, len(occ)-3):] {
+			counts := o.Month
+			if closing.Valid && dueDay.Valid {
+				d, err := billing.InvoiceDue(o.Date, int(closing.Int64), int(dueDay.Int64))
+				if err != nil {
+					continue
+				}
+				counts = d[:7]
+			}
+			if counts == month && o.Date > today {
+				u.Date = o.Date
+				candidates = append(candidates, candidate{u, o.Month})
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	rows.Close()
+	for _, c := range candidates {
+		var gone bool // already a transaction, or deleted by a person
+		if err := s.db.QueryRowContext(ctx, `
+			SELECT EXISTS (SELECT 1 FROM transactions WHERE recurrence_id = ? AND occurrence = ?)
+			    OR EXISTS (SELECT 1 FROM recurrence_skips WHERE recurrence_id = ? AND occurrence = ?)`,
+			c.u.RecurrenceID, c.occur, c.u.RecurrenceID, c.occur).Scan(&gone); err != nil {
+			return nil, err
+		}
+		if !gone {
+			out = append(out, c.u)
+		}
+	}
 
 	// transactions typed with a later date are still to come too (an occurrence is materialized only up to today)
 	trows, err := s.db.QueryContext(ctx, `
 		SELECT t.id, t.kind, t.amount_cents, COALESCE(NULLIF(t.description, ''), c.name, ''), t.category_id, t.payment_method_id, t.date
 		FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-		WHERE t.wallet_id = ? AND t.date > ? AND t.date BETWEEN ? AND ?`, walletID, today, first, last)
+		WHERE t.wallet_id = ? AND t.month = ? AND t.date > ?`, walletID, month, today)
 	if err != nil {
 		return nil, err
 	}

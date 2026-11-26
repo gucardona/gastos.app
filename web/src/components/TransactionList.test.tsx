@@ -83,3 +83,19 @@ describe("TransactionList: grouped blocks", () => {
     expect(blocks[0].querySelectorAll("button.row")).toHaveLength(2);
   });
 });
+
+describe("TransactionList: card purchases", () => {
+  it("tags a purchase that counts in a later invoice with that invoice's month", () => {
+    renderApp(
+      <TransactionList
+        items={[
+          tx({ id: 1, description: "Jantar", date: "2026-11-22", invoiceDue: "2026-12-27" }),
+          tx({ id: 2, description: "Almoço", date: "2026-11-10", invoiceDue: "2026-11-27" }),
+          tx({ id: 3, description: "Pão", date: "2026-11-10", invoiceDue: null }),
+        ]}
+      />,
+    );
+    expect(screen.getAllByText(/fatura de/)).toHaveLength(1);
+    expect(screen.getByText("fatura de dez")).toBeTruthy();
+  });
+});

@@ -37,7 +37,8 @@ type transaction struct {
 	PaidByUserID    int64   `json:"paidByUserId"`
 	CreatedBy       int64   `json:"createdBy"`
 	RecurrenceID    *int64  `json:"recurrenceId"`
-	Source          string  `json:"source"` // manual, recurring or bank
+	InvoiceDue      *string `json:"invoiceDue"` // due date of the card invoice it falls in; its month is the month it counts in
+	Source          string  `json:"source"`     // manual, recurring or bank
 	Splits          []split `json:"splits"`
 }
 
@@ -50,6 +51,7 @@ type transactionInput struct {
 	Date            string  `json:"date"`
 	PaidByUserID    int64   `json:"paidByUserId"`
 	Splits          []split `json:"splits"`
+	invoiceDue      *string // set when it is saved: see stampInvoice
 }
 
 func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
@@ -255,28 +257,39 @@ func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits
 func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	qs := r.URL.Query()
-	from, to := qs.Get("from"), qs.Get("to")
+	from, to, month := qs.Get("from"), qs.Get("to"), qs.Get("month")
 	fe := fieldErrors{}
-	if !validDate(from) {
-		fe.add("from", "obrigatório (YYYY-MM-DD)")
-	}
-	if !validDate(to) {
-		fe.add("to", "obrigatório (YYYY-MM-DD)")
-	}
-	if len(fe) == 0 {
-		f, _ := time.Parse(dateLayout, from)
-		t, _ := time.Parse(dateLayout, to)
-		if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
-			fe.add("to", "intervalo inválido (máx. 366 dias)")
+	// either a month (a card purchase is listed in its invoice's month) or a date range
+	if month != "" {
+		if _, _, ok := monthRange(month); !ok || from != "" || to != "" {
+			fe.add("month", "use month (YYYY-MM) ou from e to")
+		}
+	} else {
+		if !validDate(from) {
+			fe.add("from", "obrigatório (YYYY-MM-DD)")
+		}
+		if !validDate(to) {
+			fe.add("to", "obrigatório (YYYY-MM-DD)")
+		}
+		if len(fe) == 0 {
+			f, _ := time.Parse(dateLayout, from)
+			t, _ := time.Parse(dateLayout, to)
+			if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
+				fe.add("to", "intervalo inválido (máx. 366 dias)")
+			}
 		}
 	}
 	if err := fe.err(); err != nil {
 		return err
 	}
 
-	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id, source
+	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id, source, invoice_due
 	          FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ?`
 	args := []any{walletID, from, to}
+	if month != "" {
+		query = strings.Replace(query, "date BETWEEN ? AND ?", "month = ?", 1)
+		args = []any{walletID, month}
+	}
 	if k := qs.Get("kind"); k != "" {
 		query += ` AND kind = ?`
 		args = append(args, k)
@@ -301,7 +314,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	for rows.Next() {
 		var t transaction
 		if err := rows.Scan(&t.ID, &t.Kind, &t.AmountCents, &t.Description, &t.CategoryID, &t.PaymentMethodID,
-			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID, &t.Source); err != nil {
+			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID, &t.Source, &t.InvoiceDue); err != nil {
 			return err
 		}
 		t.Splits = []split{}
@@ -360,11 +373,14 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 	if err := in.validate(ctx, tx, walletID, userID, 0); err != nil {
 		return 0, err
 	}
+	if err := in.stampInvoice(ctx, tx); err != nil {
+		return 0, err
+	}
 	var id int64
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, source)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source,
+		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, source, invoice_due)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source, in.invoiceDue,
 	).Scan(&id)
 	if err != nil {
 		return 0, err
@@ -388,7 +404,7 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	out := transaction{ID: id, Source: "manual", Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date,
-		PaidByUserID: in.PaidByUserID, CreatedBy: userID, Splits: withAmounts(in.AmountCents, in.Splits)}
+		PaidByUserID: in.PaidByUserID, CreatedBy: userID, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
 	s.mutated(r)
 	writeJSON(w, http.StatusCreated, out)
 	return nil
@@ -409,19 +425,27 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	var source string
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var currentCat int64
+		var currentDate string
+		var currentMethod *int64
 		if err := tx.QueryRowContext(ctx,
-			`SELECT category_id, created_by, recurrence_id, source FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
-		).Scan(&currentCat, &createdBy, &recurrenceID, &source); err != nil {
+			`SELECT category_id, created_by, recurrence_id, source, date, payment_method_id, invoice_due FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
+		).Scan(&currentCat, &createdBy, &recurrenceID, &source, &currentDate, &currentMethod, &in.invoiceDue); err != nil {
 			return err // sql.ErrNoRows → 404 through writeError
 		}
 		if err := in.validate(ctx, tx, walletID, userID, currentCat); err != nil {
 			return err
 		}
+		// the invoice moves only with the date or the method: fixing the amount keeps the purchase where it was
+		if in.Date != currentDate || !sameID(in.PaymentMethodID, currentMethod) {
+			if err := in.stampInvoice(ctx, tx); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE transactions SET kind = ?, amount_cents = ?, description = ?, category_id = ?, payment_method_id = ?,
-			       date = ?, paid_by_user_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+			       date = ?, paid_by_user_id = ?, invoice_due = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
 			WHERE id = ? AND wallet_id = ?`,
-			in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, id, walletID,
+			in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, in.invoiceDue, id, walletID,
 		); err != nil {
 			return err
 		}
@@ -432,7 +456,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	out := transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID,
-		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, Splits: withAmounts(in.AmountCents, in.Splits)}
+		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
 	s.mutated(r)
 	writeJSON(w, http.StatusOK, out)
 	return nil

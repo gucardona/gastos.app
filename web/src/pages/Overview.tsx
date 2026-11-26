@@ -131,10 +131,12 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
   const todayMonth = monthOf(now);
   const todayDay = month === todayMonth ? Number(now.slice(8)) : month < todayMonth ? days : 0;
 
+  // a card purchase dated in an earlier month counts in this one (its invoice's): it goes on the first day
+  const slot = (date: string) => (monthOf(date) === month ? Number(date.slice(8)) - 1 : 0);
   const spent = Array<number>(days).fill(0);
-  for (const t of txs) if (t.kind === "expense") spent[Number(t.date.slice(8)) - 1] += t.amountCents;
+  for (const t of txs) if (t.kind === "expense") spent[slot(t.date)] += t.amountCents;
   const projected = Array<number>(days).fill(0); // upcoming entries are always after today
-  for (const u of summary.upcoming) if (u.kind === "expense") projected[Number(u.date.slice(8)) - 1] += u.amountCents;
+  for (const u of summary.upcoming) if (u.kind === "expense") projected[slot(u.date)] += u.amountCents;
   const max = Math.max(...spent, ...projected, 1);
   const height = (v: number) => Math.max(6, Math.round(Math.sqrt(v / max) * RULER_HEIGHT));
 

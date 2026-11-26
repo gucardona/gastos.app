@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import type { PaymentMethod } from "../api/types";
 import { useApp } from "../context";
 import { useAction } from "../hooks/useAction";
+import { CardFields, cardBody, cardDraft } from "./CardFields";
 import { EmojiPicker } from "./EmojiPicker";
 import { Sheet } from "./Sheet";
 
@@ -21,13 +22,16 @@ function PaymentForm({ method, onClose }: { method: PaymentMethod | "new"; onClo
   const p = method === "new" ? null : method;
   const [name, setName] = useState(p?.name ?? "");
   const [icon, setIcon] = useState(p?.icon ?? "💳");
+  const [card, setCard] = useState(() => cardDraft(p?.card ?? null));
   const [confirm, setConfirm] = useState(false);
   const path = p ? `/wallets/${wallet.id}/payment-methods/${p.id}` : "";
-  const put = (archived: boolean) => api.put(path, { name, icon, sortOrder: p?.sortOrder ?? 0, archived });
+  // card goes only when it is (or was) a card: archive and restore leave it out, and the server keeps it
+  const withCard = card.on || p?.card ? { card: cardBody(card) } : {};
+  const put = (archived: boolean, fields = {}) => api.put(path, { name, icon, sortOrder: p?.sortOrder ?? 0, archived, ...fields });
   const done = (ok: boolean) => ok && onClose();
 
   return (
-    <form onSubmit={async (e) => { e.preventDefault(); done(await run(() => (p ? put(p.archived) : api.post(`/wallets/${wallet.id}/payment-methods`, { name, icon })), p ? "Forma de pagamento salva" : "Forma de pagamento criada")); }}>
+    <form onSubmit={async (e) => { e.preventDefault(); done(await run(() => (p ? put(p.archived, withCard) : api.post(`/wallets/${wallet.id}/payment-methods`, { name, icon, ...withCard })), p ? "Forma de pagamento salva" : "Forma de pagamento criada")); }}>
       <div className="sheet-head">
         <h2 className="sheet-title">{p ? "Editar forma de pagamento" : "Nova forma de pagamento"}</h2>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
@@ -42,6 +46,7 @@ function PaymentForm({ method, onClose }: { method: PaymentMethod | "new"; onClo
       </div>
       <h3 className="sheet-sub">Ícone</h3>
       <EmojiPicker value={icon} onPick={setIcon} />
+      <CardFields value={card} onChange={setCard} />
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
         <button type="submit" className="btn full" disabled={busy}>{p ? "Salvar" : "Criar"}</button>

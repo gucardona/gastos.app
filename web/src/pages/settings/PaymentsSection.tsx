@@ -4,6 +4,10 @@ import { ListGroup, ListRow } from "../../components/ListGroup";
 import { PaymentSheet } from "../../components/PaymentSheet";
 import { useApp } from "../../context";
 
+/** "fecha 20 · vence 27 · final 1234" for a card. */
+const cardSummary = (p: PaymentMethod) =>
+  p.card ? [`fecha ${p.card.closingDay}`, `vence ${p.card.dueDay}`, p.card.last4 && `final ${p.card.last4}`].filter(Boolean).join(" · ") : undefined;
+
 export function PaymentsSection() {
   const { paymentMethods, canEdit } = useApp();
   const [showArchived, setShowArchived] = useState(false);
@@ -14,7 +18,7 @@ export function PaymentsSection() {
   const rows = (list: PaymentMethod[]) => (
     <ListGroup>
       {list.map((p) => (
-        <ListRow key={p.id} icon={p.icon} label={p.name} value={p.archived ? "Arquivada" : undefined} onClick={canEdit ? () => setOpen(p) : undefined} chevron={canEdit} />
+        <ListRow key={p.id} icon={p.icon} label={p.name} value={p.archived ? "Arquivada" : cardSummary(p)} onClick={canEdit ? () => setOpen(p) : undefined} chevron={canEdit} />
       ))}
     </ListGroup>
   );

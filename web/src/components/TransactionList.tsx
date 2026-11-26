@@ -1,6 +1,6 @@
 import type { Transaction } from "../api/types";
 import { firstName, useApp } from "../context";
-import { dayLabel } from "../lib/dates";
+import { dayLabel, laterInvoice, monthShort } from "../lib/dates";
 import { formatBRL } from "../lib/money";
 
 const signed = (t: Transaction) => (t.kind === "income" ? t.amountCents : -t.amountCents);
@@ -42,6 +42,7 @@ export function TransactionList({ items, headingLevel = 2 }: { items: Transactio
                   <span className="meta" style={{ display: "block" }}>
                     {[t.description ? c?.name : undefined, method?.name].filter(Boolean).join(", ")}
                     {t.recurrenceId && <> <span className="tag">recorrente</span></>}
+                    {laterInvoice(t) && <> <span className="tag">fatura de {monthShort(laterInvoice(t)!)}</span></>}
                     {t.splits.length > 0 && <><br />{name(t.paidByUserId)} pagou{others.length > 0 && `, dividido com ${others.join(", ")}`}</>}
                   </span>
                 </span>
