@@ -12,9 +12,9 @@ type testCard struct {
 }
 
 type methodDTO struct {
-	ID       int64    `json:"id"`
-	Name     string   `json:"name"`
-	Archived bool     `json:"archived"`
+	ID       int64     `json:"id"`
+	Name     string    `json:"name"`
+	Archived bool      `json:"archived"`
 	Card     *testCard `json:"card"`
 }
 
