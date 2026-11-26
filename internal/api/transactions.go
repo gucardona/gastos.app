@@ -51,6 +51,7 @@ type transactionInput struct {
 	Date            string  `json:"date"`
 	PaidByUserID    int64   `json:"paidByUserId"`
 	Splits          []split `json:"splits"`
+	AllowDuplicate  bool    `json:"allowDuplicate"` // the person saw the duplicate warning and saves anyway
 	invoiceDue      *string // set when it is saved: see stampInvoice
 }
 
@@ -375,6 +376,11 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 	}
 	if err := in.stampInvoice(ctx, tx); err != nil {
 		return 0, err
+	}
+	if source == "manual" && !in.AllowDuplicate {
+		if err := checkDuplicate(ctx, tx, walletID, userID, in); err != nil {
+			return 0, err
+		}
 	}
 	var id int64
 	err := tx.QueryRowContext(ctx, `

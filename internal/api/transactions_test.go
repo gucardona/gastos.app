@@ -130,7 +130,7 @@ func TestSplits(t *testing.T) {
 	shareWallet(ana, bia, "editor")
 	cat := firstCategory(t, ana, "expense")
 	body := func(extra map[string]any) map[string]any {
-		b := map[string]any{"kind": "expense", "amountCents": 101, "description": "Pizza", "categoryId": cat, "date": "2026-10-01"}
+		b := map[string]any{"kind": "expense", "amountCents": 101, "description": "Pizza", "categoryId": cat, "date": "2026-10-01", "allowDuplicate": true}
 		for k, v := range extra {
 			b[k] = v
 		}
@@ -216,7 +216,7 @@ func TestDescriptionIsOptional(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	cat := firstCategory(t, ana, "expense")
 	body := func(desc string) map[string]any {
-		return map[string]any{"kind": "expense", "amountCents": 100, "description": desc, "categoryId": cat, "date": "2026-10-01"}
+		return map[string]any{"kind": "expense", "amountCents": 100, "description": desc, "categoryId": cat, "date": "2026-10-01", "allowDuplicate": true}
 	}
 	var created struct {
 		ID          int64  `json:"id"`

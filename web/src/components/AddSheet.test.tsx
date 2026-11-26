@@ -562,7 +562,7 @@ describe("AddSheet: toasts", () => {
     expect(fetch.mock.calls[1][1]!.method).toBe("POST");
     expect(bodyOf(fetch, 1)).toEqual({
       kind: "expense", amountCents: 4890, description: "Mercado do bairro", categoryId: 1, paymentMethodId: 1, date: deleted.date,
-      paidByUserId: 1, splits: [{ userId: 1, shareBp: 6000 }, { userId: 2, shareBp: 4000 }],
+      paidByUserId: 1, allowDuplicate: true, splits: [{ userId: 1, shareBp: 6000 }, { userId: 2, shareBp: 4000 }],
     });
   });
 
@@ -604,5 +604,32 @@ describe("AddSheet: a purchase on a card that falls in a later invoice", () => {
     await fill(user);
     await user.click(save());
     await waitFor(() => expect(toast).toHaveBeenCalledWith("Lançamento salvo"));
+  });
+});
+
+describe("AddSheet: a likely duplicate", () => {
+  it("shows the server's warning, then saves on 'Lançar mesmo assim'; changing the amount drops the warning", async () => {
+    let calls = 0;
+    const fetch = mockFetch(() => (calls++ === 0
+      ? { status: 409, body: { error: { code: "duplicate", message: 'Você lançou um igual há poucos minutos: "Pix".' } } }
+      : { status: 201, body: tx() }));
+    const { user } = open();
+    const amount = () => screen.getByRole("textbox", { name: "Valor" });
+    await user.type(amount(), "5000");
+    await pickCategory(user, /Restaurante/);
+    await user.click(save());
+    expect(await screen.findByText('Você lançou um igual há poucos minutos: "Pix". É outro lançamento?')).toBeTruthy();
+    expect(bodyOf(fetch).allowDuplicate).toBeUndefined();
+
+    await user.clear(amount());
+    await user.type(amount(), "5100");
+    expect(screen.queryByText(/igual há poucos minutos/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Salvar" })).toBeTruthy();
+    await user.clear(amount());
+    await user.type(amount(), "5000");
+
+    await user.click(screen.getByRole("button", { name: "Lançar mesmo assim" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(bodyOf(fetch, 1)).toMatchObject({ amountCents: 5000, allowDuplicate: true });
   });
 });
