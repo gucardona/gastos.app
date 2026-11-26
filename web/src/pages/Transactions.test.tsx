@@ -267,4 +267,16 @@ describe("Transactions: a transaction dated after today", () => {
     expect(screen.queryByRole("heading", { name: "Lançados" })).toBeNull();
     expect(screen.getByText("Nenhum lançamento neste mês.")).toBeTruthy();
   });
+
+  it("a card purchase made today whose invoice is due later is to pay, not spent, like a later Pix", async () => {
+    const due = addDays(today(), 20);
+    const card = tx({ id: 9, description: "Placas solares", amountCents: 27500, date: today(), invoiceDue: due });
+    const toPay: Upcoming[] = [{ ...upcoming[0], date: due }];
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 0, upcomingExpenseCents: 27500, upcoming: toPay } : [card, ...items] }));
+    renderApp(<Transactions />);
+    const ahead = (await screen.findByRole("heading", { name: "Próximos" })).parentElement!;
+    expect(screen.getByText(/Saiu/).textContent).toMatch(/299,50/);
+    expect(within(ahead).getByRole("button", { name: /Placas solares/ })).toBeTruthy();
+    expect(within(screen.getByRole("heading", { name: "Lançados", level: 2 }).parentElement!).queryByText("Placas solares")).toBeNull();
+  });
 });

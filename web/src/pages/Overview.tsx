@@ -8,7 +8,7 @@ import { SettlementSheet } from "../components/SettlementSheet";
 import { TransactionList } from "../components/TransactionList";
 import { UpcomingList } from "../components/UpcomingList";
 import { firstName, useApp } from "../context";
-import { monthOf, monthRange, today } from "../lib/dates";
+import { isPaid, monthOf, monthRange, today } from "../lib/dates";
 import { formatBRL, splitBRL } from "../lib/money";
 import { groupTop, pctLabel } from "../lib/share";
 import { Chart } from "../components/Chart";
@@ -45,7 +45,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
   const expenseTotal = expenses.reduce((s, c) => s + c.cents, 0);
   const pie = groupTop(expenses.map((c) => ({ label: categories.find((x) => x.id === c.categoryId)?.name ?? "?", value: c.cents })), 7, "Outros");
   const now = today();
-  const realized = txs.filter((t) => t.date <= now); // a transaction dated after today is still to come: it shows in Próximos
+  const realized = txs.filter((t) => isPaid(t, now)); // dated (on a card: due) after today is still to come: it shows in Próximos
   const empty = realized.length === 0 && summary.byCategory.length === 0 && summary.upcoming.length === 0;
   const forecast = summary.balanceCents + summary.upcomingIncomeCents - summary.upcomingExpenseCents;
 

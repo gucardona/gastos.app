@@ -54,3 +54,6 @@ export const monthLong = (isoDate: string) => parse(isoDate).toLocaleDateString(
 /** The invoice's month when a card purchase counts in a later month than its date, else null. */
 export const laterInvoice = (t: { date: string; invoiceDue: string | null }) =>
   t.invoiceDue && monthOf(t.invoiceDue) !== monthOf(t.date) ? t.invoiceDue : null;
+
+/** Whether the money has moved by now: a card purchase is paid when its invoice is due, anything else on its date. */
+export const isPaid = (t: { date: string; invoiceDue: string | null }, now = today()) => (t.invoiceDue ?? t.date) <= now;

@@ -7,7 +7,7 @@ import { Segmented } from "../components/Segmented";
 import { TransactionList } from "../components/TransactionList";
 import { UpcomingList } from "../components/UpcomingList";
 import { useApp } from "../context";
-import { today } from "../lib/dates";
+import { isPaid, today } from "../lib/dates";
 import { matcher, type Searchable } from "../lib/search";
 
 const FILTERS = [
@@ -26,8 +26,8 @@ export function Transactions() {
   const [q, setQ] = useState("");
 
   const now = today();
-  // a transaction dated after today is still to come: it shows in Próximos, not among the realized ones (as the summary counts)
-  const all = (txs.data ?? []).filter((t) => t.date <= now);
+  // a transaction dated after today (on a card: due after today) is still to come: it shows in Próximos, not among the realized ones (as the summary counts)
+  const all = (txs.data ?? []).filter((t) => isPaid(t, now));
   const found = matcher(q, { categories, paymentMethods, members });
   const matches = (t: { kind: string } & Searchable) => (kind === "all" || t.kind === kind) && found(t);
   const shown = all.filter(matches);
