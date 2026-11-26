@@ -485,3 +485,28 @@ func TestRollbackFrom8(t *testing.T) {
 		t.Fatalf("after rollback and re-upgrade, %d transactions in 2026-10, want 1", n)
 	}
 }
+
+// The monthly reads (summary totals and the month's list) must use the month index, not scan the wallet's history.
+func TestMonthlyReadsUseTheMonthIndex(t *testing.T) {
+	d := openTemp(t)
+	for _, q := range []string{
+		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = 1 AND month = '2026-11' AND date <= '2026-11-25' GROUP BY kind`,
+		`SELECT id FROM transactions WHERE wallet_id = 1 AND month = '2026-11' ORDER BY date DESC, id DESC`,
+	} {
+		rows, err := d.Query(`EXPLAIN QUERY PLAN ` + q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var plan strings.Builder
+		for rows.Next() {
+			var id, parent, unused int
+			var detail string
+			rows.Scan(&id, &parent, &unused, &detail)
+			plan.WriteString(detail + "; ")
+		}
+		rows.Close()
+		if !strings.Contains(plan.String(), "transactions_wallet_month (wallet_id=? AND month=?") {
+			t.Errorf("%s\nplan: %s", q, plan.String())
+		}
+	}
+}

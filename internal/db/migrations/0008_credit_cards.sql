@@ -8,4 +8,4 @@ ALTER TABLE payment_methods ADD COLUMN card_form TEXT CHECK (card_form IN ('phys
 ALTER TABLE payment_methods ADD COLUMN last4 TEXT CHECK (last4 GLOB '[0-9][0-9][0-9][0-9]');
 ALTER TABLE transactions ADD COLUMN invoice_due TEXT;
 ALTER TABLE transactions ADD COLUMN month TEXT GENERATED ALWAYS AS (substr(COALESCE(invoice_due, date), 1, 7)) VIRTUAL;
-CREATE INDEX transactions_wallet_month ON transactions(wallet_id, month);
+CREATE INDEX transactions_wallet_month ON transactions(wallet_id, month, date);

@@ -522,3 +522,21 @@ describe("Overview: a transaction dated after today", () => {
     expect(all[10].getAttribute("title")).toMatch(/Dia 11: R\$\s275,00 previsto/);
   });
 });
+
+describe("Overview: ruler with card purchases from an earlier month", () => {
+  it("draws a purchase dated before the month on its first day, never past the month's end", async () => {
+    // a past February (28 or 29 days) holding a card purchase of 30 December and one of 22 January
+    const feb = `${Number(today().slice(0, 4)) - 1}-02`;
+    const y = feb.slice(0, 4);
+    serve(summary({ month: feb }), [
+      tx({ id: 1, amountCents: 40000, date: `${Number(y) - 1}-12-30`, invoiceDue: `${y}-02-05` }),
+      tx({ id: 2, amountCents: 10000, date: `${y}-01-22`, invoiceDue: `${y}-02-05` }),
+    ]);
+    const { container } = renderApp(<Overview />, appCtx({ month: feb }));
+    await screen.findByText("4.376");
+    const all = ticks(container) as HTMLElement[];
+    expect(all).toHaveLength(daysIn(feb));
+    expect(all[0].getAttribute("title")).toMatch(/R\$\s500,00/);
+    expect(all.every((t) => !t.style.height.includes("NaN"))).toBe(true);
+  });
+});
