@@ -23,8 +23,8 @@ export const paymentMethods: PaymentMethod[] = [
 ];
 
 export const members: Member[] = [
-  { userId: 1, name: "Ana Souza", email: "ana@example.com", role: "owner", splitsByDefault: true, defaultShareBp: 0 },
-  { userId: 2, name: "Bia Lima", email: "bia@example.com", role: "editor", splitsByDefault: true, defaultShareBp: 0 },
+  { userId: 1, name: "Ana Souza", email: "ana@example.com", role: "owner", splitsByDefault: true, defaultShareBp: 0, defaultPaymentMethodId: null },
+  { userId: 2, name: "Bia Lima", email: "bia@example.com", role: "editor", splitsByDefault: true, defaultShareBp: 0, defaultPaymentMethodId: null },
 ];
 
 export function tx(over: Partial<Transaction> = {}): Transaction {

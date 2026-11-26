@@ -37,7 +37,8 @@ function AddForm({ tx, onClose }: { tx?: Transaction; onClose: () => void }) {
   const [amount, setAmount] = useState(tx ? centsToInput(tx.amountCents) : "");
   const [description, setDescription] = useState(tx?.description ?? "");
   const [categoryId, setCategoryId] = useState<number | null>(tx?.categoryId ?? null);
-  const [methodId, setMethodId] = useState<number | null>(tx?.paymentMethodId ?? null);
+  // a new one starts with my chosen method; one that is gone or archived falls back to the first below
+  const [methodId, setMethodId] = useState<number | null>(tx ? tx.paymentMethodId : members.find((m) => m.userId === user.id)?.defaultPaymentMethodId ?? null);
   const [date, setDate] = useState(tx?.date ?? today());
   const [paidBy, setPaidBy] = useState(tx?.paidByUserId ?? user.id);
   const [percents, setPercents] = useState<Percents | null>(tx?.splits.length ? percentsFromSplits(tx.splits) : null);

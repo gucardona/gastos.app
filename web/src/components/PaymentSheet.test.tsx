@@ -1,8 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { PaymentMethod } from "../api/types";
-import { bodyOf, mockFetch, paymentMethods, renderApp } from "../test/fixtures";
+import { appCtx, bodyOf, members, mockFetch, paymentMethods, renderApp } from "../test/fixtures";
 import { PaymentSheet } from "./PaymentSheet";
 
 const writes = (f: ReturnType<typeof mockFetch>) => f.mock.calls.filter((c) => c[1]?.method && c[1].method !== "GET");
@@ -81,6 +81,34 @@ describe("PaymentSheet", () => {
     await user.click(screen.getByRole("button", { name: "Arquivar" }));
     await waitFor(() => expect(writes(fetch)).toHaveLength(1));
     expect(bodyAt(fetch)).toMatchObject({ archived: true });
+  });
+
+  it("'Padrão ao lançar' makes it the method my new transactions start with, and turning it off goes back to the first", async () => {
+    const fetch = serve();
+    const user = userEvent.setup();
+    renderApp(<PaymentSheet method={pix} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("switch", { name: "Padrão ao lançar" }));
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(writes(fetch)[0][0]).toBe("/api/wallets/1/default-payment-method");
+    expect(writes(fetch)[0][1]!.method).toBe("PUT");
+    expect(bodyAt(fetch)).toEqual({ paymentMethodId: 1 });
+    cleanup();
+
+    const again = serve();
+    renderApp(<PaymentSheet method={pix} onClose={vi.fn()} />, appCtx({ members: members.map((m) => (m.userId === 1 ? { ...m, defaultPaymentMethodId: 1 } : m)) }));
+    const on = screen.getByRole("switch", { name: "Padrão ao lançar" });
+    expect(on.getAttribute("aria-checked")).toBe("true");
+    await user.click(on);
+    await waitFor(() => expect(writes(again)).toHaveLength(1));
+    expect(bodyAt(again)).toEqual({ paymentMethodId: null });
+  });
+
+  it("a new or archived method has no 'Padrão ao lançar'", () => {
+    open("new");
+    expect(screen.queryByRole("switch", { name: "Padrão ao lançar" })).toBeNull();
+    cleanup();
+    open({ ...pix, archived: true });
+    expect(screen.queryByRole("switch", { name: "Padrão ao lançar" })).toBeNull();
   });
 });
 

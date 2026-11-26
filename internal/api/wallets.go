@@ -288,21 +288,23 @@ type memberDTO struct {
 	Role            string `json:"role"`
 	SplitsByDefault bool   `json:"splitsByDefault"`
 	DefaultShareBP  int    `json:"defaultShareBp"` // 0 = not set
+	// the method a new transaction of theirs starts with; nil = the first one
+	DefaultPaymentMethodID *int64 `json:"defaultPaymentMethodId"`
 }
 
 func (s *Server) memberByID(ctx context.Context, walletID, userID int64) (memberDTO, error) {
 	var m memberDTO
 	err := s.db.QueryRowContext(ctx, `
-		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0)
+		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0), wm.default_payment_method_id
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ? AND wm.user_id = ?`, walletID, userID).
-		Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP)
+		Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP, &m.DefaultPaymentMethodID)
 	return m, err
 }
 
 func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(), `
-		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0)
+		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0), wm.default_payment_method_id
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ?
 		ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.name, u.id`,
@@ -314,7 +316,7 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	out := []memberDTO{}
 	for rows.Next() {
 		var m memberDTO
-		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP, &m.DefaultPaymentMethodID); err != nil {
 			return err
 		}
 		out = append(out, m)
@@ -457,5 +459,37 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) error {
 	s.mutated(r)
 	s.notifyUsers(target) // no longer a member, so mutated does not reach them
 	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// setDefaultPaymentMethod sets the method the current member's new transactions start with (null: the first one).
+func (s *Server) setDefaultPaymentMethod(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		PaymentMethodID *int64 `json:"paymentMethodId"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	if in.PaymentMethodID != nil {
+		var ok bool
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM payment_methods WHERE id = ? AND wallet_id = ?)`,
+			*in.PaymentMethodID, walletID).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			return errValidation(map[string]string{"paymentMethodId": "forma de pagamento inexistente"})
+		}
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE wallet_members SET default_payment_method_id = ? WHERE wallet_id = ? AND user_id = ?`,
+		in.PaymentMethodID, walletID, userID); err != nil {
+		return err
+	}
+	m, err := s.memberByID(ctx, walletID, userID)
+	if err != nil {
+		return err
+	}
+	s.mutated(r)
+	writeJSON(w, http.StatusOK, m)
 	return nil
 }

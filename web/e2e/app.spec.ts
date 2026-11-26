@@ -731,11 +731,11 @@ test("a credit card: a purchase after the closing counts in the next invoice's m
   await page.goto("/ajustes/pagamentos");
   await expect(page.getByRole("link", { name: /Cartão Black/ })).toContainText("Em Cartões de crédito");
 
-  // a purchase on the 21st of last month (always in the past) closes in this month's invoice
+  // a purchase on the 21st two months ago closes in last month's invoice, already due (paid): it counts as spent there
   await page.evaluate(async () => {
     const j = async (u: string, m = "GET", b?: unknown) => (await fetch(u, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined })).json();
     const now = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 21);
+    const prev = new Date(now.getFullYear(), now.getMonth() - 2, 21);
     const date = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}-21`;
     const me = await j("/api/me");
     const w = me.wallets[0].id;
@@ -745,6 +745,7 @@ test("a credit card: a purchase after the closing counts in the next invoice's m
   });
   await page.goto("/");
   await page.getByRole("link", { name: /Lançamentos/ }).first().click();
+  await page.getByRole("button", { name: "Mês anterior" }).click();
   const row = page.getByRole("button", { name: /Jantar no cartão/ });
   await expect(row).toBeVisible();
   await expect(row.getByText(/^fatura de /)).toBeVisible();

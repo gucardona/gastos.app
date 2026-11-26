@@ -56,8 +56,11 @@ var migration0007 string
 //go:embed migrations/0008_credit_cards.sql
 var migration0008 string
 
+//go:embed migrations/0009_default_payment_method.sql
+var migration0009 string
+
 // migrations[i] takes the database from version baseVersion+i to baseVersion+i+1. Only append to it.
-var migrations = []string{migration0005, migration0006, migration0007, migration0008}
+var migrations = []string{migration0005, migration0006, migration0007, migration0008, migration0009}
 
 func latestVersion() int { return baseVersion + len(migrations) }
 

@@ -68,6 +68,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("GET /api/wallets/{walletID}/members", wallet(roleReader, s.listMembers))
 	mux.Handle("POST /api/wallets/{walletID}/members", wallet(roleOwner, s.addMember))
 	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", wallet(roleOwner, s.updateMember))
+	mux.Handle("PUT /api/wallets/{walletID}/default-payment-method", wallet(roleEditor, s.setDefaultPaymentMethod))
 	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner or the member themselves: checked in the handler
 
 	s.catalogRoutes(mux, wallet)

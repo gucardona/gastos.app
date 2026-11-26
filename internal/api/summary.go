@@ -71,11 +71,12 @@ func monthRange(month string) (first, last string, ok bool) {
 	return t.Format(dateLayout), t.AddDate(0, 1, -1).Format(dateLayout), true
 }
 
-// totals sums what the month (a card purchase counts in its invoice's month) realized up to today.
+// totals sums what the month (a card purchase counts in its invoice's month) realized up to today: a card purchase is
+// realized when its invoice is due, as a later-dated Pix is on its date.
 func (s *Server) totals(ctx context.Context, walletID int64, month, today string) (monthTotals, error) {
 	var m monthTotals
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND month = ? AND date <= ? GROUP BY kind`,
+		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND month = ? AND COALESCE(invoice_due, date) <= ? GROUP BY kind`,
 		walletID, month, today)
 	if err != nil {
 		return m, err
@@ -149,7 +150,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT c.id, c.kind, COALESCE(SUM(t.amount_cents), 0) AS cents, b.limit_cents
 		FROM categories c
-		LEFT JOIN transactions t ON t.category_id = c.id AND t.month = ? AND t.date <= ?
+		LEFT JOIN transactions t ON t.category_id = c.id AND t.month = ? AND COALESCE(t.invoice_due, t.date) <= ?
 		LEFT JOIN budgets b ON b.category_id = c.id
 		WHERE c.wallet_id = ?
 		GROUP BY c.id, b.limit_cents
@@ -174,7 +175,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	ess, err := s.db.QueryContext(ctx, `
 		SELECT c.essentiality, SUM(t.amount_cents)
 		FROM transactions t JOIN categories c ON c.id = t.category_id
-		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.month = ? AND t.date <= ?
+		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.month = ? AND COALESCE(t.invoice_due, t.date) <= ?
 		GROUP BY c.essentiality`, walletID, month, today)
 	if err != nil {
 		return err
@@ -249,18 +250,19 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 		if err != nil {
 			continue // an invalid recurrence is logged by the materializer
 		}
-		// on a card, an occurrence counts in its invoice's month, up to two months after its own
+		// on a card, an occurrence counts in its invoice's month, up to two months after its own, and is paid on the due day
 		for _, o := range occ[max(0, len(occ)-3):] {
-			counts := o.Month
+			paid := o.Date
 			if closing.Valid && dueDay.Valid {
 				d, err := billing.InvoiceDue(o.Date, int(closing.Int64), int(dueDay.Int64))
 				if err != nil {
 					continue
 				}
-				counts = d[:7]
+				paid = d
 			}
-			if counts == month && o.Date > today {
-				u.Date = o.Date
+			// an occurrence up to today is a transaction already (materialized), listed below if its invoice is still due
+			if paid[:7] == month && o.Date > today {
+				u.Date = paid
 				candidates = append(candidates, candidate{u, o.Month})
 			}
 		}
@@ -284,9 +286,9 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 
 	// transactions typed with a later date are still to come too (an occurrence is materialized only up to today)
 	trows, err := s.db.QueryContext(ctx, `
-		SELECT t.id, t.kind, t.amount_cents, COALESCE(NULLIF(t.description, ''), c.name, ''), t.category_id, t.payment_method_id, t.date
+		SELECT t.id, t.kind, t.amount_cents, COALESCE(NULLIF(t.description, ''), c.name, ''), t.category_id, t.payment_method_id, COALESCE(t.invoice_due, t.date)
 		FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-		WHERE t.wallet_id = ? AND t.month = ? AND t.date > ?`, walletID, month, today)
+		WHERE t.wallet_id = ? AND t.month = ? AND COALESCE(t.invoice_due, t.date) > ?`, walletID, month, today)
 	if err != nil {
 		return nil, err
 	}
