@@ -40,11 +40,11 @@ describe("Settings: the index", () => {
     renderSettings();
     const links = within(index()).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
-      "/ajustes/perfil", "/ajustes/carteira", "/ajustes/pessoas", "/ajustes/categorias", "/ajustes/pagamentos", "/ajustes/orcamentos",
+      "/ajustes/perfil", "/ajustes/carteira", "/ajustes/pessoas", "/ajustes/categorias", "/ajustes/pagamentos", "/ajustes/cartoes", "/ajustes/orcamentos",
       "/ajustes/bancos", "/ajustes/recorrentes", "/ajustes/assistente", "/ajustes/aparencia",
     ]);
     expect(links.map((l) => l.querySelector(".lr-label")?.textContent)).toEqual([
-      "Perfil", "Carteira", "Pessoas", "Categorias", "Formas de pagamento", "Orçamentos", "Contas bancárias", "Recorrentes", "Assistente", "Aparência",
+      "Perfil", "Carteira", "Pessoas", "Categorias", "Formas de pagamento", "Cartões de crédito", "Orçamentos", "Contas bancárias", "Recorrentes", "Assistente", "Aparência",
     ]);
     expect(screen.getByRole("heading", { name: "Casa" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Dados" })).toBeTruthy();
@@ -55,7 +55,7 @@ describe("Settings: the index", () => {
     renderSettings();
     expect(within(index()).getByRole("link", { name: /Perfil/ }).textContent).toContain("Ana Souza");
     const all = within(index()).getAllByRole("link").length;
-    expect(all).toBe(10);
+    expect(all).toBe(11);
     expect(within(index()).getAllByRole("button").at(-1)?.textContent).toBe("Sair");
   });
 
@@ -122,6 +122,7 @@ describe("Settings: a screen per subject", () => {
     ["pessoas", /Convidar alguém/],
     ["categorias", /Nova categoria/],
     ["pagamentos", /Nova forma de pagamento/],
+    ["cartoes", /Novo cartão/],
     ["orcamentos", /O limite mensal de cada categoria/],
   ])("%s opens by its direct link", async (section, marker) => {
     mockFetch({ body: [] });
