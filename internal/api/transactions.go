@@ -257,19 +257,26 @@ func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits
 func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	qs := r.URL.Query()
-	from, to := qs.Get("from"), qs.Get("to")
+	from, to, month := qs.Get("from"), qs.Get("to"), qs.Get("month")
 	fe := fieldErrors{}
-	if !validDate(from) {
-		fe.add("from", "obrigatório (YYYY-MM-DD)")
-	}
-	if !validDate(to) {
-		fe.add("to", "obrigatório (YYYY-MM-DD)")
-	}
-	if len(fe) == 0 {
-		f, _ := time.Parse(dateLayout, from)
-		t, _ := time.Parse(dateLayout, to)
-		if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
-			fe.add("to", "intervalo inválido (máx. 366 dias)")
+	// either a month (a card purchase is listed in its invoice's month) or a date range
+	if month != "" {
+		if _, _, ok := monthRange(month); !ok || from != "" || to != "" {
+			fe.add("month", "use month (YYYY-MM) ou from e to")
+		}
+	} else {
+		if !validDate(from) {
+			fe.add("from", "obrigatório (YYYY-MM-DD)")
+		}
+		if !validDate(to) {
+			fe.add("to", "obrigatório (YYYY-MM-DD)")
+		}
+		if len(fe) == 0 {
+			f, _ := time.Parse(dateLayout, from)
+			t, _ := time.Parse(dateLayout, to)
+			if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
+				fe.add("to", "intervalo inválido (máx. 366 dias)")
+			}
 		}
 	}
 	if err := fe.err(); err != nil {
@@ -279,6 +286,10 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id, source, invoice_due
 	          FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ?`
 	args := []any{walletID, from, to}
+	if month != "" {
+		query = strings.Replace(query, "date BETWEEN ? AND ?", "month = ?", 1)
+		args = []any{walletID, month}
+	}
 	if k := qs.Get("kind"); k != "" {
 		query += ` AND kind = ?`
 		args = append(args, k)

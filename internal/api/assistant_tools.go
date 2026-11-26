@@ -261,20 +261,14 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 		// 'weekday 0' moves to the coming Sunday, so -6 days lands on that week's Monday.
 		bucket = "date(t.date, 'weekday 0', '-6 days')"
 	case "mes", "":
-		bucket = "strftime('%Y-%m', t.date)"
+		bucket = "t.month" // a card purchase counts in the month its invoice is due
 	default:
 		return nil, inputErr("'agrupar' deve ser dia, semana ou mes")
 	}
-	var sum monthTotals
-	for _, id := range walletIDs {
-		m, err := s.totals(ctx, id, in.De, in.Ate)
-		if err != nil {
-			return nil, err
-		}
-		sum.IncomeCents += m.IncomeCents
-		sum.ExpenseCents += m.ExpenseCents
-	}
 	where, args := walletFilter(walletIDs, in.period)
+	if bucket == "t.month" {
+		where = strings.Replace(where, "t.date BETWEEN ? AND ?", "t.month BETWEEN substr(?, 1, 7) AND substr(?, 1, 7)", 1)
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+bucket+` AS b,
 		  COALESCE(SUM(CASE WHEN t.kind = 'expense' THEN t.amount_cents END), 0),
@@ -289,12 +283,15 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 		Despesas int64  `json:"despesas"`
 		Receitas int64  `json:"receitas"`
 	}
+	var sum monthTotals
 	items := []item{}
 	for rows.Next() {
 		var it item
 		if err := rows.Scan(&it.Periodo, &it.Despesas, &it.Receitas); err != nil {
 			return nil, err
 		}
+		sum.ExpenseCents += it.Despesas
+		sum.IncomeCents += it.Receitas
 		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {

@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"testing"
+)
 
 type testCard struct {
 	ClosingDay      *int   `json:"closingDay"`
@@ -174,5 +178,33 @@ func TestBankAcceptOnCardAccount(t *testing.T) {
 	c.do("POST", c.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": firstCategory(t, c, "expense")}, 201, &tx)
 	if due(tx) != "2026-12-27" {
 		t.Fatalf("accepted line: invoiceDue %s", due(tx))
+	}
+}
+
+func TestMonthlyTotalsUseInvoiceMonth(t *testing.T) {
+	c := newTestApp(t).register("Ana", "ana@x.com")
+	card := card2027(c)
+	purchase(c, "expense", "2026-11-22", card.ID) // due 2026-12-27
+	run := func(input string) map[string]any {
+		t.Helper()
+		text, _, err := c.app.s.runTool(context.Background(), []int64{c.walletID}, "totais_por_periodo", json.RawMessage(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]any
+		if err := json.Unmarshal([]byte(text), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	out := run(`{"de":"2026-11-01","ate":"2026-12-31","agrupar":"mes"}`)
+	ps := out["periodos"].([]any)
+	if len(ps) != 1 || ps[0].(map[string]any)["periodo"] != "2026-12" || out["despesas"] != float64(8700) {
+		t.Fatalf("by month: %v", out)
+	}
+	// by day it stays on the purchase date
+	out = run(`{"de":"2026-11-01","ate":"2026-11-30","agrupar":"dia"}`)
+	if ps := out["periodos"].([]any); len(ps) != 1 || ps[0].(map[string]any)["periodo"] != "2026-11-22" || out["despesas"] != float64(8700) {
+		t.Fatalf("by day: %v", out)
 	}
 }
