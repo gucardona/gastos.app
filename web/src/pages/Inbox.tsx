@@ -3,12 +3,12 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import { useInbox } from "../api/queries";
 import type { InboxItem } from "../api/types";
-import { ConfirmButton } from "../components/ConfirmButton";
-import { InboxSheet } from "../components/InboxSheet";
-import { ListGroup } from "../components/ListGroup";
-import { PageBar } from "../components/PageBar";
-import { useToast } from "../components/Toast";
-import { useApp } from "../context";
+import { ConfirmButton } from "../ui/ConfirmButton";
+import { InboxSheet } from "../features/inbox/InboxSheet";
+import { ListGroup } from "../ui/ListGroup";
+import { PageBar } from "../app/PageBar";
+import { useToast } from "../ui/Toast";
+import { useApp } from "../app/context";
 import { useAction } from "../hooks/useAction";
 import { formatBRL } from "../lib/money";
 

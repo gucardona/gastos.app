@@ -6,7 +6,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { ApiError } from "./api/client";
-import { App } from "./App";
+import { App } from "./app/App";
 import { applyStoredTheme } from "./lib/theme";
 
 applyStoredTheme();
