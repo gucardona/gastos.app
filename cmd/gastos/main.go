@@ -1,3 +1,5 @@
+// Command gastos runs the gastos.app server: the JSON API, the embedded web app and the background jobs.
+// With "invite" as its first argument it creates a single-use sign-up code instead.
 package main
 
 import (
@@ -22,6 +24,7 @@ import (
 
 var version = "dev"
 
+// main dispatches to the invite command or starts the server, exiting with status 1 on error.
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "invite" {
 		if err := runInvite(os.Args[2:], os.Getenv, os.Stdout, time.Now()); err != nil {
@@ -37,6 +40,8 @@ func main() {
 	}
 }
 
+// run loads the configuration, opens the database and serves HTTP until SIGINT or SIGTERM,
+// then shuts down gracefully.
 func run(log *slog.Logger) error {
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {

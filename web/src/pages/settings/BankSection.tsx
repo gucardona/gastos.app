@@ -2,10 +2,10 @@ import { useState } from "react";
 import { api } from "../../api/client";
 import { useBankAccounts, useRules } from "../../api/queries";
 import type { BankAccount } from "../../api/types";
-import { BankAccountSheet } from "../../components/BankAccountSheet";
-import { ConfirmButton } from "../../components/ConfirmButton";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { useApp } from "../../context";
+import { BankAccountSheet } from "../../features/bank/BankAccountSheet";
+import { ConfirmButton } from "../../ui/ConfirmButton";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { useApp } from "../../app/context";
 import { useAction } from "../../hooks/useAction";
 
 export function BankSection() {

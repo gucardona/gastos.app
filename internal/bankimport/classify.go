@@ -37,7 +37,7 @@ type Suggestion struct {
 // banks post a day or two after the purchase.
 const matchWindowDays = 2
 
-var accents = strings.NewReplacer(
+var _accents = strings.NewReplacer(
 	"á", "a", "à", "a", "â", "a", "ã", "a", "ä", "a",
 	"é", "e", "è", "e", "ê", "e", "ë", "e",
 	"í", "i", "ì", "i", "î", "i", "ï", "i",
@@ -49,7 +49,7 @@ var accents = strings.NewReplacer(
 // Normalize lowercases, removes Portuguese accents and collapses whitespace, so "PADARIA São João" and
 // "padaria sao joao" compare equal.
 func Normalize(s string) string {
-	return strings.Join(strings.Fields(accents.Replace(strings.ToLower(s))), " ")
+	return strings.Join(strings.Fields(_accents.Replace(strings.ToLower(s))), " ")
 }
 
 // Classify proposes a category (and optional rename) from the rules and an existing transaction the line may duplicate.

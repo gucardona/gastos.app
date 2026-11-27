@@ -1,3 +1,4 @@
+// Package recurrence turns recurring entries (rent, salary) into dated transactions as their days arrive.
 package recurrence
 
 import (
@@ -10,6 +11,7 @@ import (
 	"gastos/internal/events"
 )
 
+// Materializer creates the transactions that recurring entries owe up to today.
 type Materializer struct {
 	db  *sql.DB
 	bus *events.Bus
@@ -18,10 +20,12 @@ type Materializer struct {
 	now func() time.Time
 }
 
+// NewMaterializer returns a Materializer that dates occurrences in loc and notifies changes on bus.
 func NewMaterializer(db *sql.DB, bus *events.Bus, loc *time.Location, log *slog.Logger) *Materializer {
 	return &Materializer{db: db, bus: bus, loc: loc, log: log, now: time.Now}
 }
 
+// template is one enabled recurrence as loaded from the database, with its split between members.
 type template struct {
 	id, walletID, amount, paidBy, createdBy int64
 	kind, description, startDate, endDate   string
@@ -31,6 +35,7 @@ type template struct {
 	splits                                  []splitRow
 }
 
+// splitRow is one member's share of a recurrence, in basis points.
 type splitRow struct{ userID, shareBP int64 }
 
 // Run materializes the occurrences due up to today (in the configured time zone).
@@ -92,6 +97,7 @@ func (m *Materializer) notifyMembers(ctx context.Context, walletID int64) {
 	m.bus.Notify(ids...)
 }
 
+// load reads the enabled recurrences of walletID, or of every wallet when walletID is 0.
 func (m *Materializer) load(ctx context.Context, walletID int64) ([]template, error) {
 	q := `SELECT r.id, r.wallet_id, r.kind, r.amount_cents, r.description, r.category_id, r.payment_method_id,
 	             r.paid_by_user_id, r.to_user_id, r.day_of_month, r.start_date, COALESCE(r.end_date, ''), r.created_by, pm.closing_day, pm.due_day

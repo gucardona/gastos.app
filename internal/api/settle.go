@@ -2,6 +2,7 @@ package api
 
 import "sort"
 
+// transfer is one payment that settles a debt between two members.
 type transfer struct {
 	FromUserID  int64 `json:"fromUserId"`
 	ToUserID    int64 `json:"toUserId"`

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { PaymentMethod } from "../../api/types";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { PaymentSheet } from "../../components/PaymentSheet";
-import { useApp } from "../../context";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { PaymentSheet } from "../../features/payments/PaymentSheet";
+import { useApp } from "../../app/context";
 
 /** "fecha 20 · vence 27 · final 1234" for a card. */
 const cardSummary = (p: PaymentMethod) =>

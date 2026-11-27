@@ -120,6 +120,7 @@ func detectDelimiter(text string) rune {
 	return best
 }
 
+// blank reports whether every field of rec is empty or whitespace.
 func blank(rec []string) bool {
 	for _, f := range rec {
 		if strings.TrimSpace(f) != "" {
@@ -129,11 +130,12 @@ func blank(rec []string) bool {
 	return true
 }
 
-var dateLayouts = []string{"2/1/2006", "2006-01-02", "2-1-2006", "2/1/06", "2006/1/2"}
+var _dateLayouts = []string{"2/1/2006", "2006-01-02", "2-1-2006", "2/1/06", "2006/1/2"}
 
+// parseDate converts a statement date in one of dateLayouts to YYYY-MM-DD.
 func parseDate(s string) (string, error) {
 	s = strings.TrimSpace(s)
-	for _, layout := range dateLayouts {
+	for _, layout := range _dateLayouts {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t.Format("2006-01-02"), nil
 		}

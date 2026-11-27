@@ -1,3 +1,4 @@
+// Package config reads the server settings from GASTOS_* environment variables.
 package config
 
 import (
@@ -17,6 +18,7 @@ const DefaultAnthropicURL = "https://api.anthropic.com"
 // DefaultFXURL is the USD-BRL quote endpoint used unless GASTOS_FX_URL overrides it.
 const DefaultFXURL = "https://economia.awesomeapi.com.br/last/USD-BRL"
 
+// Config holds the server settings, read once at startup by Load.
 type Config struct {
 	Addr         string
 	DBPath       string
@@ -73,6 +75,7 @@ func Load(getenv func(string) string) (Config, error) {
 	return c, nil
 }
 
+// or returns v, or def when v is empty.
 func or(v, def string) string {
 	if v == "" {
 		return def
@@ -80,6 +83,7 @@ func or(v, def string) string {
 	return v
 }
 
+// parseBool reads the environment variable key as a boolean, returning def when it is unset.
 func parseBool(key string, getenv func(string) string, def bool) (bool, error) {
 	v := getenv(key)
 	if v == "" {

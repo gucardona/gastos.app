@@ -246,7 +246,7 @@ func seedV4(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	defer raw.Close()
-	mustExec(t, raw, schemaSQL)
+	mustExec(t, raw, _schemaSQL)
 	mustExec(t, raw, `PRAGMA user_version = 4`)
 	mustExec(t, raw, `INSERT INTO users (id, name, email, password_hash) VALUES (1, 'A', 'a@x', 'h'), (2, 'B', 'b@x', 'h')`)
 	mustExec(t, raw, `INSERT INTO wallets (id, name, splitting_enabled) VALUES (1, 'W', 1)`)
@@ -313,7 +313,7 @@ func TestFailedMigrationKeepsVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustExec(t, raw, schemaSQL)
+	mustExec(t, raw, _schemaSQL)
 	mustExec(t, raw, `ALTER TABLE wallet_members ADD COLUMN default_share_bp TEXT`) // collides with migration 0005
 	mustExec(t, raw, `PRAGMA user_version = 4`)
 	raw.Close()
