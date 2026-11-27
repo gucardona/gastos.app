@@ -55,6 +55,7 @@ func Open(key, sealed []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
+// newGCM returns an AES-GCM cipher for key, which must be keySize bytes long.
 func newGCM(key []byte) (cipher.AEAD, error) {
 	if len(key) != keySize {
 		return nil, fmt.Errorf("key must be %d bytes", keySize)

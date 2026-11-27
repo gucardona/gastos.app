@@ -93,8 +93,8 @@ func ParseOFX(r io.Reader) ([]Entry, error) {
 	return entries, nil
 }
 
-// tagRes is built once and only read afterwards, so concurrent imports can share it.
-var tagRes = func() map[string]*regexp.Regexp {
+// _tagRes is built once and only read afterwards, so concurrent imports can share it.
+var _tagRes = func() map[string]*regexp.Regexp {
 	m := map[string]*regexp.Regexp{}
 	for _, tag := range []string{"DTPOSTED", "TRNAMT", "MEMO", "NAME", "FITID"} {
 		m[tag] = regexp.MustCompile(`(?i)<` + tag + `>\s*([^<\r\n]*)`)
@@ -105,7 +105,7 @@ var tagRes = func() map[string]*regexp.Regexp {
 // tagValue returns the text after the first <TAG> in block, up to the next tag or line break
 // (which covers both SGML, `<MEMO>text`, and XML, `<MEMO>text</MEMO>`). tag must be one of tagRes.
 func tagValue(block, tag string) string {
-	if m := tagRes[tag].FindStringSubmatch(block); m != nil {
+	if m := _tagRes[tag].FindStringSubmatch(block); m != nil {
 		return strings.TrimSpace(m[1])
 	}
 	return ""

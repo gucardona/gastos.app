@@ -1,3 +1,4 @@
+// Package events tells a user's open SSE connections that their data changed, so every tab refreshes.
 package events
 
 import "sync"
@@ -8,8 +9,11 @@ type Bus struct {
 	subs map[int64][]chan struct{}
 }
 
+// New returns an empty Bus.
 func New() *Bus { return &Bus{subs: make(map[int64][]chan struct{})} }
 
+// Subscribe returns a channel that receives a signal whenever Notify is called for userID.
+// The channel holds one pending signal, so bursts of changes collapse into a single refresh.
 func (b *Bus) Subscribe(userID int64) chan struct{} {
 	ch := make(chan struct{}, 1)
 	b.mu.Lock()
@@ -18,6 +22,7 @@ func (b *Bus) Subscribe(userID int64) chan struct{} {
 	return ch
 }
 
+// Unsubscribe removes ch from userID's subscribers; call it when the connection closes.
 func (b *Bus) Unsubscribe(userID int64, ch chan struct{}) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

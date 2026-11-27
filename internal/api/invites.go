@@ -40,6 +40,7 @@ func normalizeInvite(code string) string {
 	}, code))
 }
 
+// inviteHash returns the SHA-256 of the normalized code; only the hash is stored.
 func inviteHash(code string) []byte {
 	h := sha256.Sum256([]byte(normalizeInvite(code)))
 	return h[:]

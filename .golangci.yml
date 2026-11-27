@@ -1,0 +1,37 @@
+# Lint configuration following the Uber Go Style Guide (github.com/uber-go/guide, "Linting"):
+# errcheck, goimports, revive (golint's successor), govet and staticcheck, plus gosec for security
+# and godot so doc comments end as full sentences.
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - godot
+    - gosec
+    - govet
+    - revive
+    - staticcheck
+  settings:
+    godot:
+      # Doc comments on declarations, the comments godoc shows.
+      scope: declarations
+    revive:
+      # revive's defaults include "exported" and "package-comments": every package and exported
+      # identifier carries a doc comment that starts with its name.
+      enable-all-rules: false
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  # Report only what a branch adds on top of master: existing code is not rewritten to satisfy
+  # the linter, since that could change behavior of code already in production.
+  new-from-merge-base: master
+  max-issues-per-linter: 0
+  max-same-issues: 0
