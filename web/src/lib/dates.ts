@@ -44,3 +44,16 @@ export function dayLabel(isoDate: string, todayISO = today()) {
 
 /** A real "YYYY-MM" month, as `?m` must be. */
 export const isMonth = (s: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
+
+/** "dez" for "2026-12-27": the short month, without the dot pt-BR adds. */
+export const monthShort = (isoDate: string) => parse(isoDate).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+
+/** "dezembro" for "2026-12-27". */
+export const monthLong = (isoDate: string) => parse(isoDate).toLocaleDateString("pt-BR", { month: "long" });
+
+/** The invoice's month when a card purchase counts in a later month than its date, else null. */
+export const laterInvoice = (t: { date: string; invoiceDue: string | null }) =>
+  t.invoiceDue && monthOf(t.invoiceDue) !== monthOf(t.date) ? t.invoiceDue : null;
+
+/** Whether the money has moved by now: a card purchase is paid when its invoice is due, anything else on its date. */
+export const isPaid = (t: { date: string; invoiceDue: string | null }, now = today()) => (t.invoiceDue ?? t.date) <= now;

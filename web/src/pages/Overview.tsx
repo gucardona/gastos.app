@@ -2,16 +2,16 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useSummary, useTransactions } from "../api/queries";
 import type { Transaction, Transfer, Upcoming } from "../api/types";
-import { Flows } from "../components/Flows";
-import { MonthSwitcher, PageBar } from "../components/PageBar";
-import { SettlementSheet } from "../components/SettlementSheet";
-import { TransactionList } from "../components/TransactionList";
-import { UpcomingList } from "../components/UpcomingList";
-import { firstName, useApp } from "../context";
-import { monthOf, monthRange, today } from "../lib/dates";
+import { Flows } from "../features/transactions/Flows";
+import { MonthSwitcher, PageBar } from "../app/PageBar";
+import { SettlementSheet } from "../features/division/SettlementSheet";
+import { TransactionList } from "../features/transactions/TransactionList";
+import { UpcomingList } from "../features/transactions/UpcomingList";
+import { firstName, useApp } from "../app/context";
+import { isPaid, monthOf, monthRange, today } from "../lib/dates";
 import { formatBRL, splitBRL } from "../lib/money";
 import { groupTop, pctLabel } from "../lib/share";
-import { Chart } from "../components/Chart";
+import { Chart } from "../features/reports/Chart";
 
 const RULER_HEIGHT = 72;
 
@@ -45,7 +45,7 @@ function Content({ month, summary, txs }: { month: string; summary: NonNullable<
   const expenseTotal = expenses.reduce((s, c) => s + c.cents, 0);
   const pie = groupTop(expenses.map((c) => ({ label: categories.find((x) => x.id === c.categoryId)?.name ?? "?", value: c.cents })), 7, "Outros");
   const now = today();
-  const realized = txs.filter((t) => t.date <= now); // a transaction dated after today is still to come: it shows in Próximos
+  const realized = txs.filter((t) => isPaid(t, now)); // dated (on a card: due) after today is still to come: it shows in Próximos
   const empty = realized.length === 0 && summary.byCategory.length === 0 && summary.upcoming.length === 0;
   const forecast = summary.balanceCents + summary.upcomingIncomeCents - summary.upcomingExpenseCents;
 
@@ -131,10 +131,12 @@ function Ruler({ month, txs, summary }: { month: string; txs: Transaction[]; sum
   const todayMonth = monthOf(now);
   const todayDay = month === todayMonth ? Number(now.slice(8)) : month < todayMonth ? days : 0;
 
+  // a card purchase dated in an earlier month counts in this one (its invoice's): it goes on the first day
+  const slot = (date: string) => (monthOf(date) === month ? Number(date.slice(8)) - 1 : 0);
   const spent = Array<number>(days).fill(0);
-  for (const t of txs) if (t.kind === "expense") spent[Number(t.date.slice(8)) - 1] += t.amountCents;
+  for (const t of txs) if (t.kind === "expense") spent[slot(t.date)] += t.amountCents;
   const projected = Array<number>(days).fill(0); // upcoming entries are always after today
-  for (const u of summary.upcoming) if (u.kind === "expense") projected[Number(u.date.slice(8)) - 1] += u.amountCents;
+  for (const u of summary.upcoming) if (u.kind === "expense") projected[slot(u.date)] += u.amountCents;
   const max = Math.max(...spent, ...projected, 1);
   const height = (v: number) => Math.max(6, Math.round(Math.sqrt(v / max) * RULER_HEIGHT));
 

@@ -31,6 +31,8 @@ export interface Member {
   splitsByDefault: boolean;
   /** Basis points; 0 = not set. */
   defaultShareBp: number;
+  /** The method this member's new transactions start with; null = the first one. */
+  defaultPaymentMethodId: number | null;
 }
 
 export interface Category {
@@ -50,6 +52,19 @@ export interface PaymentMethod {
   icon: string;
   sortOrder: number;
   archived: boolean;
+  /** Set when it is a credit card: its purchases count in the month their invoice is due. */
+  card: Card | null;
+}
+
+export interface Card {
+  /** Purchases up to this day (inclusive) fall in the invoice that closes on it. */
+  closingDay: number;
+  dueDay: number;
+  issuer: string;
+  cardForm: "" | "physical" | "virtual";
+  /** Only the last 4 digits, never the card number. */
+  last4: string;
+  bestPurchaseDay: number;
 }
 
 export interface Split {
@@ -70,6 +85,8 @@ export interface Transaction {
   createdBy: number;
   recurrenceId: number | null;
   source: "manual" | "recurring" | "bank";
+  /** Due date of the card invoice it falls in (its month is the month it counts in); null when not on a card. */
+  invoiceDue: string | null;
   splits: Split[];
 }
 

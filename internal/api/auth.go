@@ -27,6 +27,7 @@ const (
 	tsLayout      = "2006-01-02T15:04:05Z"
 )
 
+// ctxKey keys the values the middleware stores in a request context.
 type ctxKey int
 
 const (
@@ -35,16 +36,23 @@ const (
 	ctxRole
 )
 
-func userIDFrom(ctx context.Context) int64   { v, _ := ctx.Value(ctxUserID).(int64); return v }
-func walletIDFrom(ctx context.Context) int64 { v, _ := ctx.Value(ctxWalletID).(int64); return v }
-func roleFrom(ctx context.Context) role      { v, _ := ctx.Value(ctxRole).(role); return v }
+// userIDFrom returns the signed-in user's id, set by requireUser.
+func userIDFrom(ctx context.Context) int64 { v, _ := ctx.Value(ctxUserID).(int64); return v }
 
+// walletIDFrom returns the wallet id of the route, set by requireWallet.
+func walletIDFrom(ctx context.Context) int64 { v, _ := ctx.Value(ctxWalletID).(int64); return v }
+
+// roleFrom returns the user's role in the route's wallet, set by requireWallet.
+func roleFrom(ctx context.Context) role { v, _ := ctx.Value(ctxRole).(role); return v }
+
+// userDTO is a user as the API returns it.
 type userDTO struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
+// registrationMode says who may sign up right now.
 type registrationMode string
 
 const (
@@ -70,6 +78,7 @@ func modeFor(userCount int, codeAvailable bool) registrationMode {
 // errSignupClosed is the same for a missing and a wrong code, so it reveals nothing about the code.
 var errSignupClosed = &apiError{Status: 403, Code: "forbidden", Message: "O cadastro está fechado. Peça um convite."}
 
+// currentMode works out the registration mode from the number of users and the unused invite codes.
 func (s *Server) currentMode(ctx context.Context, q querier) (registrationMode, error) {
 	var users int
 	var dbCode bool
@@ -136,6 +145,7 @@ func (s *Server) registrationInfo(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
+// register creates an account, signs it in and creates its first wallet.
 func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if !s.limiter.allow("register:ip:" + clientIP(r)) {
 		return errRateLimited
@@ -171,7 +181,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if err := fe.err(); err != nil {
 		return err
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcryptCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), _bcryptCost)
 	if err != nil {
 		return err
 	}
@@ -209,6 +219,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// login checks the e-mail and password and starts a session, rate-limited by IP and by e-mail.
 func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Email    string `json:"email"`
@@ -235,7 +246,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 		Scan(&u.ID, &u.Name, &u.Email, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
 		// spend the same time so the response does not reveal whether the email exists
-		bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(in.Password))
+		_ = bcrypt.CompareHashAndPassword([]byte(_dummyHash), []byte(in.Password))
 		return failed()
 	}
 	if err != nil {
@@ -253,12 +264,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 
 var errBadLogin = &apiError{Status: 401, Code: "unauthenticated", Message: "E-mail ou senha incorretos"}
 
-// dummyHash is a valid bcrypt hash of an arbitrary password, used to equalize response time.
-var dummyHash = func() string {
-	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcryptCost)
+// _dummyHash is a valid bcrypt hash of an arbitrary password, used to equalize response time.
+var _dummyHash = func() string {
+	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), _bcryptCost)
 	return string(h)
 }()
 
+// logout deletes the current session and clears its cookie.
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) error {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		h := sha256.Sum256([]byte(c.Value))
@@ -271,6 +283,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// me returns the signed-in user.
 func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 	var u userDTO
 	if err := s.db.QueryRowContext(r.Context(), `SELECT id, name, email FROM users WHERE id = ?`,
@@ -362,7 +375,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	if err := fe.err(); err != nil {
 		return err
 	}
-	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), bcryptCost)
+	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), _bcryptCost)
 	if err != nil {
 		return err
 	}
@@ -384,6 +397,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// startSession creates a random session token, stores its SHA-256 hash and sets the cookie.
 func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, userID int64) error {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -400,6 +414,8 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, userID
 	return nil
 }
 
+// setSessionCookie sets the session cookie: HttpOnly, SameSite=Lax, and Secure unless
+// GASTOS_COOKIE_SECURE is false.
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, exp time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: token, Path: "/", Expires: exp,
@@ -407,6 +423,7 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, exp time.
 	})
 }
 
+// requireUser rejects requests without a valid session and stores the user id in the context.
 func (s *Server) requireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(sessionCookie)
@@ -439,6 +456,7 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 	})
 }
 
+// clientIP returns the caller's IP, trusting X-Forwarded-For only from a proxy on loopback.
 func clientIP(r *http.Request) string {
 	// Behind Caddy/nginx on localhost: only trust X-Forwarded-For when the peer is loopback.
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
@@ -450,6 +468,7 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// rateLimiter counts attempts per key in a sliding window.
 type rateLimiter struct {
 	mu     sync.Mutex
 	max    int
@@ -457,8 +476,9 @@ type rateLimiter struct {
 	hits   map[string][]time.Time
 }
 
-func newRateLimiter(max int, window time.Duration) *rateLimiter {
-	return &rateLimiter{max: max, window: window, hits: map[string][]time.Time{}}
+// newRateLimiter returns a limiter that allows limit attempts per key within window.
+func newRateLimiter(limit int, window time.Duration) *rateLimiter {
+	return &rateLimiter{max: limit, window: window, hits: map[string][]time.Time{}}
 }
 
 // allow records an attempt and reports whether it is still within the limit.

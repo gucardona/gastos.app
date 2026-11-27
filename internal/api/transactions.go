@@ -12,6 +12,7 @@ import (
 
 const dateLayout = "2006-01-02"
 
+// transactionRoutes registers the transaction routes of a wallet.
 func (s *Server) transactionRoutes(mux *http.ServeMux, wallet routeWrap) {
 	const base = "/api/wallets/{walletID}/transactions"
 	mux.Handle("GET "+base, wallet(roleReader, s.listTransactions))
@@ -20,12 +21,14 @@ func (s *Server) transactionRoutes(mux *http.ServeMux, wallet routeWrap) {
 	mux.Handle("DELETE "+base+"/{id}", wallet(roleEditor, s.deleteTransaction))
 }
 
+// split is one member's share of a transaction, in basis points and in cents.
 type split struct {
 	UserID      int64 `json:"userId"`
 	ShareBP     int64 `json:"shareBp"`
 	AmountCents int64 `json:"amountCents"`
 }
 
+// transaction is a transaction as the API returns it.
 type transaction struct {
 	ID              int64   `json:"id"`
 	Kind            string  `json:"kind"`
@@ -37,10 +40,12 @@ type transaction struct {
 	PaidByUserID    int64   `json:"paidByUserId"`
 	CreatedBy       int64   `json:"createdBy"`
 	RecurrenceID    *int64  `json:"recurrenceId"`
-	Source          string  `json:"source"` // manual, recurring or bank
+	InvoiceDue      *string `json:"invoiceDue"` // due date of the card invoice it falls in; its month is the month it counts in
+	Source          string  `json:"source"`     // manual, recurring or bank
 	Splits          []split `json:"splits"`
 }
 
+// transactionInput is the body of a transaction create or update.
 type transactionInput struct {
 	Kind            string  `json:"kind"`
 	AmountCents     int64   `json:"amountCents"`
@@ -50,8 +55,11 @@ type transactionInput struct {
 	Date            string  `json:"date"`
 	PaidByUserID    int64   `json:"paidByUserId"`
 	Splits          []split `json:"splits"`
+	AllowDuplicate  bool    `json:"allowDuplicate"` // the person saw the duplicate warning and saves anyway
+	invoiceDue      *string // set when it is saved: see stampInvoice
 }
 
+// validDate reports whether s is a valid YYYY-MM-DD date.
 func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
 
 // Stored dates must fall in this range; reads accept any valid date, so older data stays readable.
@@ -226,6 +234,7 @@ func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, 
 	return out, nil
 }
 
+// withAmounts fills in each split's amount from total and its share, without losing a cent.
 func withAmounts(total int64, splits []split) []split {
 	shares := make([]int64, len(splits))
 	for i, sp := range splits {
@@ -239,6 +248,7 @@ func withAmounts(total int64, splits []split) []split {
 	return out
 }
 
+// replaceTransactionSplits replaces the member shares of transaction txID with splits.
 func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits []split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM transaction_splits WHERE transaction_id = ?`, txID); err != nil {
 		return err
@@ -252,31 +262,43 @@ func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits
 	return nil
 }
 
+// listTransactions handles GET /transactions.
 func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	qs := r.URL.Query()
-	from, to := qs.Get("from"), qs.Get("to")
+	from, to, month := qs.Get("from"), qs.Get("to"), qs.Get("month")
 	fe := fieldErrors{}
-	if !validDate(from) {
-		fe.add("from", "obrigatório (YYYY-MM-DD)")
-	}
-	if !validDate(to) {
-		fe.add("to", "obrigatório (YYYY-MM-DD)")
-	}
-	if len(fe) == 0 {
-		f, _ := time.Parse(dateLayout, from)
-		t, _ := time.Parse(dateLayout, to)
-		if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
-			fe.add("to", "intervalo inválido (máx. 366 dias)")
+	// either a month (a card purchase is listed in its invoice's month) or a date range
+	if month != "" {
+		if _, _, ok := monthRange(month); !ok || from != "" || to != "" {
+			fe.add("month", "use month (YYYY-MM) ou from e to")
+		}
+	} else {
+		if !validDate(from) {
+			fe.add("from", "obrigatório (YYYY-MM-DD)")
+		}
+		if !validDate(to) {
+			fe.add("to", "obrigatório (YYYY-MM-DD)")
+		}
+		if len(fe) == 0 {
+			f, _ := time.Parse(dateLayout, from)
+			t, _ := time.Parse(dateLayout, to)
+			if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
+				fe.add("to", "intervalo inválido (máx. 366 dias)")
+			}
 		}
 	}
 	if err := fe.err(); err != nil {
 		return err
 	}
 
-	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id, source
+	query := `SELECT id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, recurrence_id, source, invoice_due
 	          FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ?`
 	args := []any{walletID, from, to}
+	if month != "" {
+		query = strings.Replace(query, "date BETWEEN ? AND ?", "month = ?", 1)
+		args = []any{walletID, month}
+	}
 	if k := qs.Get("kind"); k != "" {
 		query += ` AND kind = ?`
 		args = append(args, k)
@@ -301,7 +323,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	for rows.Next() {
 		var t transaction
 		if err := rows.Scan(&t.ID, &t.Kind, &t.AmountCents, &t.Description, &t.CategoryID, &t.PaymentMethodID,
-			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID, &t.Source); err != nil {
+			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID, &t.Source, &t.InvoiceDue); err != nil {
 			return err
 		}
 		t.Splits = []split{}
@@ -360,11 +382,19 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 	if err := in.validate(ctx, tx, walletID, userID, 0); err != nil {
 		return 0, err
 	}
+	if err := in.stampInvoice(ctx, tx); err != nil {
+		return 0, err
+	}
+	if source == "manual" && !in.AllowDuplicate {
+		if err := checkDuplicate(ctx, tx, walletID, userID, in); err != nil {
+			return 0, err
+		}
+	}
 	var id int64
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, source)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source,
+		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, source, invoice_due)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source, in.invoiceDue,
 	).Scan(&id)
 	if err != nil {
 		return 0, err
@@ -372,6 +402,7 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 	return id, replaceTransactionSplits(ctx, tx, id, in.Splits)
 }
 
+// createTransaction handles POST /transactions.
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	var in transactionInput
@@ -388,12 +419,13 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	out := transaction{ID: id, Source: "manual", Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date,
-		PaidByUserID: in.PaidByUserID, CreatedBy: userID, Splits: withAmounts(in.AmountCents, in.Splits)}
+		PaidByUserID: in.PaidByUserID, CreatedBy: userID, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
 	s.mutated(r)
 	writeJSON(w, http.StatusCreated, out)
 	return nil
 }
 
+// updateTransaction handles PUT /transactions/{id}.
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	id, err := pathID(r, "id")
@@ -409,19 +441,27 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	var source string
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var currentCat int64
+		var currentDate string
+		var currentMethod *int64
 		if err := tx.QueryRowContext(ctx,
-			`SELECT category_id, created_by, recurrence_id, source FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
-		).Scan(&currentCat, &createdBy, &recurrenceID, &source); err != nil {
+			`SELECT category_id, created_by, recurrence_id, source, date, payment_method_id, invoice_due FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
+		).Scan(&currentCat, &createdBy, &recurrenceID, &source, &currentDate, &currentMethod, &in.invoiceDue); err != nil {
 			return err // sql.ErrNoRows → 404 through writeError
 		}
 		if err := in.validate(ctx, tx, walletID, userID, currentCat); err != nil {
 			return err
 		}
+		// the invoice moves only with the date or the method: fixing the amount keeps the purchase where it was
+		if in.Date != currentDate || !sameID(in.PaymentMethodID, currentMethod) {
+			if err := in.stampInvoice(ctx, tx); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE transactions SET kind = ?, amount_cents = ?, description = ?, category_id = ?, payment_method_id = ?,
-			       date = ?, paid_by_user_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+			       date = ?, paid_by_user_id = ?, invoice_due = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
 			WHERE id = ? AND wallet_id = ?`,
-			in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, id, walletID,
+			in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, in.invoiceDue, id, walletID,
 		); err != nil {
 			return err
 		}
@@ -432,12 +472,13 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	out := transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID,
-		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, Splits: withAmounts(in.AmountCents, in.Splits)}
+		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
 	s.mutated(r)
 	writeJSON(w, http.StatusOK, out)
 	return nil
 }
 
+// deleteTransaction handles DELETE /transactions/{id}.
 func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {

@@ -12,11 +12,13 @@ import (
 	"strings"
 )
 
+// Client calls the Anthropic Messages API with an API key.
 type Client struct {
 	BaseURL, APIKey string
 	HTTP            *http.Client
 }
 
+// Block is one content block of a message: text, a tool call or a tool result.
 type Block struct {
 	Type      string          `json:"type"`
 	Text      string          `json:"text,omitempty"`
@@ -28,17 +30,20 @@ type Block struct {
 	IsError   bool            `json:"is_error,omitempty"`
 }
 
+// Message is one turn of the conversation, from the user or the assistant.
 type Message struct {
 	Role    string  `json:"role"`
 	Content []Block `json:"content"`
 }
 
+// Tool is a tool the model may call, described by a JSON schema for its input.
 type Tool struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	InputSchema json.RawMessage `json:"input_schema"`
 }
 
+// Request is one call to the Messages API.
 type Request struct {
 	Model, System string
 	Messages      []Message
@@ -46,6 +51,7 @@ type Request struct {
 	MaxTokens     int
 }
 
+// Result is what one streamed call returned: the content blocks, why it stopped and the tokens used.
 type Result struct {
 	Blocks                    []Block
 	StopReason                string
@@ -58,10 +64,12 @@ type APIError struct {
 	Kind, Message string
 }
 
+// Error formats the API error with its HTTP status and error type.
 func (e *APIError) Error() string {
 	return fmt.Sprintf("anthropic: %s (%d %s)", e.Message, e.Status, e.Kind)
 }
 
+// apiErrBody is the JSON body the API returns with an error status.
 type apiErrBody struct {
 	Error struct {
 		Type    string `json:"type"`
@@ -69,6 +77,7 @@ type apiErrBody struct {
 	} `json:"error"`
 }
 
+// Check makes the smallest possible call with model, to tell whether the key and the model work.
 func (c *Client) Check(ctx context.Context, model string) error {
 	_, err := c.Stream(ctx, Request{
 		Model: model, MaxTokens: 1,
@@ -77,6 +86,8 @@ func (c *Client) Check(ctx context.Context, model string) error {
 	return err
 }
 
+// Stream sends req with streaming on, calls onText with each piece of text as it arrives
+// (onText may be nil) and returns the assembled result.
 func (c *Client) Stream(ctx context.Context, req Request, onText func(string)) (Result, error) {
 	var res Result
 	body, err := json.Marshal(struct {
@@ -210,6 +221,7 @@ func (c *Client) Stream(ctx context.Context, req Request, onText func(string)) (
 	return res, nil
 }
 
+// redact replaces the API key in s, so it never reaches a log or an error message.
 func (c *Client) redact(s string) string {
 	if c.APIKey == "" {
 		return s
@@ -217,6 +229,7 @@ func (c *Client) redact(s string) string {
 	return strings.ReplaceAll(s, c.APIKey, "[redacted]")
 }
 
+// unwrapURL returns the error err wraps, if any; for a *url.Error that drops the URL from the message.
 func unwrapURL(err error) error {
 	if u, ok := err.(interface{ Unwrap() error }); ok && u.Unwrap() != nil {
 		return u.Unwrap()

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-var fxClient = &http.Client{Timeout: 10 * time.Second}
+var _fxClient = &http.Client{Timeout: 10 * time.Second}
 
 // refreshFX fetches the USD-BRL quote from cfg.FXURL and stores its ask price (what a buyer pays, the
 // conservative side). On any failure the stored rate is left as it was.
@@ -22,7 +22,7 @@ func (s *Server) refreshFX(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	res, err := fxClient.Do(req)
+	res, err := _fxClient.Do(req)
 	if err != nil {
 		return err
 	}

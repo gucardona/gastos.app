@@ -1,0 +1,76 @@
+import { useEffect } from "react";
+import { useApp } from "../../app/context";
+import { formatBRL } from "../../lib/money";
+import { bpToPercent, defaultPercents, sharesFromPercents, toBp } from "../../lib/splits";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+
+export type Percents = Record<number, string>;
+
+/** The API shares for the typed percentages (undefined = the default split), or the message when they do not add up. */
+export function resolveSplits(percents: Percents | null) {
+  if (!percents) return {};
+  const splits = sharesFromPercents(percents);
+  return splits ? { splits } : { error: "As partes precisam somar 100%." };
+}
+
+/** "Total 90%, faltam 10%" for the typed parts; null while one of them is not a number. */
+function totalLine(percents: Percents) {
+  const bps = Object.values(percents).map(toBp);
+  if (bps.some((b) => b === null)) return null;
+  const sum = bps.reduce<number>((a, b) => a + (b ?? 0), 0);
+  const text = `Total ${bpToPercent(sum)}%`;
+  if (sum === 10000) return { text, ok: true };
+  return { text: `${text}, ${sum < 10000 ? "faltam" : "passou"} ${bpToPercent(Math.abs(10000 - sum))}%`, ok: false };
+}
+
+/** "Dividir com ... row with its Ajustar/Igualar chip and the percent inputs; `value` null = the wallet's default split. */
+export function SplitEditor({ value, onChange, paidBy, cents, error }: {
+  value: Percents | null;
+  onChange: (v: Percents | null) => void;
+  paidBy: number;
+  cents: number | null;
+  error?: string;
+}) {
+  const { members } = useApp();
+  const defaultIds = members.filter((m) => m.splitsByDefault).map((m) => m.userId);
+  const nameOf = (id: number) => members.find((m) => m.userId === id)?.name.split(" ")[0] ?? "";
+  const byShare = defaultIds.length > 0 && defaultIds.every((id) => (members.find((m) => m.userId === id)?.defaultShareBp ?? 0) > 0);
+  // a member removed meanwhile (live updates) must not leave a stale percentage behind
+  useEffect(() => {
+    if (value && Object.keys(value).some((id) => !members.some((m) => m.userId === Number(id)))) {
+      onChange(Object.fromEntries(Object.entries(value).filter(([id]) => members.some((m) => m.userId === Number(id)))));
+    }
+  }, [members, value, onChange]);
+  const total = value && totalLine(value);
+  const summary = byShare
+    ? Object.entries(defaultPercents(members, defaultIds)).map(([id, p]) => `${nameOf(Number(id))} ${p}%`).join(", ")
+    : cents ? `${formatBRL(Math.floor(cents / Math.max(defaultIds.length, 1)))} para cada` : undefined;
+
+  return (
+    <>
+      <ListGroup className="split-group">
+        <ListRow
+          label={value ? "Divisão personalizada" : `Dividir com ${defaultIds.filter((id) => id !== paidBy).map(nameOf).join(", ") || "ninguém"}`}
+          value={value ? undefined : summary}
+          trailing={
+            <button type="button" className="chip" onClick={() => onChange(value ? null : defaultPercents(members, defaultIds.length ? defaultIds : members.map((m) => m.userId)))}>
+              {value ? (byShare ? "Padrão" : "Igualar") : "Ajustar"}
+            </button>
+          }
+        />
+        {value && (
+          <div className="split-edit">
+            {members.map((m) => (
+              <label key={m.userId}>
+                {nameOf(m.userId)}
+                <span><input inputMode="decimal" aria-label={`Porcentagem de ${m.name}`} value={value[m.userId] ?? ""} onChange={(e) => onChange({ ...value, [m.userId]: e.target.value })} /> %</span>
+              </label>
+            ))}
+            {total && <p className={`split-total ${total.ok ? "muted" : "over"}`} aria-live="polite">{total.text}</p>}
+          </div>
+        )}
+      </ListGroup>
+      {error && <p className="error" role="alert">{error}</p>}
+    </>
+  );
+}

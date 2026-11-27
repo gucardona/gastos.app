@@ -1,3 +1,4 @@
+// Package money splits amounts in cents between people without losing or inventing a cent.
 package money
 
 import (

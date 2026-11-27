@@ -1,101 +1,108 @@
+**English** · [Português](README.pt-BR.md)
+
 # gastos.app
 
-Controle financeiro pessoal e compartilhado. Um único binário Go serve a API e o frontend, e os dados ficam num arquivo SQLite.
+Personal and shared money tracking. One Go binary serves the API and the web app, and the data lives in a single SQLite file.
 
-> **Em reescrita.** O backend novo (`cmd/` + `internal/`) está pronto; o frontend React (`web/`) ainda é um placeholder. Veja o [roadmap](docs/superpowers/specs/2026-10-09-roadmap.md).
+## What it does
 
-## O que faz
+- Wallets with members and roles (owner, editor, reader)
+- Expenses and income, with categories and payment methods you can edit
+- Splitting expenses between members (in basis points) and recording settlements
+- Monthly recurring expenses, income and settlements, split the same way
+- Credit cards: a purchase lands on the right bill from the card's closing and due days
+- A monthly budget per category and a summary of the month
+- Bank statement import (OFX and CSV) into an inbox, with categorization rules. See [Importing a bank statement](docs/bank-import.md)
+- An assistant that answers questions about your own transactions in plain language, with your Anthropic API key. See [Query assistant](docs/assistant.md)
+- Live updates across tabs, devices and members, without reloading (SSE on `/api/events`)
 
-- Carteiras com membros e papéis (owner, editor, reader)
-- Gastos e entradas com categorias e formas de pagamento editáveis
-- Divisão de gastos entre membros (em basis points) e acertos
-- Recorrências mensais de gastos, entradas e acertos (a divisão por porcentagem também vale para elas)
-- Orçamento mensal por categoria e resumo do mês
-- Atualização em tempo real entre abas, aparelhos e membros, sem recarregar (SSE em `/api/events`)
+### Default split per person
 
-### Divisão padrão por pessoa
-
-Em Ajustes > Pessoas, quem é dono da carteira pode definir a "Parte padrão (%)" de cada membro que entra na divisão por padrão (por exemplo 60% e 40%). Quando todos que dividem por padrão têm uma porcentagem, um gasto novo é dividido por elas, ajustadas para somar 100%; se alguém ficar em branco, a divisão é igual. No lançamento (e em cada recorrência) o botão "Ajustar" permite escolher outras porcentagens só para aquele gasto, como 50% para uma pessoa e 25% para cada uma das outras duas.
+In Ajustes > Pessoas (Settings > People), the wallet owner can set a "Parte padrão (%)" (default share) for each member who splits by default, for example 60% and 40%. When everyone who splits by default has a share, a new expense is split by those shares, scaled to add up to 100%. If anyone is left blank, the split is equal. On a transaction (and on each recurrence), "Ajustar" (Adjust) picks other shares for that expense only, such as 50% for one person and 25% for each of the other two.
 
 ## Stack
 
-- Go (≥ 1.26), `net/http` com o roteador do Go 1.22+, `log/slog`
-- SQLite via `modernc.org/sqlite` (Go puro, sem CGO)
-- Sessões por cookie httpOnly, senhas com bcrypt
-- Frontend: React + Vite + TypeScript (fase 3, em `web/`)
+- Go (1.26 or later), `net/http` with the Go 1.22+ router, `log/slog`
+- SQLite through `modernc.org/sqlite` (pure Go, no CGO)
+- Sessions in an httpOnly cookie, passwords hashed with bcrypt
+- Web app: React, Vite and TypeScript, in `web/`
 
-## Estrutura
+## Layout
 
 ```text
-cmd/gastos/        main: config, banco, servidor e jobs
-internal/config/   variáveis de ambiente
-internal/db/       schema.sql, abertura do banco, versionamento e backup
-internal/money/    rateio em centavos
-internal/recurrence/  ocorrências mensais e materializador
-internal/events/   bus de eventos para o SSE
-internal/api/      handlers HTTP
-web/               frontend (dist/ é embutido no binário)
-docs/superpowers/  specs e planos
+cmd/gastos/           main: config, database, server and background jobs
+internal/api/         HTTP handlers
+internal/anthropic/   Anthropic Messages API client for the assistant
+internal/bankimport/  OFX and CSV statement parsing and categorization rules
+internal/billing/     credit card bill dates
+internal/config/      environment variables
+internal/db/          schema.sql, migrations, opening and backing up the database
+internal/events/      event bus behind SSE
+internal/money/       splitting amounts in cents
+internal/recurrence/  monthly occurrences and the materializer
+internal/secret/      encryption of stored API keys
+web/                  web app (web/dist is embedded in the binary)
+docs/                 design docs, plans, operations and decisions
 ```
 
-## Rodando
+## Running
 
 ```bash
 GASTOS_COOKIE_SECURE=false go run ./cmd/gastos
 ```
 
-No PowerShell:
+In PowerShell:
 
 ```powershell
 $env:GASTOS_COOKIE_SECURE = 'false'; go run ./cmd/gastos
 ```
 
-O servidor sobe em `:8000`. Teste com `curl localhost:8000/healthz`.
+The server listens on `:8000`. Check it with `curl localhost:8000/healthz`.
 
-## Configuração
+## Configuration
 
-| Variável | Padrão | |
+| Variable | Default | |
 |---|---|---|
-| `GASTOS_ADDR` | `:8000` | endereço de escuta |
-| `GASTOS_DB_PATH` | `./data/gastos.db` | arquivo SQLite |
-| `GASTOS_BACKUP_DIR` | `./data/backups` | backups diários |
-| `GASTOS_BACKUP_KEEP` | `14` | quantos backups manter |
-| `GASTOS_TZ` | `America/Sao_Paulo` | fuso de "hoje" para recorrências |
-| `GASTOS_COOKIE_SECURE` | `true` | `false` só em desenvolvimento local (http) |
-| `GASTOS_DEV` | `false` | libera CORS para `localhost:5173` |
-| `GASTOS_INVITE_CODE` | vazio | código fixo aceito no cadastro depois da primeira conta (mínimo de 8 caracteres). Opcional: o normal é gerar códigos de uso único com `gastos invite [duração]` (no servidor, `sudo gastos-invite`, depois de instalar o script como root: veja `docs/ops/vdi-setup.md`). Sem nenhum dos dois, o cadastro fecha depois do primeiro usuário |
-| `GASTOS_SECRET_KEY` | vazio | chave mestra (32 bytes em base64) que cifra as chaves da Anthropic guardadas. Sem ela o assistente fica indisponível. Veja [Assistente de consulta](docs/assistente.md) |
-| `GASTOS_ANTHROPIC_URL` | `https://api.anthropic.com` | só para testes (e2e): aponta o assistente para um servidor falso |
-| `GASTOS_FX_URL` | `https://economia.awesomeapi.com.br/last/USD-BRL` | cotação do dólar (AwesomeAPI) usada para estimar o gasto do assistente em reais; só se muda em testes |
+| `GASTOS_ADDR` | `:8000` | listen address |
+| `GASTOS_DB_PATH` | `./data/gastos.db` | SQLite file |
+| `GASTOS_BACKUP_DIR` | `./data/backups` | daily backups |
+| `GASTOS_BACKUP_KEEP` | `14` | how many backups to keep |
+| `GASTOS_TZ` | `America/Sao_Paulo` | time zone that decides "today" for recurrences |
+| `GASTOS_COOKIE_SECURE` | `true` | `false` only for local development over http |
+| `GASTOS_DEV` | `false` | allows CORS from `localhost:5173` |
+| `GASTOS_INVITE_CODE` | empty | a fixed sign-up code accepted after the first account (at least 8 characters). Optional: the usual way is single-use codes from `gastos invite [duration]` (on the server, `sudo gastos-invite`, after installing the script as root: see `docs/ops/vdi-setup.md`). With neither, sign-up closes after the first user |
+| `GASTOS_SECRET_KEY` | empty | master key (32 bytes, base64) that encrypts the stored Anthropic keys. Without it the assistant is unavailable. See [Query assistant](docs/assistant.md) |
+| `GASTOS_ANTHROPIC_URL` | `https://api.anthropic.com` | tests only (e2e): points the assistant at a fake server |
+| `GASTOS_FX_URL` | `https://economia.awesomeapi.com.br/last/USD-BRL` | USD to BRL rate (AwesomeAPI) used to estimate the assistant's cost in reais; changed only in tests |
 
-## Testes
+## Tests
 
 ```bash
 # backend
 go vet ./...
 go test -race ./...
 
-# frontend (dentro de web/)
+# web app (inside web/)
 npm run lint        # Biome
 npm run typecheck
-npm test            # unidade e componentes
-npm run build && npm run e2e   # navegador contra o binário Go real, em desktop e celular
+npm test            # unit and component tests
+npm run build && npm run e2e   # browser against the real Go binary, desktop and phone
 ```
 
-O CI roda tudo isso, além de `gofmt`, `govulncheck` e `npm audit`.
+CI runs all of this, plus `gofmt`, `golangci-lint`, `govulncheck`, `npm audit`, zizmor and CodeQL.
 
-## Banco de dados
+## Database
 
-O `internal/db/schema.sql` é a base congelada, na versão 4 (`PRAGMA user_version`). Toda mudança depois dela é uma migração em `internal/db/migrations/` (a `0005_...` leva o banco da versão 4 para a 5, e assim por diante), registrada na lista `migrations` de `internal/db/db.go`. Ao subir, o servidor cria um banco novo (versão 0) com o `schema.sql` e todas as migrações; um banco entre a versão 4 e a mais recente recebe só as migrações que faltam, no lugar e sem perder dados, cada uma na sua transação. Antes da primeira migração pendente de um banco com dados, o servidor guarda uma cópia ao lado dele (`gastos.db.pre-v<N>.bak`, em que N é a versão de antes; uma cópia anterior com o mesmo nome é mantida com um carimbo de data no nome; se a cópia falhar, o app não sobe). Versões 1 a 3, ou mais novas do que o binário conhece, fazem o app recusar subir, sem alterar o banco. Para mudar o schema, crie a próxima migração; nunca edite o `schema.sql` nem uma migração já publicada.
+`internal/db/schema.sql` is the frozen base, at version 4 (`PRAGMA user_version`). Every change after it is a migration in `internal/db/migrations/` (`0005_...` takes the database from version 4 to 5, and so on), listed in `internal/db/db.go`. On start, the server builds a new database (version 0) from `schema.sql` plus every migration. A database between version 4 and the latest gets only the missing migrations, in place and without losing data, each in its own transaction. Before the first pending migration on a database with data, the server saves a copy next to it (`gastos.db.pre-v<N>.bak`, where N is the version before). An earlier copy with the same name is kept with a timestamp in its name, and if the copy fails the app does not start. Versions 1 to 3, or newer than the binary knows, make the app refuse to start without touching the database. To change the schema, add the next migration. Never edit `schema.sql` or a migration that has shipped.
 
 ## API
 
-Todas as rotas ficam sob `/api`. Autenticação e carteira ativa vêm do cookie de sessão e do path (`/api/wallets/{walletID}/...`). A referência completa está na [spec do backend](docs/superpowers/specs/2026-10-09-backend-foundation-design.md).
+Every route is under `/api`. The user and the active wallet come from the session cookie and the path (`/api/wallets/{walletID}/...`). The full reference is in the [backend design doc](docs/superpowers/specs/2026-10-09-backend-foundation-design.md).
 
-Para importar extratos do banco (OFX/CSV), veja [Importar o extrato do banco](docs/bank-import.md).
+## Contributing
 
-Para perguntar aos seus próprios lançamentos em linguagem natural, veja [Assistente de consulta](docs/assistente.md).
+Every change starts from an issue and ends in a pull request that links it (`Closes #N`). Opening an issue shows forms for bugs, features and tasks. See [AGENTS.md](AGENTS.md) for the conventions, [docs/decisions.md](docs/decisions.md) for why things are the way they are, and [docs/security.md](docs/security.md) for the threat model.
 
-## Licença
+## License
 
 Apache-2.0.

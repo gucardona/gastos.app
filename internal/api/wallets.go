@@ -9,9 +9,10 @@ import (
 	"gastos/internal/money"
 )
 
-// bcryptCost is a variable so tests can use a low cost.
-var bcryptCost = 12
+// _bcryptCost is a variable so tests can use a low cost.
+var _bcryptCost = 12
 
+// role is a member's permission level in a wallet; a higher role can do everything a lower one can.
 type role int
 
 const (
@@ -20,6 +21,7 @@ const (
 	roleOwner
 )
 
+// String returns the role as stored and sent to the client.
 func (r role) String() string {
 	switch r {
 	case roleOwner:
@@ -32,6 +34,7 @@ func (r role) String() string {
 	return ""
 }
 
+// parseRole converts a stored role name to a role.
 func parseRole(s string) (role, bool) {
 	switch s {
 	case "owner":
@@ -44,9 +47,9 @@ func parseRole(s string) (role, bool) {
 	return 0, false
 }
 
-// requireWallet requires the user to be a member of the wallet in the path with role >= min.
+// requireWallet requires the user to be a member of the wallet in the path with role >= minRole.
 // Non-members get 404 so the wallet's existence is not revealed.
-func (s *Server) requireWallet(min role, next http.Handler) http.Handler {
+func (s *Server) requireWallet(minRole role, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		walletID, err := pathID(r, "walletID")
 		if err != nil {
@@ -62,7 +65,7 @@ func (s *Server) requireWallet(min role, next http.Handler) http.Handler {
 			return
 		}
 		have, _ := parseRole(roleStr)
-		if have < min {
+		if have < minRole {
 			s.writeError(w, r, errForbidden)
 			return
 		}
@@ -72,6 +75,7 @@ func (s *Server) requireWallet(min role, next http.Handler) http.Handler {
 	})
 }
 
+// walletDTO is a wallet as the API returns it, with the caller's role in it.
 type walletDTO struct {
 	ID               int64  `json:"id"`
 	Name             string `json:"name"`
@@ -80,6 +84,7 @@ type walletDTO struct {
 	OwnerName        string `json:"ownerName"`
 }
 
+// walletsFor returns the wallets userID is a member of.
 func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT w.id, w.name, me.role, w.splitting_enabled, u.name
@@ -103,6 +108,7 @@ func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, err
 	return out, rows.Err()
 }
 
+// walletByID returns walletID as seen by userID.
 func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (walletDTO, error) {
 	var d walletDTO
 	err := s.db.QueryRowContext(ctx, `
@@ -129,6 +135,7 @@ func createWallet(ctx context.Context, q querier, name string, ownerID int64, sp
 	return id, seedWallet(ctx, q, id)
 }
 
+// seedWallet creates the default categories and payment methods of a new wallet.
 func seedWallet(ctx context.Context, q querier, walletID int64) error {
 	expense := []struct{ name, icon, color, essentiality string }{
 		{"Alimentação", "🍽", "#0f6579", "essential"},
@@ -182,6 +189,7 @@ func seedWallet(ctx context.Context, q querier, walletID int64) error {
 	return nil
 }
 
+// listWallets handles GET /api/wallets: the caller's wallets.
 func (s *Server) listWallets(w http.ResponseWriter, r *http.Request) error {
 	list, err := s.walletsFor(r.Context(), userIDFrom(r.Context()))
 	if err != nil {
@@ -191,12 +199,14 @@ func (s *Server) listWallets(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// validWalletName requires a name of 1 to 60 characters.
 func validWalletName(fe fieldErrors, name string) {
 	if name == "" || len([]rune(name)) > 60 {
 		fe.add("name", "obrigatório, até 60 caracteres")
 	}
 }
 
+// createWallet handles POST /api/wallets: a new wallet owned by the caller.
 func (s *Server) createWallet(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Name             string `json:"name"`
@@ -229,6 +239,7 @@ func (s *Server) createWallet(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// updateWallet handles PATCH /api/wallets/{walletID}: name and splitting, owner only.
 func (s *Server) updateWallet(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Name             *string `json:"name"`
@@ -267,6 +278,7 @@ func (s *Server) updateWallet(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// deleteWallet handles DELETE /api/wallets/{walletID}, owner only, and notifies every member.
 func (s *Server) deleteWallet(w http.ResponseWriter, r *http.Request) error {
 	walletID := walletIDFrom(r.Context())
 	members, err := s.walletMembers(r.Context(), walletID) // read before the delete takes them away
@@ -281,6 +293,7 @@ func (s *Server) deleteWallet(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// memberDTO is a wallet member as the API returns it.
 type memberDTO struct {
 	UserID          int64  `json:"userId"`
 	Name            string `json:"name"`
@@ -288,21 +301,25 @@ type memberDTO struct {
 	Role            string `json:"role"`
 	SplitsByDefault bool   `json:"splitsByDefault"`
 	DefaultShareBP  int    `json:"defaultShareBp"` // 0 = not set
+	// the method a new transaction of theirs starts with; nil = the first one
+	DefaultPaymentMethodID *int64 `json:"defaultPaymentMethodId"`
 }
 
+// memberByID returns userID's membership in walletID.
 func (s *Server) memberByID(ctx context.Context, walletID, userID int64) (memberDTO, error) {
 	var m memberDTO
 	err := s.db.QueryRowContext(ctx, `
-		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0)
+		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0), wm.default_payment_method_id
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ? AND wm.user_id = ?`, walletID, userID).
-		Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP)
+		Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP, &m.DefaultPaymentMethodID)
 	return m, err
 }
 
+// listMembers handles GET /members.
 func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(), `
-		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0)
+		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0), wm.default_payment_method_id
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ?
 		ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.name, u.id`,
@@ -314,7 +331,7 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	out := []memberDTO{}
 	for rows.Next() {
 		var m memberDTO
-		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Name, &m.Email, &m.Role, &m.SplitsByDefault, &m.DefaultShareBP, &m.DefaultPaymentMethodID); err != nil {
 			return err
 		}
 		out = append(out, m)
@@ -326,6 +343,7 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// addMember handles POST /members: adds an existing user, by e-mail, as editor or reader.
 func (s *Server) addMember(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Email string `json:"email"`
@@ -362,6 +380,8 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// updateMember handles PATCH /members/{userID}: role, splits by default and default share.
+// The owner's role cannot change.
 func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 	target, err := pathID(r, "userID")
 	if err != nil {
@@ -416,6 +436,8 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// removeMember handles DELETE /members/{userID}: the owner removes a member, or a member leaves.
+// The owner cannot leave, and a member still in a recurrence or a bank account must be edited out first.
 func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) error {
 	target, err := pathID(r, "userID")
 	if err != nil {
@@ -457,5 +479,37 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) error {
 	s.mutated(r)
 	s.notifyUsers(target) // no longer a member, so mutated does not reach them
 	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// setDefaultPaymentMethod sets the method the current member's new transactions start with (null: the first one).
+func (s *Server) setDefaultPaymentMethod(w http.ResponseWriter, r *http.Request) error {
+	var in struct {
+		PaymentMethodID *int64 `json:"paymentMethodId"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	if in.PaymentMethodID != nil {
+		var ok bool
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM payment_methods WHERE id = ? AND wallet_id = ?)`,
+			*in.PaymentMethodID, walletID).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			return errValidation(map[string]string{"paymentMethodId": "forma de pagamento inexistente"})
+		}
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE wallet_members SET default_payment_method_id = ? WHERE wallet_id = ? AND user_id = ?`,
+		in.PaymentMethodID, walletID, userID); err != nil {
+		return err
+	}
+	m, err := s.memberByID(ctx, walletID, userID)
+	if err != nil {
+		return err
+	}
+	s.mutated(r)
+	writeJSON(w, http.StatusOK, m)
 	return nil
 }

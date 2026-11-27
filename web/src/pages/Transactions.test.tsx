@@ -100,7 +100,7 @@ describe("Transactions", () => {
     const fetch = serve([]);
     renderApp(<Transactions />, appCtx({ month: "2026-02" }));
     await screen.findByText("Nenhum lançamento neste mês.");
-    expect(fetch.mock.calls.map((c) => c[0])).toContain("/api/wallets/1/transactions?from=2026-02-01&to=2026-02-28");
+    expect(fetch.mock.calls.map((c) => c[0])).toContain("/api/wallets/1/transactions?month=2026-02");
   });
 
   it("groups by day, with today identified", async () => {
@@ -133,6 +133,21 @@ describe("Transactions: recurrences section", () => {
     renderApp(<Transactions />);
     expect(await screen.findByText("Nenhum lançamento neste mês.")).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "Repetem todo mês" })).toBeTruthy();
+  });
+
+  it("the search finds by amount and also filters what repeats every month", async () => {
+    const rec = (id: number, description: string, amountCents: number) => ({ id, kind: "expense", amountCents, description, categoryId: 1, paymentMethodId: null, paidByUserId: 1, toUserId: null, dayOfMonth: 8, startDate: "2026-01-08", endDate: null, enabled: true, nextDate: null, splits: [] });
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [rec(1, "Moradia", 5462), rec(2, "Internet", 8990)] : url.includes("/summary") ? noneAhead : items }));
+    const user = userEvent.setup();
+    renderApp(<Transactions />);
+    await screen.findByText("Internet");
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "54,62");
+    expect(screen.getByText("Moradia")).toBeTruthy();
+    expect(screen.queryByText("Internet")).toBeNull();
+    await user.clear(screen.getByRole("searchbox", { name: "Buscar" }));
+    await user.type(screen.getByRole("searchbox", { name: "Buscar" }), "281,50");
+    expect(rows().map((r) => r.textContent)).toEqual([expect.stringContaining("Feira da semana")]);
+    expect(screen.getByText("Nenhuma recorrência corresponde ao filtro.")).toBeTruthy();
   });
 });
 
@@ -251,5 +266,17 @@ describe("Transactions: a transaction dated after today", () => {
     expect(await screen.findByRole("heading", { name: "Próximos" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Lançados" })).toBeNull();
     expect(screen.getByText("Nenhum lançamento neste mês.")).toBeTruthy();
+  });
+
+  it("a card purchase made today whose invoice is due later is to pay, not spent, like a later Pix", async () => {
+    const due = addDays(today(), 20);
+    const card = tx({ id: 9, description: "Placas solares", amountCents: 27500, date: today(), invoiceDue: due });
+    const toPay: Upcoming[] = [{ ...upcoming[0], date: due }];
+    mockFetch((url) => ({ body: url.includes("/recurrences") ? [] : url.includes("/summary") ? { upcomingIncomeCents: 0, upcomingExpenseCents: 27500, upcoming: toPay } : [card, ...items] }));
+    renderApp(<Transactions />);
+    const ahead = (await screen.findByRole("heading", { name: "Próximos" })).parentElement!;
+    expect(screen.getByText(/Saiu/).textContent).toMatch(/299,50/);
+    expect(within(ahead).getByRole("button", { name: /Placas solares/ })).toBeTruthy();
+    expect(within(screen.getByRole("heading", { name: "Lançados", level: 2 }).parentElement!).queryByText("Placas solares")).toBeNull();
   });
 });

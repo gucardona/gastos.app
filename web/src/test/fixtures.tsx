@@ -4,8 +4,8 @@ import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import type { Category, Member, PaymentMethod, Transaction, Wallet } from "../api/types";
-import { ToastContext } from "../components/Toast";
-import { Ctx, type AppCtx } from "../context";
+import { ToastContext } from "../ui/Toast";
+import { Ctx, type AppCtx } from "../app/context";
 import { today } from "../lib/dates";
 
 export const ana = { id: 1, name: "Ana Souza", email: "ana@example.com" };
@@ -18,19 +18,19 @@ const cat = (id: number, kind: Category["kind"], name: string, icon: string): Ca
 export const categories = [cat(1, "expense", "Mercado", "🛒"), cat(2, "expense", "Restaurante", "🍜"), cat(3, "income", "Salário", "💼")];
 
 export const paymentMethods: PaymentMethod[] = [
-  { id: 1, name: "Pix", icon: "⚡", sortOrder: 0, archived: false },
-  { id: 2, name: "Crédito", icon: "💳", sortOrder: 1, archived: false },
+  { id: 1, name: "Pix", icon: "⚡", sortOrder: 0, archived: false, card: null },
+  { id: 2, name: "Crédito", icon: "💳", sortOrder: 1, archived: false, card: null },
 ];
 
 export const members: Member[] = [
-  { userId: 1, name: "Ana Souza", email: "ana@example.com", role: "owner", splitsByDefault: true, defaultShareBp: 0 },
-  { userId: 2, name: "Bia Lima", email: "bia@example.com", role: "editor", splitsByDefault: true, defaultShareBp: 0 },
+  { userId: 1, name: "Ana Souza", email: "ana@example.com", role: "owner", splitsByDefault: true, defaultShareBp: 0, defaultPaymentMethodId: null },
+  { userId: 2, name: "Bia Lima", email: "bia@example.com", role: "editor", splitsByDefault: true, defaultShareBp: 0, defaultPaymentMethodId: null },
 ];
 
 export function tx(over: Partial<Transaction> = {}): Transaction {
   return {
     id: 10, kind: "expense", amountCents: 4890, description: "Mercado do bairro", categoryId: 1, paymentMethodId: 1,
-    date: today(), paidByUserId: 1, createdBy: 1, recurrenceId: null, source: "manual", splits: [], ...over,
+    date: today(), paidByUserId: 1, createdBy: 1, recurrenceId: null, source: "manual", invoiceDue: null, splits: [], ...over,
   };
 }
 

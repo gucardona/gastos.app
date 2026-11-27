@@ -1,0 +1,101 @@
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+import { toISODate, today } from "../../lib/dates";
+import { appCtx, renderApp, tx } from "../../test/fixtures";
+import { TransactionList } from "./TransactionList";
+
+const yesterday = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toISODate(d);
+};
+
+describe("TransactionList", () => {
+  it("groups by day with the day total and correct signs", () => {
+    renderApp(
+      <TransactionList
+        items={[
+          tx({ id: 1, amountCents: 5000, date: today() }),
+          tx({ id: 2, kind: "income", categoryId: 3, amountCents: 100000, description: "Salário", date: today() }),
+          tx({ id: 3, amountCents: 2000, description: "Padaria", date: yesterday() }),
+        ]}
+      />,
+    );
+    const hoje = screen.getByText(/^Hoje,/).closest("section")!;
+    expect(within(hoje).getByText(/\+R\$\s950,00/)).toBeTruthy(); // 1000 − 50 in the day header
+    expect(within(hoje).getByText(/−R\$\s50,00/)).toBeTruthy();
+    expect(within(hoje).getByText(/\+R\$\s1\.000,00/)).toBeTruthy();
+    expect(screen.getByText(/^Ontem,/)).toBeTruthy();
+  });
+
+  it("each day is a heading, level 2 by default and the level asked for under another heading", () => {
+    const { unmount } = renderApp(<TransactionList items={[tx({ date: today() })]} />);
+    expect(screen.getByRole("heading", { level: 2, name: /^Hoje,/ })).toBeTruthy();
+    unmount();
+    renderApp(<TransactionList items={[tx({ date: today() })]} headingLevel={3} />);
+    expect(screen.getByRole("heading", { level: 3, name: /^Hoje,/ })).toBeTruthy();
+  });
+
+  it("a transaction without a description is titled by its category, which is not repeated underneath", () => {
+    renderApp(<TransactionList items={[tx({ description: "" })]} />);
+    expect(screen.getByText("Mercado").className).toBe("desc");
+    expect(screen.getByText("Pix")).toBeTruthy(); // the payment method still shows, alone
+    expect(screen.queryByText(/Mercado, Pix/)).toBeNull();
+  });
+
+  it("shows category, payment method and the recurring badge", () => {
+    renderApp(<TransactionList items={[tx({ recurrenceId: 7 })]} />);
+    expect(screen.getByText(/Mercado, Pix/)).toBeTruthy();
+    expect(screen.getByText("recorrente")).toBeTruthy();
+  });
+
+  it("explains who paid and who it was split with", () => {
+    renderApp(
+      <TransactionList
+        items={[tx({ paidByUserId: 2, splits: [{ userId: 1, shareBp: 5000, amountCents: 2445 }, { userId: 2, shareBp: 5000, amountCents: 2445 }] })]}
+      />,
+    );
+    expect(screen.getByText(/Bia pagou, dividido com Ana/)).toBeTruthy();
+  });
+
+  it("opens editing when the row is tapped", async () => {
+    const ctx = appCtx();
+    const t = tx();
+    renderApp(<TransactionList items={[t]} />, ctx);
+    await userEvent.click(screen.getByRole("button", { name: /Mercado do bairro/ }));
+    expect(ctx.openAdd).toHaveBeenCalledWith(t);
+  });
+
+  it("readers cannot edit: the row is disabled", async () => {
+    const ctx = appCtx({ canEdit: false });
+    renderApp(<TransactionList items={[tx()]} />, ctx);
+    const row = screen.getByRole("button", { name: /Mercado do bairro/ }) as HTMLButtonElement;
+    expect(row.disabled).toBe(true);
+  });
+});
+
+describe("TransactionList: grouped blocks", () => {
+  it("each day's lines sit in one block under the day header", () => {
+    const { container } = renderApp(<TransactionList items={[tx({ id: 1, description: "Padaria" }), tx({ id: 2, description: "Feira" })]} />);
+    const blocks = container.querySelectorAll(".day > .list-group");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].querySelectorAll("button.row")).toHaveLength(2);
+  });
+});
+
+describe("TransactionList: card purchases", () => {
+  it("tags a purchase that counts in a later invoice with that invoice's month", () => {
+    renderApp(
+      <TransactionList
+        items={[
+          tx({ id: 1, description: "Jantar", date: "2026-11-22", invoiceDue: "2026-12-27" }),
+          tx({ id: 2, description: "Almoço", date: "2026-11-10", invoiceDue: "2026-11-27" }),
+          tx({ id: 3, description: "Pão", date: "2026-11-10", invoiceDue: null }),
+        ]}
+      />,
+    );
+    expect(screen.getAllByText(/fatura de/)).toHaveLength(1);
+    expect(screen.getByText("fatura de dez")).toBeTruthy();
+  });
+});

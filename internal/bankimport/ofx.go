@@ -10,10 +10,14 @@ import (
 	"time"
 )
 
+// Errors the statement parsers return for a file they cannot import.
 var (
-	ErrNotOFX         = errors.New("this does not look like an OFX file")
+	// ErrNotOFX means the file has neither an <OFX> tag nor an OFXHEADER line.
+	ErrNotOFX = errors.New("this does not look like an OFX file")
+	// ErrNoTransactions means the file parsed but held no transaction lines.
 	ErrNoTransactions = errors.New("no transactions found in the file")
-	ErrTooLarge       = errors.New("file is too large")
+	// ErrTooLarge means the file is over the import size limit.
+	ErrTooLarge = errors.New("file is too large")
 )
 
 const stmtTrn = "<STMTTRN>"
@@ -93,8 +97,8 @@ func ParseOFX(r io.Reader) ([]Entry, error) {
 	return entries, nil
 }
 
-// tagRes is built once and only read afterwards, so concurrent imports can share it.
-var tagRes = func() map[string]*regexp.Regexp {
+// _tagRes is built once and only read afterwards, so concurrent imports can share it.
+var _tagRes = func() map[string]*regexp.Regexp {
 	m := map[string]*regexp.Regexp{}
 	for _, tag := range []string{"DTPOSTED", "TRNAMT", "MEMO", "NAME", "FITID"} {
 		m[tag] = regexp.MustCompile(`(?i)<` + tag + `>\s*([^<\r\n]*)`)
@@ -105,7 +109,7 @@ var tagRes = func() map[string]*regexp.Regexp {
 // tagValue returns the text after the first <TAG> in block, up to the next tag or line break
 // (which covers both SGML, `<MEMO>text`, and XML, `<MEMO>text</MEMO>`). tag must be one of tagRes.
 func tagValue(block, tag string) string {
-	if m := tagRes[tag].FindStringSubmatch(block); m != nil {
+	if m := _tagRes[tag].FindStringSubmatch(block); m != nil {
 		return strings.TrimSpace(m[1])
 	}
 	return ""

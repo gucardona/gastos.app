@@ -1,3 +1,4 @@
+// Package recurrence turns recurring entries (rent, salary) into dated transactions as their days arrive.
 package recurrence
 
 import (
@@ -6,9 +7,11 @@ import (
 	"log/slog"
 	"time"
 
+	"gastos/internal/billing"
 	"gastos/internal/events"
 )
 
+// Materializer creates the transactions that recurring entries owe up to today.
 type Materializer struct {
 	db  *sql.DB
 	bus *events.Bus
@@ -17,18 +20,22 @@ type Materializer struct {
 	now func() time.Time
 }
 
+// NewMaterializer returns a Materializer that dates occurrences in loc and notifies changes on bus.
 func NewMaterializer(db *sql.DB, bus *events.Bus, loc *time.Location, log *slog.Logger) *Materializer {
 	return &Materializer{db: db, bus: bus, loc: loc, log: log, now: time.Now}
 }
 
+// template is one enabled recurrence as loaded from the database, with its split between members.
 type template struct {
 	id, walletID, amount, paidBy, createdBy int64
 	kind, description, startDate, endDate   string
 	categoryID, paymentMethodID, toUserID   sql.NullInt64
 	day                                     int
+	closingDay, dueDay                      sql.NullInt64 // set when the method is a credit card
 	splits                                  []splitRow
 }
 
+// splitRow is one member's share of a recurrence, in basis points.
 type splitRow struct{ userID, shareBP int64 }
 
 // Run materializes the occurrences due up to today (in the configured time zone).
@@ -90,13 +97,14 @@ func (m *Materializer) notifyMembers(ctx context.Context, walletID int64) {
 	m.bus.Notify(ids...)
 }
 
+// load reads the enabled recurrences of walletID, or of every wallet when walletID is 0.
 func (m *Materializer) load(ctx context.Context, walletID int64) ([]template, error) {
-	q := `SELECT id, wallet_id, kind, amount_cents, description, category_id, payment_method_id,
-	             paid_by_user_id, to_user_id, day_of_month, start_date, COALESCE(end_date, ''), created_by
-	      FROM recurrences WHERE enabled = 1`
+	q := `SELECT r.id, r.wallet_id, r.kind, r.amount_cents, r.description, r.category_id, r.payment_method_id,
+	             r.paid_by_user_id, r.to_user_id, r.day_of_month, r.start_date, COALESCE(r.end_date, ''), r.created_by, pm.closing_day, pm.due_day
+	      FROM recurrences r LEFT JOIN payment_methods pm ON pm.id = r.payment_method_id WHERE r.enabled = 1`
 	var args []any
 	if walletID != 0 {
-		q += ` AND wallet_id = ?`
+		q += ` AND r.wallet_id = ?`
 		args = append(args, walletID)
 	}
 	rows, err := m.db.QueryContext(ctx, q, args...)
@@ -108,7 +116,7 @@ func (m *Materializer) load(ctx context.Context, walletID int64) ([]template, er
 	for rows.Next() {
 		var t template
 		if err := rows.Scan(&t.id, &t.walletID, &t.kind, &t.amount, &t.description, &t.categoryID, &t.paymentMethodID,
-			&t.paidBy, &t.toUserID, &t.day, &t.startDate, &t.endDate, &t.createdBy); err != nil {
+			&t.paidBy, &t.toUserID, &t.day, &t.startDate, &t.endDate, &t.createdBy, &t.closingDay, &t.dueDay); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -172,15 +180,23 @@ func (m *Materializer) insert(ctx context.Context, t template, o Occurrence) (bo
 		return true, tx.Commit()
 	}
 
+	var invoiceDue sql.NullString // a purchase on a card counts in the month its invoice is due
+	if t.closingDay.Valid && t.dueDay.Valid {
+		d, err := billing.InvoiceDue(o.Date, int(t.closingDay.Int64), int(t.dueDay.Int64))
+		if err != nil {
+			return false, err
+		}
+		invoiceDue = sql.NullString{String: d, Valid: true}
+	}
 	var id int64
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date,
-		                          paid_by_user_id, created_by, recurrence_id, occurrence, source)
-		VALUES (?, ?, ?, COALESCE(NULLIF(?, ''), (SELECT name FROM categories WHERE id = ?)), ?, ?, ?, ?, ?, ?, ?, 'recurring')
+		                          paid_by_user_id, created_by, recurrence_id, occurrence, source, invoice_due)
+		VALUES (?, ?, ?, COALESCE(NULLIF(?, ''), (SELECT name FROM categories WHERE id = ?)), ?, ?, ?, ?, ?, ?, ?, 'recurring', ?)
 		ON CONFLICT (recurrence_id, occurrence) WHERE recurrence_id IS NOT NULL DO NOTHING
 		RETURNING id`,
 		t.walletID, t.kind, t.amount, t.description, t.categoryID, t.categoryID, t.paymentMethodID, o.Date,
-		t.paidBy, t.createdBy, t.id, o.Month,
+		t.paidBy, t.createdBy, t.id, o.Month, invoiceDue,
 	).Scan(&id)
 	if err == sql.ErrNoRows {
 		return false, nil

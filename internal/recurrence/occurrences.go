@@ -7,6 +7,7 @@ import (
 
 const dateLayout = "2006-01-02"
 
+// Occurrence is one date on which a recurrence is due.
 type Occurrence struct {
 	Month string // YYYY-MM
 	Date  string // YYYY-MM-DD

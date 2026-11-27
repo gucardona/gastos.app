@@ -2,12 +2,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../api/client";
-import { ListGroup, ListRow } from "../components/ListGroup";
-import { PasswordSheet } from "../components/PasswordSheet";
-import { PageBar } from "../components/PageBar";
-import { RecurringSection } from "../components/RecurringSection";
-import { Segmented } from "../components/Segmented";
-import { useApp } from "../context";
+import { ListGroup, ListRow } from "../ui/ListGroup";
+import { PasswordSheet } from "../features/account/PasswordSheet";
+import { PageBar } from "../app/PageBar";
+import { RecurringSection } from "../features/transactions/RecurringSection";
+import { Segmented } from "../ui/Segmented";
+import { useApp } from "../app/context";
 import { useAction } from "../hooks/useAction";
 import { setTheme, storedTheme, type Theme } from "../lib/theme";
 import { AssistantSection } from "./settings/AssistantSection";
@@ -25,6 +25,7 @@ export const SETTINGS_SECTIONS = [
   { id: "pessoas", label: "Pessoas", group: 1 },
   { id: "categorias", label: "Categorias", group: 1 },
   { id: "pagamentos", label: "Formas de pagamento", group: 1 },
+  { id: "cartoes", label: "Cartões de crédito", group: 1 },
   { id: "orcamentos", label: "Orçamentos", group: 1 },
   { id: "bancos", label: "Contas bancárias", group: 2 },
   { id: "recorrentes", label: "Recorrentes", group: 2 },
@@ -100,6 +101,7 @@ function Screen({ id }: { id: (typeof SETTINGS_SECTIONS)[number]["id"] }) {
     case "pessoas": return <MembersSection />;
     case "categorias": return <CategoriesSection />;
     case "pagamentos": return <PaymentsSection />;
+    case "cartoes": return <PaymentsSection cards />;
     case "orcamentos": return <BudgetsSection />;
     case "bancos": return <BankSection />;
     case "recorrentes": return <RecurringSection />;

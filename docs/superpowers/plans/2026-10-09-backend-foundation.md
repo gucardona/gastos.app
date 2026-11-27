@@ -1,68 +1,68 @@
-# Backend Foundation — Plano de implementação
+# Backend Foundation: implementation plan
 
-> **Para agentes:** implemente tarefa por tarefa, em ordem. Cada tarefa é TDD: escreva o teste, veja falhar, implemente, veja passar, commit. Passos usam checkbox (`- [ ]`).
+> **For agents:** implement task by task, in order. Each task is TDD: write the test, watch it fail, implement, watch it pass, commit. Steps use checkboxes (`- [ ]`).
 
 **Spec:** [2026-10-09-backend-foundation-design.md](../specs/2026-10-09-backend-foundation-design.md)
 
-**Objetivo:** substituir `src/` por um backend novo:
-- em `cmd/` + `internal/`;
-- schema único;
-- dinheiro em centavos;
-- sessões por cookie;
-- API `/api/wallets/{walletID}/...` com o roteador do Go 1.22+;
-- materializador de recorrências idempotente.
+**Goal:** replace `src/` with a new backend:
+- in `cmd/` + `internal/`;
+- a single schema;
+- money in cents;
+- cookie sessions;
+- `/api/wallets/{walletID}/...` API with the Go 1.22+ router;
+- an idempotent recurrence materializer.
 
-**Arquitetura:** pacotes pequenos e puros (`money`, `recurrence`), um pacote `db` dono do schema e um pacote `api` com um `Server` que concentra dependências. Os handlers têm a assinatura `func(w, r) error`, e um adaptador único converte erros em JSON.
+**Architecture:** small, pure packages (`money`, `recurrence`), a `db` package that owns the schema, and an `api` package with a `Server` that holds the dependencies. Handlers have the signature `func(w, r) error`, and a single adapter converts errors into JSON.
 
-**Stack:** Go 1.27 (o `go.mod` pede ≥ 1.26), `modernc.org/sqlite`, `golang.org/x/crypto/bcrypt` e só a stdlib (`net/http`, `log/slog`, `embed`).
+**Stack:** Go 1.27 (`go.mod` asks for ≥ 1.26), `modernc.org/sqlite`, `golang.org/x/crypto/bcrypt` and only the stdlib (`net/http`, `log/slog`, `embed`).
 
-**Branch:** `rewrite/backend`. Todo o código novo convive com `src/` até a tarefa 17, que remove o antigo.
+**Branch:** `rewrite/backend`. All new code lives alongside `src/` until task 17, which removes the old code.
 
-**Comandos:** os exemplos usam `go test` a partir da raiz do repo. Funcionam igual no PowerShell e no bash.
+**Commands:** the examples run `go test` from the repo root. They work the same in PowerShell and bash.
 
 ---
 
-## Mapa de arquivos
+## File map
 
-| Arquivo | Ação | Responsabilidade |
+| File | Action | Responsibility |
 |---|---|---|
-| `cmd/gastos/main.go` | Criar | config → db → server → jobs → `ListenAndServe` + shutdown gracioso |
-| `internal/config/config.go` (+ `_test`) | Criar | ler e validar env |
-| `internal/db/schema.sql` | Criar | schema versão 1 |
-| `internal/db/db.go` (+ `_test`) | Criar | `Open` com pragmas, `migrate` via `user_version` |
-| `internal/db/backup.go` (+ `_test`) | Criar | `VACUUM INTO` + rotação |
-| `internal/money/money.go` (+ `_test`) | Criar | `Allocate`, `EqualShares` |
-| `internal/recurrence/occurrences.go` (+ `_test`) | Criar | `Occurrences` puro |
-| `internal/recurrence/materializer.go` (+ `_test`) | Criar | gera transações e acertos idempotentes |
-| `internal/events/bus.go` (+ `_test`) | Mover/ajustar | bus por carteira (de `src/events`) |
-| `internal/api/server.go` | Criar | `Server`, `Routes`, middlewares de log, recover e CORS de dev |
-| `internal/api/httpx.go` | Criar | `apiError`, `handle`, `decode`, `writeJSON`, `querier` |
-| `internal/api/auth.go` | Criar | register, login, logout, me, `requireUser`, sessões, rate limit |
-| `internal/api/wallets.go` | Criar | wallets, members, `requireWallet`, seed |
-| `internal/api/catalog.go` | Criar | categories, payment-methods |
-| `internal/api/transactions.go` | Criar | CRUD + splits |
-| `internal/api/recurrences.go` | Criar | CRUD + materialização síncrona |
-| `internal/api/settlements.go` | Criar | CRUD |
-| `internal/api/budgets.go` | Criar | list, upsert, delete |
-| `internal/api/summary.go` (+ `settle.go`) | Criar | `/summary` + acertos sugeridos (puro) |
-| `internal/api/events.go` | Criar | SSE com heartbeat |
-| `internal/api/spa.go` | Criar | serve o `fs.FS` embutido com fallback para `index.html` |
-| `internal/api/*_test.go` | Criar | integração com `httptest` |
-| `web/embed.go`, `web/dist/index.html` | Criar | placeholder até a fase 3 |
-| `src/`, `vendor/`, `gastos-app`, `deploy.sh` | Remover | tarefa 17 |
+| `cmd/gastos/main.go` | Create | config → db → server → jobs → `ListenAndServe` + graceful shutdown |
+| `internal/config/config.go` (+ `_test`) | Create | read and validate env |
+| `internal/db/schema.sql` | Create | schema version 1 |
+| `internal/db/db.go` (+ `_test`) | Create | `Open` with pragmas, `migrate` via `user_version` |
+| `internal/db/backup.go` (+ `_test`) | Create | `VACUUM INTO` + rotation |
+| `internal/money/money.go` (+ `_test`) | Create | `Allocate`, `EqualShares` |
+| `internal/recurrence/occurrences.go` (+ `_test`) | Create | pure `Occurrences` |
+| `internal/recurrence/materializer.go` (+ `_test`) | Create | generates idempotent transactions and settlements |
+| `internal/events/bus.go` (+ `_test`) | Move/adapt | per-wallet bus (from `src/events`) |
+| `internal/api/server.go` | Create | `Server`, `Routes`, log, recover and dev CORS middlewares |
+| `internal/api/httpx.go` | Create | `apiError`, `handle`, `decode`, `writeJSON`, `querier` |
+| `internal/api/auth.go` | Create | register, login, logout, me, `requireUser`, sessions, rate limit |
+| `internal/api/wallets.go` | Create | wallets, members, `requireWallet`, seed |
+| `internal/api/catalog.go` | Create | categories, payment-methods |
+| `internal/api/transactions.go` | Create | CRUD + splits |
+| `internal/api/recurrences.go` | Create | CRUD + synchronous materialization |
+| `internal/api/settlements.go` | Create | CRUD |
+| `internal/api/budgets.go` | Create | list, upsert, delete |
+| `internal/api/summary.go` (+ `settle.go`) | Create | `/summary` + suggested settlements (pure) |
+| `internal/api/events.go` | Create | SSE with heartbeat |
+| `internal/api/spa.go` | Create | serves the embedded `fs.FS` with fallback to `index.html` |
+| `internal/api/*_test.go` | Create | integration with `httptest` |
+| `web/embed.go`, `web/dist/index.html` | Create | placeholder until phase 3 |
+| `src/`, `vendor/`, `gastos-app`, `deploy.sh` | Remove | task 17 |
 
 ---
 
-## Tarefa 0: Branch e esqueleto
+## Task 0: Branch and skeleton
 
-- [ ] **Passo 1:** criar a branch e os diretórios
+- [ ] **Step 1:** create the branch and the directories
 
 ```bash
 git switch -c rewrite/backend
 mkdir -p cmd/gastos internal/config internal/db internal/money internal/recurrence internal/events internal/api web/dist
 ```
 
-- [ ] **Passo 2:** adicionar ao `.gitignore`
+- [ ] **Step 2:** add to `.gitignore`
 
 ```
 /data/
@@ -71,17 +71,17 @@ mkdir -p cmd/gastos internal/config internal/db internal/money internal/recurren
 web/node_modules/
 ```
 
-`web/dist/` **não** entra no ignore ainda, porque o placeholder da tarefa 16 precisa estar versionado para o `go:embed` compilar. A fase 3 troca isso pelo build do CI.
+`web/dist/` does **not** go in the ignore file yet, because the task 16 placeholder must be versioned for `go:embed` to compile. Phase 3 replaces this with the CI build.
 
-- [ ] **Passo 3:** commit `chore: esqueleto do backend novo`
+- [ ] **Step 3:** commit `chore: new backend skeleton`
 
 ---
 
-## Tarefa 1: `config`
+## Task 1: `config`
 
-**Arquivos:** `internal/config/config.go`, `internal/config/config_test.go`
+**Files:** `internal/config/config.go`, `internal/config/config_test.go`
 
-- [ ] **Passo 1: teste**
+- [ ] **Step 1: test**
 
 ```go
 package config
@@ -118,9 +118,9 @@ func TestLoadInvalid(t *testing.T) {
 }
 ```
 
-- [ ] **Passo 2:** `go test ./internal/config/` deve falhar (não compila).
+- [ ] **Step 2:** `go test ./internal/config/` must fail (does not compile).
 
-- [ ] **Passo 3: implementação**
+- [ ] **Step 3: implementation**
 
 ```go
 package config
@@ -141,7 +141,7 @@ type Config struct {
 	Dev          bool
 }
 
-// Load lê a configuração de getenv (os.Getenv em produção) e falha cedo em valores inválidos.
+// Load reads the configuration from getenv (os.Getenv in production) and fails early on invalid values.
 func Load(getenv func(string) string) (Config, error) {
 	c := Config{
 		Addr:      or(getenv("GASTOS_ADDR"), ":8000"),
@@ -188,20 +188,20 @@ func parseBool(key string, getenv func(string) string, def bool) (bool, error) {
 }
 ```
 
-`cmd/gastos/main.go` importa `_ "time/tzdata"`, para o `LoadLocation` funcionar em Windows e em imagens mínimas. O teste também precisa disso no Windows: adicione `import _ "time/tzdata"` no `config_test.go`.
+`cmd/gastos/main.go` imports `_ "time/tzdata"`, so `LoadLocation` works on Windows and in minimal images. The test needs it on Windows too: add `import _ "time/tzdata"` to `config_test.go`.
 
-- [ ] **Passo 4:** `go test ./internal/config/` passa.
-- [ ] **Passo 5:** commit `feat(config): carregar e validar env`
+- [ ] **Step 4:** `go test ./internal/config/` passes.
+- [ ] **Step 5:** commit `feat(config): load and validate env`
 
 ---
 
-## Tarefa 2: `db` — schema, `Open`, migrate
+## Task 2: `db`: schema, `Open`, migrate
 
-**Arquivos:** `internal/db/schema.sql`, `internal/db/db.go`, `internal/db/db_test.go`
+**Files:** `internal/db/schema.sql`, `internal/db/db.go`, `internal/db/db_test.go`
 
-- [ ] **Passo 1:** criar `schema.sql` com o SQL **exato** da seção "Schema (versão 1)" da spec.
+- [ ] **Step 1:** create `schema.sql` with the **exact** SQL from the "Schema (version 1)" section of the spec.
 
-- [ ] **Passo 2: testes**
+- [ ] **Step 2: tests**
 
 ```go
 package db
@@ -248,7 +248,7 @@ func TestPragmasOnEveryConnection(t *testing.T) {
 	d := openTemp(t)
 	ctx := context.Background()
 	var conns []*sql.Conn
-	for i := 0; i < 3; i++ { // segura 3 conexões distintas do pool
+	for i := 0; i < 3; i++ { // holds 3 distinct connections from the pool
 		c, err := d.Conn(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -305,11 +305,11 @@ func mustExec(t *testing.T, d *sql.DB, q string) {
 }
 ```
 
-Adicione `"database/sql"` aos imports.
+Add `"database/sql"` to the imports.
 
-- [ ] **Passo 3:** `go test ./internal/db/` deve falhar.
+- [ ] **Step 3:** `go test ./internal/db/` must fail.
 
-- [ ] **Passo 4: implementação**
+- [ ] **Step 4: implementation**
 
 ```go
 package db
@@ -327,8 +327,8 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-// migrations[i] leva o banco da versão i+1 para i+2. O schema.sql é sempre a versão 1.
-// Para mudar o schema: acrescente um item aqui; nunca edite itens antigos.
+// migrations[i] takes the database from version i+1 to i+2. schema.sql is always version 1.
+// To change the schema: add an item here; never edit old items.
 var migrations = []string{}
 
 const pragmas = "?_pragma=foreign_keys(1)" +
@@ -337,7 +337,7 @@ const pragmas = "?_pragma=foreign_keys(1)" +
 	"&_pragma=synchronous(NORMAL)" +
 	"&_txlock=immediate"
 
-// Open abre o SQLite com pragmas aplicados em toda conexão do pool e aplica o schema.
+// Open opens SQLite with pragmas applied on every pool connection and applies the schema.
 func Open(path string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, err
@@ -387,18 +387,18 @@ func migrate(d *sql.DB) error {
 }
 ```
 
-O `journal_mode(WAL)` dentro de transação não tem efeito, mas aqui ele roda no DSN, na abertura da conexão, então tudo bem. Se o `tx.Exec` de várias instruções falhar no driver, divida o `schema.sql` com `strings.Split(steps[i], ";\n")` e ignore os trechos vazios.
+`journal_mode(WAL)` inside a transaction has no effect, but here it runs in the DSN, when the connection is opened, so it is fine. If the multi-statement `tx.Exec` fails in the driver, split `schema.sql` with `strings.Split(steps[i], ";\n")` and ignore the empty pieces.
 
-- [ ] **Passo 5:** `go test ./internal/db/` passa.
-- [ ] **Passo 6:** commit `feat(db): schema v1, pragmas por conexão e versionamento por user_version`
+- [ ] **Step 5:** `go test ./internal/db/` passes.
+- [ ] **Step 6:** commit `feat(db): schema v1, per-connection pragmas and versioning via user_version`
 
 ---
 
-## Tarefa 3: `money`
+## Task 3: `money`
 
-**Arquivos:** `internal/money/money.go`, `internal/money/money_test.go`
+**Files:** `internal/money/money.go`, `internal/money/money_test.go`
 
-- [ ] **Passo 1: teste**
+- [ ] **Step 1: test**
 
 ```go
 package money
@@ -451,19 +451,19 @@ func TestEqualShares(t *testing.T) {
 }
 ```
 
-- [ ] **Passo 2:** ver falhar.
-- [ ] **Passo 3: implementação**
+- [ ] **Step 2:** watch it fail.
+- [ ] **Step 3: implementation**
 
 ```go
 package money
 
 import "sort"
 
-// FullShare é 100% em basis points.
+// FullShare is 100% in basis points.
 const FullShare = 10000
 
-// Allocate divide total centavos proporcionalmente a shares (maior resto).
-// A soma do resultado é sempre total; empates de resto favorecem o menor índice.
+// Allocate splits total cents proportionally to shares (largest remainder).
+// The sum of the result is always total; remainder ties favor the lowest index.
 func Allocate(total int64, shares []int64) []int64 {
 	out := make([]int64, len(shares))
 	var sum int64
@@ -492,7 +492,7 @@ func Allocate(total int64, shares []int64) []int64 {
 	return out
 }
 
-// EqualShares divide 100% em n partes; o resto vai para a primeira.
+// EqualShares splits 100% into n parts; the remainder goes to the first one.
 func EqualShares(n int) []int64 {
 	if n <= 0 {
 		return nil
@@ -507,15 +507,15 @@ func EqualShares(n int) []int64 {
 }
 ```
 
-- [ ] **Passo 4:** passa. **Passo 5:** commit `feat(money): rateio em centavos e partes iguais em bp`
+- [ ] **Step 4:** passes. **Step 5:** commit `feat(money): cent allocation and equal shares in bp`
 
 ---
 
-## Tarefa 4: `recurrence.Occurrences`
+## Task 4: `recurrence.Occurrences`
 
-**Arquivos:** `internal/recurrence/occurrences.go`, `internal/recurrence/occurrences_test.go`
+**Files:** `internal/recurrence/occurrences.go`, `internal/recurrence/occurrences_test.go`
 
-- [ ] **Passo 1: teste**
+- [ ] **Step 1: test**
 
 ```go
 package recurrence
@@ -582,8 +582,8 @@ func TestOccurrencesInvalid(t *testing.T) {
 }
 ```
 
-- [ ] **Passo 2:** ver falhar.
-- [ ] **Passo 3: implementação**
+- [ ] **Step 2:** watch it fail.
+- [ ] **Step 3: implementation**
 
 ```go
 package recurrence
@@ -600,8 +600,8 @@ type Occurrence struct {
 	Date  string // YYYY-MM-DD
 }
 
-// Occurrences lista as datas mensais de uma recorrência entre start e until (inclusivos),
-// respeitando end (inclusivo, vazio = sem fim). O dia é limitado ao último dia de cada mês.
+// Occurrences lists the monthly dates of a recurrence between start and until (inclusive),
+// honoring end (inclusive, empty = no end). The day is clamped to the last day of each month.
 func Occurrences(day int, start, end, until string) ([]Occurrence, error) {
 	if day < 1 || day > 31 {
 		return nil, fmt.Errorf("dia do mês inválido: %d", day)
@@ -637,26 +637,26 @@ func Occurrences(day int, start, end, until string) ([]Occurrence, error) {
 }
 ```
 
-- [ ] **Passo 4:** passa. **Passo 5:** commit `feat(recurrence): ocorrências mensais puras`
+- [ ] **Step 4:** passes. **Step 5:** commit `feat(recurrence): pure monthly occurrences`
 
 ---
 
-## Tarefa 5: `events`
+## Task 5: `events`
 
-**Arquivos:** `internal/events/bus.go`, `internal/events/bus_test.go`
+**Files:** `internal/events/bus.go`, `internal/events/bus_test.go`
 
-- [ ] **Passo 1:** copiar `src/events/bus.go` e `bus_test.go` para `internal/events/`. Trocar a variável global `Bus` por um construtor `New() *Bus`, renomeando o tipo `EventBus` para `Bus`, e ajustar o teste para `New()`.
-- [ ] **Passo 2:** adicionar um teste: `Notify` com `actorUserID = 0` (job do sistema) entrega para todos os inscritos.
-- [ ] **Passo 3:** `go test ./internal/events/` passa. Se o código atual já cobre esse caso (pula só se `s.userID == actorUserID`, e userID nunca é 0), o teste passa sem mudança.
-- [ ] **Passo 4:** commit `refactor(events): bus sem global`
+- [ ] **Step 1:** copy `src/events/bus.go` and `bus_test.go` to `internal/events/`. Replace the global `Bus` variable with a `New() *Bus` constructor, renaming the `EventBus` type to `Bus`, and adjust the test to use `New()`.
+- [ ] **Step 2:** add a test: `Notify` with `actorUserID = 0` (system job) delivers to all subscribers.
+- [ ] **Step 3:** `go test ./internal/events/` passes. If the current code already covers this case (it skips only if `s.userID == actorUserID`, and userID is never 0), the test passes without changes.
+- [ ] **Step 4:** commit `refactor(events): bus without a global`
 
 ---
 
-## Tarefa 6: `api` — infraestrutura HTTP e harness de teste
+## Task 6: `api`: HTTP infrastructure and test harness
 
-**Arquivos:** `internal/api/httpx.go`, `internal/api/server.go`, `internal/api/testutil_test.go`
+**Files:** `internal/api/httpx.go`, `internal/api/server.go`, `internal/api/testutil_test.go`
 
-- [ ] **Passo 1: `httpx.go`**
+- [ ] **Step 1: `httpx.go`**
 
 ```go
 package api
@@ -698,7 +698,7 @@ func errConflict(msg string) *apiError {
 	return &apiError{Status: 409, Code: "conflict", Message: msg}
 }
 
-// fieldErrors acumula erros de validação por campo.
+// fieldErrors accumulates validation errors per field.
 type fieldErrors map[string]string
 
 func (f fieldErrors) add(field, msg string) {
@@ -744,7 +744,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// decode exige JSON (barreira de CSRF junto com SameSite=Lax), limita 1 MB e recusa campos desconhecidos.
+// decode requires JSON (a CSRF barrier together with SameSite=Lax), limits the body to 1 MB and rejects unknown fields.
 func decode(w http.ResponseWriter, r *http.Request, dst any) error {
 	mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if mt != "application/json" {
@@ -758,14 +758,14 @@ func decode(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-// querier é satisfeito por *sql.DB e *sql.Tx.
+// querier is satisfied by *sql.DB and *sql.Tx.
 type querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// inTx executa fn numa transação (BEGIN IMMEDIATE pelo DSN).
+// inTx runs fn in a transaction (BEGIN IMMEDIATE via the DSN).
 func (s *Server) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -779,7 +779,7 @@ func (s *Server) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 }
 ```
 
-- [ ] **Passo 2: `server.go`**
+- [ ] **Step 2: `server.go`**
 
 ```go
 package api
@@ -829,7 +829,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("GET /api/wallets/{walletID}/members", wallet(roleReader, s.listMembers))
 	mux.Handle("POST /api/wallets/{walletID}/members", wallet(roleOwner, s.addMember))
 	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", wallet(roleOwner, s.updateMember))
-	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner ou o próprio: checado no handler
+	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner or the user themselves: checked in the handler
 
 	mux.Handle("GET /api/wallets/{walletID}/categories", wallet(roleReader, s.listCategories))
 	mux.Handle("POST /api/wallets/{walletID}/categories", wallet(roleEditor, s.createCategory))
@@ -883,7 +883,7 @@ type statusRecorder struct {
 }
 
 func (r *statusRecorder) WriteHeader(code int) { r.status = code; r.ResponseWriter.WriteHeader(code) }
-func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter } // mantém Flusher via ResponseController
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter } // keeps Flusher via ResponseController
 
 func (s *Server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -907,7 +907,7 @@ func (s *Server) recoverPanic(next http.Handler) http.Handler {
 	})
 }
 
-// devCORS libera o Vite em localhost:5173 apenas com GASTOS_DEV=true.
+// devCORS allows Vite on localhost:5173 only with GASTOS_DEV=true.
 func (s *Server) devCORS(next http.Handler) http.Handler {
 	if !s.cfg.Dev {
 		return next
@@ -928,9 +928,9 @@ func (s *Server) devCORS(next http.Handler) http.Handler {
 }
 ```
 
-O `r.Pattern` é preenchido pelo mux (Go 1.23+), mas o `logRequests` envolve o mux: depois do `ServeHTTP` interno, o `r` externo **não** tem o pattern. Para o log, use `r.URL.Path` ou guarde o pattern num ponteiro no context dentro do `requireUser`. A solução simples é logar `r.URL.Path` e aceitar IDs no log.
+`r.Pattern` is filled in by the mux (Go 1.23+), but `logRequests` wraps the mux: after the inner `ServeHTTP`, the outer `r` does **not** have the pattern. For the log, use `r.URL.Path` or keep the pattern in a pointer in the context inside `requireUser`. The simple solution is to log `r.URL.Path` and accept IDs in the log.
 
-- [ ] **Passo 3: harness de teste (`testutil_test.go`)**
+- [ ] **Step 3: test harness (`testutil_test.go`)**
 
 ```go
 package api
@@ -985,7 +985,7 @@ type client struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
-	walletID int64 // carteira "Pessoal" criada no registro
+	walletID int64 // "Pessoal" (Personal) wallet created at registration
 }
 
 func (a *testApp) anon() *client {
@@ -993,7 +993,7 @@ func (a *testApp) anon() *client {
 	return &client{app: a, http: &http.Client{Jar: jar}}
 }
 
-// register cria usuário, guarda o cookie e a carteira pessoal.
+// register creates a user and stores the cookie and the personal wallet.
 func (a *testApp) register(name, email string) *client {
 	a.t.Helper()
 	c := a.anon()
@@ -1008,7 +1008,7 @@ func (a *testApp) register(name, email string) *client {
 	return c
 }
 
-// do faz a request, confere o status e decodifica a resposta em out (se não nil).
+// do makes the request, checks the status and decodes the response into out (if not nil).
 func (c *client) do(method, path string, body any, wantStatus int, out any) {
 	c.app.t.Helper()
 	var rd io.Reader
@@ -1041,17 +1041,17 @@ func (c *client) wpath(format string, args ...any) string {
 }
 ```
 
-Adicione `"fmt"` aos imports.
+Add `"fmt"` to the imports.
 
-As funções referenciadas (`requireUser`, `role`, etc.) só existem a partir da tarefa 7. Este passo só compila junto com a tarefa 7. Commit único das duas.
+The referenced functions (`requireUser`, `role`, etc.) only exist from task 7 on. This step only compiles together with task 7. A single commit for both.
 
 ---
 
-## Tarefa 7: auth (sessões, register, login, logout, me)
+## Task 7: auth (sessions, register, login, logout, me)
 
-**Arquivo:** `internal/api/auth.go`, `internal/api/auth_test.go`
+**Files:** `internal/api/auth.go`, `internal/api/auth_test.go`
 
-- [ ] **Passo 1: testes**
+- [ ] **Step 1: tests**
 
 ```go
 func TestAuthFlow(t *testing.T) {
@@ -1109,8 +1109,8 @@ func TestUnknownAPIRouteIs404JSON(t *testing.T) {
 }
 ```
 
-- [ ] **Passo 2:** ver falhar.
-- [ ] **Passo 3: implementação**
+- [ ] **Step 2:** watch it fail.
+- [ ] **Step 3: implementation**
 
 ```go
 package api
@@ -1320,7 +1320,7 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 }
 
 func clientIP(r *http.Request) string {
-	// Atrás do Caddy/nginx em localhost: confiar no X-Forwarded-For só se o peer é loopback.
+	// Behind Caddy/nginx on localhost: trust X-Forwarded-For only if the peer is loopback.
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
@@ -1341,7 +1341,7 @@ func newRateLimiter(max int, window time.Duration) *rateLimiter {
 	return &rateLimiter{max: max, window: window, hits: map[string][]time.Time{}}
 }
 
-// allow registra uma tentativa e diz se ainda está dentro do limite.
+// allow records an attempt and says whether it is still within the limit.
 func (l *rateLimiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1361,32 +1361,32 @@ func (l *rateLimiter) allow(key string) bool {
 }
 ```
 
-O teste `TestLoginRateLimit` roda do mesmo IP (`127.0.0.1`, loopback sem XFF). A chave de IP e a de e-mail estouram juntas na 11ª tentativa.
+The `TestLoginRateLimit` test runs from the same IP (`127.0.0.1`, loopback without XFF). The IP key and the email key overflow together on the 11th attempt.
 
-- [ ] **Passo 4:** `go test ./internal/api/ -run 'Auth|Register|Login|ContentType|Unknown'` passa. Isso só compila depois da tarefa 8, que define `createWallet`, `walletsFor`, `role` e `requireWallet`. Faça as tarefas 7 e 8 juntas e rode os testes no fim da 8.
-- [ ] **Passo 5:** commit `feat(api): sessões por cookie, register/login/logout/me`
+- [ ] **Step 4:** `go test ./internal/api/ -run 'Auth|Register|Login|ContentType|Unknown'` passes. This only compiles after task 8, which defines `createWallet`, `walletsFor`, `role` and `requireWallet`. Do tasks 7 and 8 together and run the tests at the end of 8.
+- [ ] **Step 5:** commit `feat(api): cookie sessions, register/login/logout/me`
 
 ---
 
-## Tarefa 8: wallets, members, `requireWallet`, seed
+## Task 8: wallets, members, `requireWallet`, seed
 
-**Arquivos:** `internal/api/wallets.go`, `internal/api/wallets_test.go`
+**Files:** `internal/api/wallets.go`, `internal/api/wallets_test.go`
 
-**Comportamento:**
+**Behavior:**
 
-- `type role int` com `roleReader < roleEditor < roleOwner`, mais `parseRole(string) (role, bool)` e `String()`.
+- `type role int` with `roleReader < roleEditor < roleOwner`, plus `parseRole(string) (role, bool)` and `String()`.
 - `requireWallet(min role, next)`:
-  - lê `r.PathValue("walletID")`;
-  - busca o `role` em `wallet_members`;
-  - não é membro: **404**, para não revelar que a carteira existe;
-  - papel abaixo do mínimo: **403**;
-  - põe `ctxWalletID` e `ctxRole` no context.
-- `createWallet(ctx, q querier, name, ownerID, splitting) (int64, error)` insere a carteira, o owner e chama `seedWallet`.
-- `seedWallet` insere:
-  - as 15 categorias de gasto de `src/db/db.go:117-131`, com os mesmos nomes, ícones, cores e essencialidade, mas sem `key`;
-  - as 5 categorias de entrada: Salário 💼 `#0f6579`, Freelance 🧑‍💻 `#1f7d8f`, Investimentos 📈 `#f39c12`, Reembolso ↩️ `#2b92a1`, Outros ◈ `#7f9ea5`;
-  - as 8 formas de pagamento de `src/db/db.go:146-153`.
-- DTO de carteira:
+  - reads `r.PathValue("walletID")`;
+  - looks up the `role` in `wallet_members`;
+  - not a member: **404**, so it does not reveal that the wallet exists;
+  - role below the minimum: **403**;
+  - puts `ctxWalletID` and `ctxRole` in the context.
+- `createWallet(ctx, q querier, name, ownerID, splitting) (int64, error)` inserts the wallet and the owner, and calls `seedWallet`.
+- `seedWallet` inserts:
+  - the 15 expense categories from `src/db/db.go:117-131`, with the same names, icons, colors and essentiality, but without `key`;
+  - the 5 income categories: Salário (Salary) 💼 `#0f6579`, Freelance 🧑‍💻 `#1f7d8f`, Investimentos (Investments) 📈 `#f39c12`, Reembolso (Reimbursement) ↩️ `#2b92a1`, Outros (Other) ◈ `#7f9ea5`;
+  - the 8 payment methods from `src/db/db.go:146-153`.
+- Wallet DTO:
 
   ```go
   type walletDTO struct {
@@ -1397,15 +1397,15 @@ O teste `TestLoginRateLimit` roda do mesmo IP (`127.0.0.1`, loopback sem XFF). A
   	OwnerName        string `json:"ownerName"`
   }
   ```
-- `walletsFor(ctx, userID)` faz uma query com JOIN no owner, ordenada por `w.created_at, w.id`.
-- `PATCH /wallets/{id}` aceita `{name?: string, splittingEnabled?: bool}` com ponteiros. Ativar a divisão não muda transações antigas.
-- `DELETE /wallets/{id}`: owner. O CASCADE limpa tudo. Notifica antes de apagar, para os outros membros saírem da tela.
-- Membros:
-  - `GET` devolve `[{userId, name, email, role, splitsByDefault}]` ordenado por owner, editor, reader e nome.
-  - `POST {email, role}`: `role` precisa ser `editor` ou `reader`. Usuário inexistente dá 404 com a mensagem "Usuário não encontrado". Quem já é membro dá 409.
-  - `PATCH .../members/{userID}` aceita `{role?, splitsByDefault?}`. Não pode alterar o owner (400).
-  - `DELETE .../members/{userID}`: permitido se `role == owner` ou `userID == eu`. O owner não pode sair nem ser removido (400).
-- Toda mutação de sucesso chama `s.mutated(r)`:
+- `walletsFor(ctx, userID)` runs one query with a JOIN on the owner, ordered by `w.created_at, w.id`.
+- `PATCH /wallets/{id}` accepts `{name?: string, splittingEnabled?: bool}` with pointers. Enabling splitting does not change old transactions.
+- `DELETE /wallets/{id}`: owner. The CASCADE cleans everything. It notifies before deleting, so the other members leave the screen.
+- Members:
+  - `GET` returns `[{userId, name, email, role, splitsByDefault}]` ordered by owner, editor, reader and name.
+  - `POST {email, role}`: `role` must be `editor` or `reader`. A nonexistent user gives 404 with the message "Usuário não encontrado" (User not found). Someone who is already a member gives 409.
+  - `PATCH .../members/{userID}` accepts `{role?, splitsByDefault?}`. It cannot change the owner (400).
+  - `DELETE .../members/{userID}`: allowed if `role == owner` or `userID == me`. The owner cannot leave or be removed (400).
+- Every successful mutation calls `s.mutated(r)`:
 
   ```go
   func (s *Server) mutated(r *http.Request) {
@@ -1413,27 +1413,27 @@ O teste `TestLoginRateLimit` roda do mesmo IP (`127.0.0.1`, loopback sem XFF). A
   }
   ```
 
-- [ ] **Passo 1: testes** (`wallets_test.go`)
-  - `TestRegisterSeedsWallet`: o GET de categories devolve 20 itens (15 de gasto e 5 de entrada), e o de payment-methods devolve 8.
-  - `TestWalletIsolation`: Bia lendo `/api/wallets/{carteira da Ana}/transactions?...` recebe **404**.
+- [ ] **Step 1: tests** (`wallets_test.go`)
+  - `TestRegisterSeedsWallet`: the categories GET returns 20 items (15 expense and 5 income), and the payment-methods one returns 8.
+  - `TestWalletIsolation`: Bia reading `/api/wallets/{Ana's wallet}/transactions?...` gets **404**.
   - `TestRoles`:
-    - Ana adiciona Bia como `reader`. Bia faz GET de categories (200) e POST de category (403).
-    - Ana promove Bia a `editor`. O POST de category da Bia passa (201), mas o PATCH da wallet continua 403.
-  - `TestMemberLeave`: Bia sai sozinha (`DELETE .../members/{bia}`, 204). Ana não consegue sair (400).
-  - `TestAddMemberErrors`: e-mail inexistente dá 404; membro duplicado dá 409; `role: "owner"` dá 400.
-  - `TestDeleteWallet`: Ana cria a carteira "Casa", lança uma transação e apaga a carteira (204). O GET de wallets não mostra mais "Casa".
-- [ ] **Passo 2:** ver falhar. **Passo 3:** implementar. **Passo 4:** `go test ./internal/api/` passa, incluindo os testes da tarefa 7.
-- [ ] **Passo 5:** commit `feat(api): carteiras, membros e papéis`
+    - Ana adds Bia as `reader`. Bia does a categories GET (200) and a category POST (403).
+    - Ana promotes Bia to `editor`. Bia's category POST goes through (201), but the wallet PATCH is still 403.
+  - `TestMemberLeave`: Bia leaves on their own (`DELETE .../members/{bia}`, 204). Ana cannot leave (400).
+  - `TestAddMemberErrors`: nonexistent email gives 404; duplicate member gives 409; `role: "owner"` gives 400.
+  - `TestDeleteWallet`: Ana creates the wallet "Casa" (Home), posts a transaction and deletes the wallet (204). The wallets GET no longer shows "Casa".
+- [ ] **Step 2:** watch it fail. **Step 3:** implement. **Step 4:** `go test ./internal/api/` passes, including the task 7 tests.
+- [ ] **Step 5:** commit `feat(api): wallets, members and roles`
 
 ---
 
-## Tarefa 9: categorias e formas de pagamento
+## Task 9: categories and payment methods
 
-**Arquivos:** `internal/api/catalog.go`, `internal/api/catalog_test.go`
+**Files:** `internal/api/catalog.go`, `internal/api/catalog_test.go`
 
-**Comportamento:**
+**Behavior:**
 
-- Categoria:
+- Category:
 
   ```go
   type categoryDTO struct {
@@ -1447,45 +1447,45 @@ O teste `TestLoginRateLimit` roda do mesmo IP (`127.0.0.1`, loopback sem XFF). A
   	Archived     bool    `json:"archived"`
   }
   ```
-- O GET devolve todas, incluindo as arquivadas (o front filtra), ordenadas por `kind, sort_order, id`.
-- POST e PUT validam:
-  - `kind` (não pode mudar no PUT);
-  - `name` não vazio, com no máximo 40 caracteres;
-  - `icon` não vazio;
-  - `color` no formato `^#[0-9a-fA-F]{6}$`;
-  - `essentiality` obrigatória se `kind == expense` e proibida se `income`;
-  - nome duplicado dá 409.
+- The GET returns all of them, including archived ones (the front end filters), ordered by `kind, sort_order, id`.
+- POST and PUT validate:
+  - `kind` (cannot change in PUT);
+  - `name` not empty, at most 40 characters;
+  - `icon` not empty;
+  - `color` in the format `^#[0-9a-fA-F]{6}$`;
+  - `essentiality` required if `kind == expense` and forbidden if `income`;
+  - duplicate name gives 409.
 
-  O POST usa `sort_order = max + 1`. O PUT aceita `sortOrder`, para reordenar.
+  POST uses `sort_order = max + 1`. PUT accepts `sortOrder`, for reordering.
 - DELETE:
-  - se `transactions`, `recurrences` ou `budgets` referenciam a categoria, faz `UPDATE ... SET archived_at = now` e responde 200 com o DTO (`archived: true`);
-  - se não há referências, faz `DELETE` e responde 204;
-  - não permite ficar sem nenhuma categoria ativa do mesmo `kind` (400).
-- O PUT de uma categoria arquivada com `"archived": false` desarquiva. Por isso o campo `archived` também é aceito na entrada do PUT.
-- Formas de pagamento seguem as mesmas regras, sem `kind`, `color` e `essentiality`.
-- Toda mutação chama `s.mutated(r)`.
+  - if `transactions`, `recurrences` or `budgets` reference the category, runs `UPDATE ... SET archived_at = now` and responds 200 with the DTO (`archived: true`);
+  - if there are no references, runs `DELETE` and responds 204;
+  - it does not allow leaving the wallet without any active category of the same `kind` (400).
+- PUT on an archived category with `"archived": false` unarchives it. That is why the `archived` field is also accepted in the PUT input.
+- Payment methods follow the same rules, without `kind`, `color` and `essentiality`.
+- Every mutation calls `s.mutated(r)`.
 
-- [ ] **Passo 1: testes**
-  - CRUD feliz de categoria;
-  - cor inválida dá 400 com `fields.color`;
-  - `income` com `essentiality` dá 400;
-  - nome duplicado dá 409;
-  - categoria em uso: DELETE responde 200 e `archived:true`, e a transação continua com aquele `categoryId`;
-  - categoria sem uso: DELETE responde 204;
-  - apagar a última categoria de entrada ativa dá 400;
-  - os mesmos casos, adaptados, para formas de pagamento.
-- [ ] **Passo 2–4:** ver falhar, implementar, passar.
-- [ ] **Passo 5:** commit `feat(api): categorias e formas de pagamento com arquivamento`
+- [ ] **Step 1: tests**
+  - happy-path category CRUD;
+  - invalid color gives 400 with `fields.color`;
+  - `income` with `essentiality` gives 400;
+  - duplicate name gives 409;
+  - category in use: DELETE responds 200 and `archived:true`, and the transaction keeps that `categoryId`;
+  - unused category: DELETE responds 204;
+  - deleting the last active income category gives 400;
+  - the same cases, adapted, for payment methods.
+- [ ] **Step 2–4:** watch it fail, implement, watch it pass.
+- [ ] **Step 5:** commit `feat(api): categories and payment methods with archiving`
 
 ---
 
-## Tarefa 10: transações com splits
+## Task 10: transactions with splits
 
-Esta é a tarefa de referência: os handlers das tarefas 11–13 seguem o mesmo formato.
+This is the reference task: the handlers in tasks 11–13 follow the same shape.
 
-**Arquivos:** `internal/api/transactions.go`, `internal/api/transactions_test.go`
+**Files:** `internal/api/transactions.go`, `internal/api/transactions_test.go`
 
-- [ ] **Passo 1: testes**
+- [ ] **Step 1: tests**
 
 ```go
 func TestTransactionCRUD(t *testing.T) {
@@ -1536,7 +1536,7 @@ func TestTransactionValidation(t *testing.T) {
 			t.Errorf("faltou erro em %s: %+v", f, res.Error.Fields)
 		}
 	}
-	ana.do("GET", ana.wpath("/transactions"), nil, 400, nil) // from/to obrigatórios
+	ana.do("GET", ana.wpath("/transactions"), nil, 400, nil) // from/to required
 }
 
 func TestEditorKeepsCreatorAndPayer(t *testing.T) {
@@ -1574,26 +1574,26 @@ func TestSplits(t *testing.T) {
 		return b
 	}
 
-	// divisão desligada: splits proibidos
+	// splitting off: splits forbidden
 	ana.do("POST", ana.wpath("/transactions"), body(map[string]any{
 		"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 10000}},
 	}), 400, nil)
 
 	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
 
-	// sem splits: igual entre membros com splitsByDefault
+	// no splits: equal among members with splitsByDefault
 	var tx transaction
 	ana.do("POST", ana.wpath("/transactions"), body(nil), 201, &tx)
 	if len(tx.Splits) != 2 || tx.Splits[0].AmountCents+tx.Splits[1].AmountCents != 101 {
 		t.Fatalf("split padrão: %+v", tx.Splits)
 	}
 
-	// soma diferente de 10000
+	// sum different from 10000
 	ana.do("POST", ana.wpath("/transactions"), body(map[string]any{
 		"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 6000}, {"userId": tx.Splits[1].UserID, "shareBp": 3000}},
 	}), 400, nil)
 
-	// não membro
+	// not a member
 	ana.do("POST", ana.wpath("/transactions"), body(map[string]any{
 		"splits": []map[string]any{{"userId": 9999, "shareBp": 10000}},
 	}), 400, nil)
@@ -1616,8 +1616,8 @@ func firstCategory(t *testing.T, c *client, kind string) int64 {
 }
 ```
 
-- [ ] **Passo 2:** ver falhar.
-- [ ] **Passo 3: implementação**
+- [ ] **Step 2:** watch it fail.
+- [ ] **Step 3: implementation**
 
 ```go
 package api
@@ -1678,8 +1678,8 @@ func pathID(r *http.Request, name string) (int64, error) {
 
 func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
 
-// validate normaliza a entrada e confere referências dentro da carteira.
-// currentCategoryID permite manter uma categoria arquivada que já era da transação (0 na criação).
+// validate normalizes the input and checks references within the wallet.
+// currentCategoryID allows keeping an archived category that was already the transaction's (0 on create).
 func (in *transactionInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.PaidByUserID == 0 {
@@ -1745,7 +1745,7 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 	return nil
 }
 
-// resolveSplits aplica as regras de divisão da spec e devolve os splits finais (sem amountCents).
+// resolveSplits applies the split rules from the spec and returns the final splits (without amountCents).
 func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, requested []split) ([]split, error) {
 	var splitting bool
 	if err := q.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
@@ -1908,7 +1908,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
-// attachSplits carrega os splits de todas as transações da lista com uma query.
+// attachSplits loads the splits of all transactions in the list with one query.
 func (s *Server) attachSplits(ctx context.Context, list []transaction, index map[int64]int) error {
 	if len(list) == 0 {
 		return nil
@@ -1944,7 +1944,7 @@ func (s *Server) attachSplits(ctx context.Context, list []transaction, index map
 }
 ```
 
-Um `IN (...)` com muitos ids pode passar do limite de parâmetros do SQLite (32766 no modernc), mas o intervalo máximo de 366 dias mantém o volume bem abaixo disso.
+An `IN (...)` with many ids can exceed SQLite's parameter limit (32766 in modernc), but the 366-day maximum range keeps the volume well below that.
 
 ```go
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error {
@@ -2039,26 +2039,26 @@ func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) error
 }
 ```
 
-O `validate` roda dentro do `inTx`. Com `_txlock=immediate`, a transação inteira segura o lock de escrita, o que é aceitável para um app pessoal.
+`validate` runs inside `inTx`. With `_txlock=immediate`, the whole transaction holds the write lock, which is acceptable for a personal app.
 
-- [ ] **Passo 4:** `go test ./internal/api/ -run Transaction|Splits|Editor` passa.
-- [ ] **Passo 5: checagem de float**
+- [ ] **Step 4:** `go test ./internal/api/ -run Transaction|Splits|Editor` passes.
+- [ ] **Step 5: float check**
 
 ```bash
 grep -rn "float" internal/api/ internal/money/ internal/recurrence/
 ```
 
-A saída esperada é vazia.
+The expected output is empty.
 
-- [ ] **Passo 6:** commit `feat(api): transações com splits em basis points`
+- [ ] **Step 6:** commit `feat(api): transactions with splits in basis points`
 
 ---
 
-## Tarefa 11: recorrências e materializador
+## Task 11: recurrences and materializer
 
-**Arquivos:** `internal/recurrence/materializer.go`, `internal/recurrence/materializer_test.go`, `internal/api/recurrences.go`, `internal/api/recurrences_test.go`
+**Files:** `internal/recurrence/materializer.go`, `internal/recurrence/materializer_test.go`, `internal/api/recurrences.go`, `internal/api/recurrences_test.go`
 
-**Materializador:**
+**Materializer:**
 
 ```go
 package recurrence
@@ -2075,38 +2075,38 @@ func NewMaterializer(db *sql.DB, bus *events.Bus, loc *time.Location, log *slog.
 	return &Materializer{db: db, bus: bus, loc: loc, log: log, now: time.Now}
 }
 
-// Run materializa ocorrências devidas até hoje (no fuso configurado).
-// walletID == 0 processa todas as carteiras. Idempotente e seguro sob concorrência
-// graças aos índices únicos (recurrence_id, occurrence).
+// Run materializes occurrences due up to today (in the configured time zone).
+// walletID == 0 processes all wallets. Idempotent and safe under concurrency
+// thanks to the unique indexes (recurrence_id, occurrence).
 func (m *Materializer) Run(ctx context.Context, walletID int64) error
 
-// Loop roda Run a cada intervalo até ctx ser cancelado.
+// Loop runs Run every interval until ctx is canceled.
 func (m *Materializer) Loop(ctx context.Context, every time.Duration)
 ```
 
-**Algoritmo do `Run`:**
+**`Run` algorithm:**
 
-1. Lê as recorrências com `enabled = 1` (e `wallet_id = ?` se o argumento não for zero): `id, wallet_id, kind, amount_cents, description, category_id, payment_method_id, paid_by_user_id, to_user_id, day_of_month, start_date, end_date, created_by`. Carrega também os `recurrence_splits` de cada uma.
+1. Reads the recurrences with `enabled = 1` (and `wallet_id = ?` if the argument is not zero): `id, wallet_id, kind, amount_cents, description, category_id, payment_method_id, paid_by_user_id, to_user_id, day_of_month, start_date, end_date, created_by`. It also loads the `recurrence_splits` of each one.
 2. `today := m.now().In(m.loc).Format("2006-01-02")`.
-3. Para cada recorrência, calcula `Occurrences(day, start, end, today)` e, para cada ocorrência, abre uma transação:
-   - `kind` `expense` ou `income`: `INSERT INTO transactions (... recurrence_id, occurrence) VALUES (...) ON CONFLICT (recurrence_id, occurrence) WHERE recurrence_id IS NOT NULL DO NOTHING RETURNING id`. Se retornou id, insere os splits copiados da recorrência.
+3. For each recurrence, computes `Occurrences(day, start, end, today)` and, for each occurrence, opens a transaction:
+   - `kind` `expense` or `income`: `INSERT INTO transactions (... recurrence_id, occurrence) VALUES (...) ON CONFLICT (recurrence_id, occurrence) WHERE recurrence_id IS NOT NULL DO NOTHING RETURNING id`. If it returned an id, inserts the splits copied from the recurrence.
    - `kind` `settlement`: `INSERT INTO settlements (...) ON CONFLICT ... DO NOTHING`.
-   - A descrição de `transactions` não pode ser vazia. Se a recorrência tiver descrição vazia, usa o nome da categoria.
-4. Guarda as carteiras que receberam inserções e chama `m.bus.Notify(wid, 0)` para cada uma.
+   - The `transactions` description cannot be empty. If the recurrence has an empty description, it uses the category name.
+4. Keeps the wallets that received inserts and calls `m.bus.Notify(wid, 0)` for each one.
 
-A sintaxe de upsert num índice parcial precisa repetir o `WHERE` do índice no `ON CONFLICT`. O SQLite suporta isso desde a 3.24, e o modernc traz uma versão bem mais nova.
+The upsert syntax on a partial index must repeat the index's `WHERE` in the `ON CONFLICT`. SQLite supports this since 3.24, and modernc ships a much newer version.
 
-**Testes do materializador** (`materializer_test.go`, usando `db.Open` direto e inserts SQL):
+**Materializer tests** (`materializer_test.go`, using `db.Open` directly and SQL inserts):
 
-- `TestRunCreatesDueOccurrences`: recorrência no dia 5, com início em 2026-08-01 e `now` fixo em 2026-10-09 (`m.now = func() time.Time {...}`). Gera 3 transações (agosto, setembro e outubro).
-- `TestRunIsIdempotent`: `Run` duas vezes, ainda 3 transações.
-- `TestRunConcurrent`: 8 goroutines chamando `Run` ao mesmo tempo (com `sync.WaitGroup`), ainda 3 transações e nenhum erro além de nil.
-- `TestRunRespectsTimezone`: `now` = 2026-10-05T02:00Z, que ainda é dia 4 em São Paulo. Recorrência no dia 5: outubro **não** é gerado.
-- `TestRunSettlement`: uma recorrência `settlement` gera linhas em `settlements`.
-- `TestRunCopiesSplits`: recorrência com splits 7000/3000 gera `transaction_splits` iguais.
-- `TestDisabledSkipped`: `enabled = 0` não gera nada.
+- `TestRunCreatesDueOccurrences`: recurrence on day 5, starting 2026-08-01 and `now` fixed at 2026-10-09 (`m.now = func() time.Time {...}`). Generates 3 transactions (August, September and October).
+- `TestRunIsIdempotent`: `Run` twice, still 3 transactions.
+- `TestRunConcurrent`: 8 goroutines calling `Run` at the same time (with `sync.WaitGroup`), still 3 transactions and no error other than nil.
+- `TestRunRespectsTimezone`: `now` = 2026-10-05T02:00Z, which is still the 4th in São Paulo. Recurrence on day 5: October is **not** generated.
+- `TestRunSettlement`: a `settlement` recurrence generates rows in `settlements`.
+- `TestRunCopiesSplits`: a recurrence with splits 7000/3000 generates identical `transaction_splits`.
+- `TestDisabledSkipped`: `enabled = 0` generates nothing.
 
-**API de recorrências:**
+**Recurrences API:**
 
 - DTO:
 
@@ -2129,29 +2129,29 @@ A sintaxe de upsert num índice parcial precisa repetir o `WHERE` do índice no 
   }
   ```
 
-  `nextDate` é a primeira ocorrência depois de hoje, calculada com `Occurrences(day, max(start, amanhã), end, start+400 dias)[0]`. Vem `null` se acabou.
-- Validação por `kind`:
-  - `expense` e `income` reutilizam as regras de `transactionInput.validate`, com categoria e splits pelo `resolveSplits`;
-  - `settlement` exige `toUserId` membro, diferente de `paidByUserId`, e não aceita `categoryId` nem `splits`;
-  - `dayOfMonth` entre 1 e 31; `startDate` válida; `endDate` nula ou maior ou igual a `startDate`.
-- POST e PUT: depois do commit, rodam `s.mat.Run(ctx, walletID)` e depois `s.mutated(r)`.
-- O PUT não mexe em ocorrências já geradas.
-- DELETE remove a recorrência. As ocorrências ficam, com `recurrence_id` NULL pelo `SET NULL`.
-- **Testes de API:**
-  - criar uma recorrência com início no passado gera as transações na hora (GET de transações no intervalo);
-  - PUT muda o valor e as transações antigas mantêm o valor antigo;
-  - DELETE mantém as transações com `recurrenceId: null`;
-  - `settlement` sem `toUserId` dá 400;
-  - reader recebe 403 no POST.
+  `nextDate` is the first occurrence after today, computed with `Occurrences(day, max(start, tomorrow), end, start+400 days)[0]`. It is `null` if the recurrence has ended.
+- Validation per `kind`:
+  - `expense` and `income` reuse the `transactionInput.validate` rules, with category and splits through `resolveSplits`;
+  - `settlement` requires `toUserId` to be a member, different from `paidByUserId`, and does not accept `categoryId` or `splits`;
+  - `dayOfMonth` between 1 and 31; valid `startDate`; `endDate` null or greater than or equal to `startDate`.
+- POST and PUT: after the commit, run `s.mat.Run(ctx, walletID)` and then `s.mutated(r)`.
+- PUT does not touch occurrences already generated.
+- DELETE removes the recurrence. The occurrences stay, with `recurrence_id` NULL through `SET NULL`.
+- **API tests:**
+  - creating a recurrence that starts in the past generates the transactions right away (transactions GET over the range);
+  - PUT changes the amount and the old transactions keep the old amount;
+  - DELETE keeps the transactions with `recurrenceId: null`;
+  - `settlement` without `toUserId` gives 400;
+  - reader gets 403 on POST.
 
-- [ ] **Passos:** testes do materializador, implementação, passar; testes de API, implementação, passar.
-- [ ] **Commit:** `feat(recurrence): materializador idempotente e API de recorrências`
+- [ ] **Steps:** materializer tests, implementation, watch them pass; API tests, implementation, watch them pass.
+- [ ] **Commit:** `feat(recurrence): idempotent materializer and recurrences API`
 
 ---
 
-## Tarefa 12: acertos (settlements)
+## Task 12: settlements
 
-**Arquivos:** `internal/api/settlements.go`, `internal/api/settlements_test.go`
+**Files:** `internal/api/settlements.go`, `internal/api/settlements_test.go`
 
 - DTO:
 
@@ -2167,37 +2167,37 @@ A sintaxe de upsert num índice parcial precisa repetir o `WHERE` do índice no 
   	CreatedBy    int64  `json:"createdBy"`
   }
   ```
-- O GET exige `from`/`to`, como em transações.
-- Validação:
-  - os dois usuários precisam ser membros;
-  - `from` diferente de `to`;
-  - `amountCents` maior que 0;
-  - data válida;
-  - nota com até 200 caracteres;
-  - só permitido se `splitting_enabled`; senão 400.
-- PUT substitui. DELETE responde 204. Mutações chamam `s.mutated(r)`.
-- **Testes:** CRUD; carteira sem divisão dá 400; `from == to` dá 400; não membro dá 400.
-- [ ] **Commit:** `feat(api): acertos entre membros`
+- The GET requires `from`/`to`, as in transactions.
+- Validation:
+  - both users must be members;
+  - `from` different from `to`;
+  - `amountCents` greater than 0;
+  - valid date;
+  - note up to 200 characters;
+  - only allowed if `splitting_enabled`; otherwise 400.
+- PUT replaces. DELETE responds 204. Mutations call `s.mutated(r)`.
+- **Tests:** CRUD; wallet without splitting gives 400; `from == to` gives 400; non-member gives 400.
+- [ ] **Commit:** `feat(api): settlements between members`
 
 ---
 
-## Tarefa 13: orçamentos (budgets)
+## Task 13: budgets
 
-**Arquivos:** `internal/api/budgets.go`, `internal/api/budgets_test.go`
+**Files:** `internal/api/budgets.go`, `internal/api/budgets_test.go`
 
-- `GET` devolve `[{categoryId, limitCents}]`.
-- `PUT /budgets/{categoryID}` com body `{limitCents}`: a categoria precisa ser `expense` da carteira e `limitCents > 0`. Faz `INSERT ... ON CONFLICT (wallet_id, category_id) DO UPDATE` e responde 200.
-- `DELETE` responde 204, ou 404 se não existia.
-- **Testes:** upsert duas vezes mantém 1 linha com o último valor; categoria de entrada dá 400; limite 0 dá 400.
-- [ ] **Commit:** `feat(api): orçamentos mensais por categoria`
+- `GET` returns `[{categoryId, limitCents}]`.
+- `PUT /budgets/{categoryID}` with body `{limitCents}`: the category must be an `expense` category of the wallet and `limitCents > 0`. Runs `INSERT ... ON CONFLICT (wallet_id, category_id) DO UPDATE` and responds 200.
+- `DELETE` responds 204, or 404 if it did not exist.
+- **Tests:** upserting twice keeps 1 row with the last value; an income category gives 400; limit 0 gives 400.
+- [ ] **Commit:** `feat(api): monthly budgets per category`
 
 ---
 
-## Tarefa 14: `/summary` e acertos sugeridos
+## Task 14: `/summary` and suggested settlements
 
-**Arquivos:** `internal/api/settle.go`, `internal/api/settle_test.go`, `internal/api/summary.go`, `internal/api/summary_test.go`
+**Files:** `internal/api/settle.go`, `internal/api/settle_test.go`, `internal/api/summary.go`, `internal/api/summary_test.go`
 
-- [ ] **Passo 1: função pura de acertos**
+- [ ] **Step 1: pure settlement function**
 
 ```go
 // settle.go
@@ -2211,8 +2211,8 @@ type transfer struct {
 	AmountCents int64 `json:"amountCents"`
 }
 
-// suggestSettlements casa o maior devedor com o maior credor até zerar.
-// net: positivo = tem a receber; negativo = deve. A soma de net deve ser 0.
+// suggestSettlements matches the largest debtor with the largest creditor until everything is zero.
+// net: positive = is owed money; negative = owes money. The sum of net must be 0.
 func suggestSettlements(net map[int64]int64) []transfer {
 	type bal struct {
 		id int64
@@ -2254,61 +2254,61 @@ func suggestSettlements(net map[int64]int64) []transfer {
 }
 ```
 
-**Testes de tabela:**
+**Table tests:**
 
-| net | Acertos esperados |
+| net | Expected settlements |
 |---|---|
 | `{1: 1500, 2: -1500}` | `[{2→1 1500}]` |
 | `{1: 3000, 2: -1000, 3: -2000}` | `[{3→1 2000}, {2→1 1000}]` |
 | `{1: 0, 2: 0}` | `nil` |
 | `{1: 1000, 2: 500, 3: -1500}` | `[{3→1 1000}, {3→2 500}]` |
 
-- [ ] **Passo 2: summary**
+- [ ] **Step 2: summary**
 
-Parâmetro: `month=YYYY-MM`, obrigatório e válido.
+Parameter: `month=YYYY-MM`, required and valid.
 
 Queries:
-1. Totais do mês: `SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ? GROUP BY kind`.
-2. Os mesmos totais para o mês anterior, em `previous`.
-3. `byCategory`: `SELECT t.category_id, c.kind, SUM(t.amount_cents), b.limit_cents FROM transactions t JOIN categories c ... LEFT JOIN budgets b ... GROUP BY t.category_id`, mais as categorias que têm budget e nenhum gasto no mês (cents 0), via `UNION`. Ordenado por cents desc.
-4. `byEssentiality`: soma por `c.essentiality` para `kind = 'expense'`.
-5. `dailyAverageCents = expenseCents / dias`. Os dias são os decorridos no mês, se for o mês corrente em `cfg.Location`, ou o total de dias do mês, se for um mês passado. Para mês futuro, 0.
-6. Se `splitting_enabled`, o saldo dos membros vem do histórico inteiro:
-   - **pagador:** `SELECT paid_by_user_id, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND kind = 'expense' AND EXISTS(SELECT 1 FROM transaction_splits ...)` dá o crédito.
-   - **participantes:** o débito é calculado em Go com `money.Allocate` por transação, para casar centavo a centavo com o que a lista mostra. Carregue `transaction_id, amount_cents, user_id, share_bp` das transações com splits, ordenados por `transaction_id, user_id`, e agrupe.
-   - **settlements:** `from` ganha crédito de `amount`, `to` recebe débito de `amount`.
-   - Membros sem movimento aparecem com `netCents: 0`.
+1. Month totals: `SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND date BETWEEN ? AND ? GROUP BY kind`.
+2. The same totals for the previous month, in `previous`.
+3. `byCategory`: `SELECT t.category_id, c.kind, SUM(t.amount_cents), b.limit_cents FROM transactions t JOIN categories c ... LEFT JOIN budgets b ... GROUP BY t.category_id`, plus the categories that have a budget and no expense in the month (cents 0), via `UNION`. Ordered by cents desc.
+4. `byEssentiality`: sum per `c.essentiality` for `kind = 'expense'`.
+5. `dailyAverageCents = expenseCents / days`. The days are the elapsed days of the month if it is the current month in `cfg.Location`, or the total days of the month if it is a past month. For a future month, 0.
+6. If `splitting_enabled`, the member balance comes from the entire history:
+   - **payer:** `SELECT paid_by_user_id, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND kind = 'expense' AND EXISTS(SELECT 1 FROM transaction_splits ...)` gives the credit.
+   - **participants:** the debit is computed in Go with `money.Allocate` per transaction, to match the list to the cent. Load `transaction_id, amount_cents, user_id, share_bp` of the transactions with splits, ordered by `transaction_id, user_id`, and group them.
+   - **settlements:** `from` is credited `amount`, `to` is debited `amount`.
+   - Members with no activity show up with `netCents: 0`.
    - `suggestedSettlements = suggestSettlements(net)`.
 
-- [ ] **Passo 3: teste de cenário fixo** (`summary_test.go`)
-  - Carteira com divisão, Ana e Bia.
-  - Lançamentos em outubro de 2026:
-    - gasto de 10000 pago pela Ana, dividido 50/50;
-    - gasto de 3001 pago pela Bia, dividido 50/50;
-    - entrada de 500000 da Ana.
-  - Acerto: Bia paga 1000 para a Ana.
-  - Gasto de 2000 em setembro, pago pela Ana, sem divisão.
+- [ ] **Step 3: fixed scenario test** (`summary_test.go`)
+  - Wallet with splitting, Ana and Bia.
+  - Transactions in October 2026:
+    - expense of 10000 paid by Ana, split 50/50;
+    - expense of 3001 paid by Bia, split 50/50;
+    - income of 500000 for Ana.
+  - Settlement: Bia pays 1000 to Ana.
+  - Expense of 2000 in September, paid by Ana, without splitting.
 
-    Isso não é possível com a divisão ligada, porque o `resolveSplits` aplica o padrão. Lance o gasto de setembro **antes** de ligar a divisão.
-  - Esperado para `?month=2026-10`:
+    This is not possible with splitting on, because `resolveSplits` applies the default. Post the September expense **before** turning splitting on.
+  - Expected for `?month=2026-10`:
     - `incomeCents = 500000`;
     - `expenseCents = 13001`;
     - `previous.expenseCents = 2000`.
-  - Saldos:
-    - a Ana pagou 10000 e deve 5000 da própria parte e 1500 (`Allocate(3001, [5000, 5000])`, que dá `[1501, 1500]`, com a Ana no índice 0 por `user_id` menor);
+  - Balances:
+    - Ana paid 10000 and owes 5000 for their own share and 1500 (`Allocate(3001, [5000, 5000])`, which gives `[1501, 1500]`, with Ana at index 0 because of the lower `user_id`);
     - Ana: `+10000 - 5000 - 1501 + 1000 = 4499`;
     - Bia: `+3001 - 5000 - 1500 - 1000 = -4499`.
 
-  Confira os índices e a ordenação: os splits padrão saem em ordem de `user_id`, e a Ana tem o menor id. Esperado: `suggestedSettlements = [{Bia→Ana 2499}]`. Implementado em `summary_test.go` e passando.
-  - Use `s.now` fixo em 2026-10-15 (no fuso de São Paulo) para `dailyAverageCents = 13001 / 15 = 866`.
+  Check the indexes and the ordering: the default splits come out in `user_id` order, and Ana has the lowest id. Expected: `suggestedSettlements = [{Bia→Ana 2499}]`. Implemented in `summary_test.go` and passing.
+  - Use `s.now` fixed at 2026-10-15 (in the São Paulo time zone) for `dailyAverageCents = 13001 / 15 = 866`.
 
-- [ ] **Commit:** `feat(api): resumo mensal e acertos sugeridos`
+- [ ] **Commit:** `feat(api): monthly summary and suggested settlements`
 
 ---
 
-## Tarefa 15: SSE
+## Task 15: SSE
 
-**Arquivo:** `internal/api/events.go`, `internal/api/events_test.go`
+**File:** `internal/api/events.go`, `internal/api/events_test.go`
 
 ```go
 func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
@@ -2319,7 +2319,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("X-Accel-Buffering", "no") // nginx
 	w.WriteHeader(http.StatusOK)
 	if err := rc.Flush(); err != nil {
-		return nil // streaming não suportado; nada a fazer
+		return nil // streaming not supported; nothing to do
 	}
 
 	ch := s.bus.Subscribe(walletID, userID)
@@ -2343,26 +2343,26 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 }
 ```
 
-O `http.Server` em `main.go` usa `WriteTimeout: 0` por causa do SSE e define `ReadHeaderTimeout: 10s`. O `rc.Flush()` funciona através do `statusRecorder` graças ao `Unwrap()`.
+The `http.Server` in `main.go` uses `WriteTimeout: 0` because of SSE and sets `ReadHeaderTimeout: 10s`. `rc.Flush()` works through the `statusRecorder` thanks to `Unwrap()`.
 
-**Teste:**
-- A Ana abre o stream com um `http.Client` com o cookie, e a request roda numa goroutine com `bufio.Reader`.
-- A Bia (editora) cria uma transação.
-- Em até 2 segundos, a Ana lê `data: {"type":"changed"}`. Cancele o contexto no fim.
-- Um segundo caso: a Ana criando uma transação **não** gera evento para o próprio stream. Espere 300ms e confirme que nada chegou.
+**Test:**
+- Ana opens the stream with an `http.Client` that has the cookie, and the request runs in a goroutine with a `bufio.Reader`.
+- Bia (an editor) creates a transaction.
+- Within 2 seconds, Ana reads `data: {"type":"changed"}`. Cancel the context at the end.
+- A second case: Ana creating a transaction does **not** produce an event for their own stream. Wait 300ms and confirm that nothing arrived.
 
-- [ ] **Commit:** `feat(api): SSE por carteira com heartbeat`
+- [ ] **Commit:** `feat(api): per-wallet SSE with heartbeat`
 
 ---
 
-## Tarefa 16: backup, SPA embutida e `main.go`
+## Task 16: backup, embedded SPA and `main.go`
 
-**Arquivos:** `internal/db/backup.go` (+ `_test`), `internal/api/spa.go` (+ `_test`), `web/embed.go`, `web/dist/index.html`, `cmd/gastos/main.go`
+**Files:** `internal/db/backup.go` (+ `_test`), `internal/api/spa.go` (+ `_test`), `web/embed.go`, `web/dist/index.html`, `cmd/gastos/main.go`
 
-- [ ] **Passo 1: backup**
+- [ ] **Step 1: backup**
 
 ```go
-// Backup grava uma cópia consistente em dir com timestamp e mantém só as keep mais recentes.
+// Backup writes a consistent copy into dir with a timestamp and keeps only the newest keep copies.
 func Backup(ctx context.Context, d *sql.DB, dir string, keep int, now time.Time) (string, error) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
@@ -2375,7 +2375,7 @@ func Backup(ctx context.Context, d *sql.DB, dir string, keep int, now time.Time)
 	if err != nil {
 		return path, err
 	}
-	sort.Strings(matches) // timestamp no nome ⇒ ordem lexicográfica = cronológica
+	sort.Strings(matches) // timestamp in the name ⇒ lexicographic order = chronological
 	for len(matches) > keep {
 		os.Remove(matches[0])
 		matches = matches[1:]
@@ -2383,19 +2383,19 @@ func Backup(ctx context.Context, d *sql.DB, dir string, keep int, now time.Time)
 	return path, nil
 }
 
-// LastBackupAge devolve há quanto tempo foi o último backup (ou um valor enorme se nenhum).
+// LastBackupAge returns how long ago the last backup was (or a huge value if there is none).
 func LastBackupAge(dir string, now time.Time) time.Duration
 ```
 
-**Testes:**
-- 3 backups com `now` diferentes e `keep = 2`: sobram os 2 mais novos.
-- O arquivo gerado abre com `db.Open` e tem `user_version = 1`.
-- Um backup com o mesmo `now` duas vezes dá erro, e o arquivo existente fica intacto. O `VACUUM INTO` falha se o destino existe, que é o comportamento desejado: nunca sobrescreve.
+**Tests:**
+- 3 backups with different `now` values and `keep = 2`: the 2 newest remain.
+- The generated file opens with `db.Open` and has `user_version = 1`.
+- A backup with the same `now` twice gives an error, and the existing file stays intact. `VACUUM INTO` fails if the destination exists, which is the desired behavior: it never overwrites.
 
-- [ ] **Passo 2: SPA**
+- [ ] **Step 2: SPA**
 
 ```go
-// spaHandler serve arquivos de fsys; caminhos sem arquivo correspondente recebem index.html.
+// spaHandler serves files from fsys; paths with no matching file get index.html.
 func spaHandler(fsys fs.FS) http.Handler {
 	files := http.FileServerFS(fsys)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2410,7 +2410,7 @@ func spaHandler(fsys fs.FS) http.Handler {
 			files.ServeHTTP(w, r2)
 			return
 		}
-		if strings.HasPrefix(p, "assets/") { // arquivos com hash do Vite
+		if strings.HasPrefix(p, "assets/") { // Vite hashed files
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		files.ServeHTTP(w, r)
@@ -2418,13 +2418,13 @@ func spaHandler(fsys fs.FS) http.Handler {
 }
 ```
 
-**Testes** com `fstest.MapFS`:
-- `/` devolve o index;
-- `/lancamentos` devolve o index;
-- `/assets/app.js` devolve o arquivo com cache imutável;
-- `/api/x` dá 404 JSON (vem do mux, não da SPA).
+**Tests** with `fstest.MapFS`:
+- `/` returns the index;
+- `/lancamentos` (a transactions screen route) returns the index;
+- `/assets/app.js` returns the file with immutable cache;
+- `/api/x` gives a JSON 404 (it comes from the mux, not the SPA).
 
-- [ ] **Passo 3: placeholder do frontend**
+- [ ] **Step 3: frontend placeholder**
 
 `web/embed.go`:
 ```go
@@ -2438,7 +2438,7 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-// Dist devolve o build do frontend com dist/ como raiz.
+// Dist returns the frontend build with dist/ as the root.
 func Dist() fs.FS {
 	sub, err := fs.Sub(dist, "dist")
 	if err != nil {
@@ -2453,7 +2453,7 @@ func Dist() fs.FS {
 <!doctype html><meta charset="utf-8"><title>gastos</title><p>Frontend em construção (fase 3).</p>
 ```
 
-- [ ] **Passo 4: `cmd/gastos/main.go`**
+- [ ] **Step 4: `cmd/gastos/main.go`**
 
 ```go
 package main
@@ -2513,8 +2513,8 @@ func run(log *slog.Logger) error {
 	mat := recurrence.NewMaterializer(d, bus, cfg.Location, log)
 	srv := api.New(d, cfg, bus, mat, log)
 
-	go mat.Loop(ctx, time.Hour)       // roda uma vez já no início
-	go srv.Housekeeping(ctx, time.Hour) // limpa sessões expiradas + backup diário
+	go mat.Loop(ctx, time.Hour)       // runs once right at the start
+	go srv.Housekeeping(ctx, time.Hour) // cleans up expired sessions + daily backup
 
 	httpSrv := &http.Server{Addr: cfg.Addr, Handler: srv.Routes(web.Dist()), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -2532,9 +2532,9 @@ func run(log *slog.Logger) error {
 }
 ```
 
-`Server.Housekeeping(ctx, every)` fica em `internal/api/housekeeping.go`. A cada tick, faz `DELETE FROM sessions WHERE expires_at <= now` e, se `db.LastBackupAge > 24h`, chama `db.Backup`. Os SSE abertos seguram o `Shutdown` até o timeout de 10 segundos; é aceitável.
+`Server.Housekeeping(ctx, every)` lives in `internal/api/housekeeping.go`. On each tick, it runs `DELETE FROM sessions WHERE expires_at <= now` and, if `db.LastBackupAge > 24h`, calls `db.Backup`. Open SSE connections hold `Shutdown` until the 10-second timeout; that is acceptable.
 
-- [ ] **Passo 5: smoke manual**
+- [ ] **Step 5: manual smoke test**
 
 ```bash
 GASTOS_COOKIE_SECURE=false go run ./cmd/gastos
@@ -2543,57 +2543,57 @@ curl -s -c /tmp/c -H 'Content-Type: application/json' -d '{"name":"Ana","email":
 curl -s -b /tmp/c localhost:8000/api/me
 ```
 
-No PowerShell: `$env:GASTOS_COOKIE_SECURE='false'; go run ./cmd/gastos`. Para os `curl` no Windows, use `curl.exe` e um arquivo de cookie em `$env:TEMP`.
+On PowerShell: `$env:GASTOS_COOKIE_SECURE='false'; go run ./cmd/gastos`. For the `curl` calls on Windows, use `curl.exe` and a cookie file in `$env:TEMP`.
 
-O esperado é `ok`, depois o JSON do usuário e depois `{user, wallets:[{... "name":"Pessoal" ...}]}`.
+Expected: `ok`, then the user JSON, then `{user, wallets:[{... "name":"Pessoal" ...}]}`.
 
-- [ ] **Passo 6:** commit `feat: main, backup rotativo e SPA embutida`
+- [ ] **Step 6:** commit `feat: main, rotating backup and embedded SPA`
 
 ---
 
-## Tarefa 17: remover o backend antigo
+## Task 17: remove the old backend
 
-- [ ] **Passo 1:**
+- [ ] **Step 1:**
 
 ```bash
 git rm -r src vendor deploy.sh gastos-app
 go mod tidy
 ```
 
-- [ ] **Passo 2:** reescrever o README:
-  - stack nova;
-  - como rodar em dev (`go run ./cmd/gastos` e, na fase 3, `npm run dev` em `web/`);
-  - variáveis de ambiente (tabela da spec);
-  - link para o roadmap.
+- [ ] **Step 2:** rewrite the README:
+  - new stack;
+  - how to run in dev (`go run ./cmd/gastos` and, in phase 3, `npm run dev` in `web/`);
+  - environment variables (table from the spec);
+  - link to the roadmap.
 
-  Remover as seções de API antiga e de segurança pendente que foram resolvidas.
-- [ ] **Passo 3: verificação final**
+  Remove the old API and pending-security sections that have been resolved.
+- [ ] **Step 3: final verification**
 
 ```bash
 go vet ./...
-go test ./... -race    # -race exige CGO; no Windows sem gcc, rode sem -race
+go test ./... -race    # -race requires CGO; on Windows without gcc, run without -race
 grep -rn "float" internal/
 go build -o gastos ./cmd/gastos
 ```
 
-O esperado:
-- `vet` limpo;
-- todos os testes passando;
-- `grep` sem saída;
-- o binário gerado.
+Expected:
+- `vet` clean;
+- all tests passing;
+- `grep` with no output;
+- the generated binary.
 
-Apague o binário depois (ele está no `.gitignore`).
+Delete the binary afterwards (it is in `.gitignore`).
 
-- [ ] **Passo 4:** commit `chore: remove backend antigo, vendor e binário commitado`
-- [ ] **Passo 5:** abrir o PR `rewrite/backend → main` com o checklist dos critérios de aceite da spec.
+- [ ] **Step 4:** commit `chore: remove old backend, vendor and committed binary`
+- [ ] **Step 5:** open the PR `rewrite/backend → main` with the acceptance criteria checklist from the spec.
 
 ---
 
-## Ordem e paralelismo
+## Order and parallelism
 
 ```
 0 → 1 → 2 → 3 ─┐
           4 ───┼→ 5 → 6+7+8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17
                │
- (3 e 4 são puras e independentes; podem ir em paralelo com 2)
+ (3 and 4 are pure and independent; they can run in parallel with 2)
 ```

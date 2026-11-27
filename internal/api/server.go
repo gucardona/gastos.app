@@ -1,3 +1,4 @@
+// Package api serves the JSON API under /api, the web app and /healthz.
 package api
 
 import (
@@ -15,6 +16,7 @@ import (
 	"gastos/internal/recurrence"
 )
 
+// Server holds what the HTTP handlers share: the database, the settings and the background services.
 type Server struct {
 	db      *sql.DB
 	cfg     config.Config
@@ -31,6 +33,7 @@ type Server struct {
 	chatInFlight map[int64]bool // users with an answer being generated
 }
 
+// New returns a Server ready to route requests.
 func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materializer, log *slog.Logger) *Server {
 	aiURL := cfg.AnthropicURL
 	if aiURL == "" {
@@ -40,11 +43,15 @@ func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materia
 		chatLimiter: newRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
 }
 
+// Routes returns the handler for every route: the API, /healthz and the web app served from spa,
+// wrapped in logging, panic recovery and the security headers.
 func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	public := s.handle
 	user := func(h handlerFunc) http.Handler { return s.requireUser(s.handle(h)) }
-	wallet := func(min role, h handlerFunc) http.Handler { return s.requireUser(s.requireWallet(min, s.handle(h))) }
+	wallet := func(minRole role, h handlerFunc) http.Handler {
+		return s.requireUser(s.requireWallet(minRole, s.handle(h)))
+	}
 
 	mux.Handle("GET /api/auth/registration", public(s.registrationInfo))
 	mux.Handle("POST /api/auth/register", public(s.register))
@@ -68,6 +75,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("GET /api/wallets/{walletID}/members", wallet(roleReader, s.listMembers))
 	mux.Handle("POST /api/wallets/{walletID}/members", wallet(roleOwner, s.addMember))
 	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", wallet(roleOwner, s.updateMember))
+	mux.Handle("PUT /api/wallets/{walletID}/default-payment-method", wallet(roleEditor, s.setDefaultPaymentMethod))
 	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner or the member themselves: checked in the handler
 
 	s.catalogRoutes(mux, wallet)
@@ -85,6 +93,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	return s.logRequests(s.recoverPanic(s.securityHeaders(s.devCORS(s.sameOriginWrites(mux)))))
 }
 
+// healthz answers "ok" while the database responds, and 503 otherwise.
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	if err := s.db.PingContext(r.Context()); err != nil {
 		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -93,14 +102,19 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 }
 
+// statusRecorder remembers the status code a handler wrote, for the request log.
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
 }
 
-func (r *statusRecorder) WriteHeader(code int)        { r.status = code; r.ResponseWriter.WriteHeader(code) }
+// WriteHeader records code and passes it on.
+func (r *statusRecorder) WriteHeader(code int) { r.status = code; r.ResponseWriter.WriteHeader(code) }
+
+// Unwrap returns the wrapped writer, so http.ResponseController can still flush through it.
 func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter } // keeps Flusher available through ResponseController
 
+// logRequests logs the method, path, status and duration of every request.
 func (s *Server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := s.now()
@@ -111,6 +125,7 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 	})
 }
 
+// recoverPanic turns a panic in a handler into a logged 500 instead of a dropped connection.
 func (s *Server) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

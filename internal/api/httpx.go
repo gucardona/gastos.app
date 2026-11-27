@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// apiError is an error the client sees as {"error": {...}}, with a message ready to show in pt-BR.
 type apiError struct {
 	Status  int               `json:"-"`
 	Code    string            `json:"code"`
@@ -18,6 +19,7 @@ type apiError struct {
 	Fields  map[string]string `json:"fields,omitempty"`
 }
 
+// Error returns the code and the message.
 func (e *apiError) Error() string { return e.Code + ": " + e.Message }
 
 var (
@@ -27,18 +29,22 @@ var (
 	errRateLimited     = &apiError{Status: 429, Code: "rate_limited", Message: "Muitas tentativas, aguarde alguns minutos"}
 )
 
+// errValidation returns a 400 that lists the invalid fields.
 func errValidation(fields map[string]string) *apiError {
 	return &apiError{Status: 400, Code: "validation", Message: "Dados inválidos", Fields: fields}
 }
 
+// errBadRequest returns a 400 with msg.
 func errBadRequest(msg string) *apiError {
 	return &apiError{Status: 400, Code: "validation", Message: msg}
 }
 
+// errConflict returns a 409 with msg.
 func errConflict(msg string) *apiError {
 	return &apiError{Status: 409, Code: "conflict", Message: msg}
 }
 
+// errNotFoundMsg returns a 404 with msg.
 func errNotFoundMsg(msg string) *apiError {
 	return &apiError{Status: 404, Code: "not_found", Message: msg}
 }
@@ -46,12 +52,14 @@ func errNotFoundMsg(msg string) *apiError {
 // fieldErrors collects validation errors per field (the first error of each field wins).
 type fieldErrors map[string]string
 
+// add records msg for field, keeping the first message when a field fails twice.
 func (f fieldErrors) add(field, msg string) {
 	if _, ok := f[field]; !ok {
 		f[field] = msg
 	}
 }
 
+// err returns a validation error when any field failed, and nil otherwise.
 func (f fieldErrors) err() error {
 	if len(f) == 0 {
 		return nil
@@ -59,8 +67,10 @@ func (f fieldErrors) err() error {
 	return errValidation(f)
 }
 
+// handlerFunc is an HTTP handler that returns its error instead of writing it.
 type handlerFunc func(w http.ResponseWriter, r *http.Request) error
 
+// handle adapts h to an http.Handler that writes h's error as a JSON error response.
 func (s *Server) handle(h handlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := h(w, r); err != nil {
@@ -69,6 +79,8 @@ func (s *Server) handle(h handlerFunc) http.Handler {
 	})
 }
 
+// writeError writes an apiError as is, sql.ErrNoRows as a 404, and logs any other error as a 500
+// with a generic message.
 func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var ae *apiError
 	if errors.As(err, &ae) {
@@ -83,6 +95,7 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	writeJSON(w, 500, map[string]any{"error": &apiError{Code: "internal", Message: "Erro interno"}})
 }
 
+// writeJSON writes v as JSON with status.
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -123,6 +136,7 @@ func (s *Server) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	return tx.Commit()
 }
 
+// pathID reads the positive integer path value name, or returns a 404.
 func pathID(r *http.Request, name string) (int64, error) {
 	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
 	if err != nil || id <= 0 {
@@ -136,8 +150,10 @@ func (s *Server) mutated(r *http.Request) {
 	s.notifyWallet(r.Context(), walletIDFrom(r.Context()))
 }
 
+// asAPIError reports whether err is an *apiError and stores it in target.
 func asAPIError(err error, target **apiError) bool { return errors.As(err, target) }
 
+// isUnique reports whether err comes from a UNIQUE constraint.
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint")
 }

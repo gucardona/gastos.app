@@ -63,7 +63,7 @@ func splitsOf(t *testing.T, c *client, cat int64) map[int64]int64 {
 	t.Helper()
 	var tx transaction
 	c.do("POST", c.wpath("/transactions"), map[string]any{
-		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01",
+		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01", "allowDuplicate": true,
 	}, 201, &tx)
 	out := map[int64]int64{}
 	var cents int64
@@ -117,7 +117,7 @@ func TestDefaultSharesDriveSplits(t *testing.T) {
 	set(6000, 4000)
 	var tx transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
-		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01",
+		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01", "allowDuplicate": true,
 		"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 3000}, {"userId": bia.user.ID, "shareBp": 7000}},
 	}, 201, &tx)
 	if len(tx.Splits) != 2 || tx.Splits[0].ShareBP+tx.Splits[1].ShareBP != 10000 || tx.Splits[0].ShareBP == 6000 {

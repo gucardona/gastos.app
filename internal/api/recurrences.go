@@ -9,6 +9,7 @@ import (
 	"gastos/internal/recurrence"
 )
 
+// recurrenceRoutes registers the recurrence routes of a wallet.
 func (s *Server) recurrenceRoutes(mux *http.ServeMux, wallet routeWrap) {
 	const base = "/api/wallets/{walletID}/recurrences"
 	mux.Handle("GET "+base, wallet(roleReader, s.listRecurrences))
@@ -17,6 +18,7 @@ func (s *Server) recurrenceRoutes(mux *http.ServeMux, wallet routeWrap) {
 	mux.Handle("DELETE "+base+"/{id}", wallet(roleEditor, s.deleteRecurrence))
 }
 
+// recurrenceDTO is a recurring entry as the API returns it.
 type recurrenceDTO struct {
 	ID              int64   `json:"id"`
 	Kind            string  `json:"kind"`
@@ -34,6 +36,7 @@ type recurrenceDTO struct {
 	Splits          []split `json:"splits"`
 }
 
+// recurrenceInput is the body of a recurrence create or update.
 type recurrenceInput struct {
 	Kind            string  `json:"kind"`
 	AmountCents     int64   `json:"amountCents"`
@@ -124,6 +127,7 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 	return fe.err()
 }
 
+// loadRecurrences returns every recurrence of walletID with its splits.
 func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurrenceDTO, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, kind, amount_cents, description, category_id, payment_method_id, paid_by_user_id, to_user_id,
@@ -197,6 +201,7 @@ func (s *Server) nextDate(d recurrenceDTO) *string {
 	return &occ[0].Date
 }
 
+// recurrenceByID returns recurrence id of walletID.
 func (s *Server) recurrenceByID(ctx context.Context, walletID, id int64) (recurrenceDTO, error) {
 	list, err := s.loadRecurrences(ctx, walletID)
 	if err != nil {
@@ -210,6 +215,7 @@ func (s *Server) recurrenceByID(ctx context.Context, walletID, id int64) (recurr
 	return recurrenceDTO{}, sql.ErrNoRows
 }
 
+// listRecurrences handles GET /recurrences.
 func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) error {
 	list, err := s.loadRecurrences(r.Context(), walletIDFrom(r.Context()))
 	if err != nil {
@@ -219,6 +225,7 @@ func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// replaceRecurrenceSplits replaces the member shares of recurrence id with splits.
 func replaceRecurrenceSplits(ctx context.Context, q querier, id int64, splits []split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM recurrence_splits WHERE recurrence_id = ?`, id); err != nil {
 		return err
@@ -232,6 +239,7 @@ func replaceRecurrenceSplits(ctx context.Context, q querier, id int64, splits []
 	return nil
 }
 
+// createRecurrence handles POST /recurrences.
 func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	var in recurrenceInput
@@ -268,6 +276,7 @@ func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
+// updateRecurrence handles PUT /recurrences/{id}.
 func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	id, err := pathID(r, "id")
@@ -316,6 +325,7 @@ func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
+// deleteRecurrence handles DELETE /recurrences/{id}.
 func (s *Server) deleteRecurrence(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {
