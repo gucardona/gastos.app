@@ -1,7 +1,8 @@
 gastos.db
 gastos.db.bak
 
-.claude/
+.claude/*
+!.claude/settings.json
 .agents/
 
 /data/
