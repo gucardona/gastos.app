@@ -1,102 +1,102 @@
-# Reestruturação da interface: minimalista, estilo Apple
+# Interface restructuring: minimalist, Apple style
 
-Data: 2026-10-11. Substitui, para a camada visual e de navegação, o desenho de [2026-10-09-frontend-rewrite-design.md](2026-10-09-frontend-rewrite-design.md). A API, os dados e as regras de negócio não mudam.
+Date: 2026-10-11. Replaces, for the visual and navigation layer, the design in [2026-10-09-frontend-rewrite-design.md](2026-10-09-frontend-rewrite-design.md). The API, the data and the business rules do not change.
 
-## Intenção
+## Intent
 
-O app é usado por duas pessoas (a casa: Gustavo e Bia) para lançar gastos rápido e entender para onde o dinheiro foi. A versão atual funciona, mas é confusa: Ajustes aparece em dois lugares, os formulários são pilhas de campos sem hierarquia, o ícone de uma categoria é um campo vazio que pede "um emoji", e os alinhamentos de texto variam de tela em tela.
+The app is used by two people (the household: Gustavo and Bia) to log expenses fast and understand where the money went. The current version works, but it is confusing: Ajustes (Settings) shows up in two places, forms are stacks of fields with no hierarchy, a category icon is an empty field asking for "um emoji" (an emoji), and text alignment varies from screen to screen.
 
-Sucesso significa:
+Success means:
 
-- **Minimalista e intuitivo, de uso extremamente fácil.** Cada coisa tem um único caminho. Ninguém precisa de instrução para lançar um gasto, aceitar uma linha do extrato ou convidar alguém.
-- **Referência visual: produtos da Apple.** Poucos elementos, muito espaço, título grande, listas agrupadas, controles que se explicam.
-- **O número é o protagonista.** O que o usuário quer saber (quanto sobrou, para onde foi) é o que mais pesa na tela.
+- **Minimalist and intuitive, extremely easy to use.** Each thing has a single path. Nobody needs instructions to log an expense, accept a bank statement line or invite someone.
+- **Visual reference: Apple products.** Few elements, lots of space, large titles, grouped lists, controls that explain themselves.
+- **The number is the protagonist.** What the user wants to know (how much is left, where it went) carries the most weight on the screen.
 
-Escolhido pelo usuário entre cinco direções mockadas: cinza frio, blocos brancos arredondados, número grande, barra de navegação flutuante com o "+" separado. As alternativas descartadas (grafite, tipográfica, anel, blocos coloridos) ficam fora de escopo; o modo escuro entra como variante do mesmo sistema, não como direção própria.
+Chosen by the user among five mocked directions: cool gray, rounded white blocks, large number, floating navigation bar with a separate "+". The discarded alternatives (graphite, typographic, ring, colored blocks) are out of scope; dark mode comes in as a variant of the same system, not as its own direction.
 
-## Fora de escopo
+## Out of scope
 
-Login com Google, Open Finance (Pluggy) e qualquer mudança de API ou de modelo de dados. Eles entram depois, já no sistema novo. Idioma e moeda continuam fixos em pt-BR e real, sem configuração.
+Google login, Open Finance (Pluggy) and any API or data model change. They come later, already on the new system. Language and currency stay fixed at pt-BR and real, with no configuration.
 
-## Navegação
+## Navigation
 
-Quatro destinos e uma ação:
+Four destinations and one action:
 
-| Destino | Conteúdo |
+| Destination | Content |
 |---|---|
-| Visão | saldo do mês, para onde foi, recentes |
-| Lançamentos | lista do mês por dia, busca, seção "Repetem todo mês" |
-| Caixa | linhas de extrato importadas esperando decisão |
-| Divisão | acertos entre as pessoas (só quando a carteira divide gastos) |
-| + | novo lançamento (folha) |
+| Visão (Overview) | month balance, where it went, recent |
+| Lançamentos (Transactions) | month list by day, search, "Repetem todo mês" (Repeat every month) section |
+| Caixa (Inbox) | imported bank statement lines waiting for a decision |
+| Divisão (Split) | settlements between people (only when the wallet splits expenses) |
+| + | new transaction (sheet) |
 
-Regras:
+Rules:
 
-- **Ajustes só pelo avatar** (canto superior direito no celular, rodapé da barra lateral no desktop). Some a engrenagem e a duplicação atual.
-- **Recorrentes não é destino.** Vive como seção dentro de Lançamentos e como lista em Ajustes.
-- **Carteira ativa** no topo da Visão (nome e "com Bia"); tocar abre a troca de carteira.
-- **Celular:** barra flutuante translúcida com quatro abas e o "+" como botão redondo à direita, separado. **A partir de 900 px:** barra lateral de 248 px, com "Novo lançamento" como botão e o avatar embaixo. A aba Divisão só aparece quando a carteira divide gastos.
-- A Caixa mostra um contador de pendentes; ele lê o número, sem texto extra.
+- **Ajustes only through the avatar** (top right corner on mobile, bottom of the sidebar on desktop). The gear and the current duplication go away.
+- **Recurrences is not a destination.** It lives as a section inside Lançamentos and as a list in Ajustes.
+- **Active wallet** at the top of Visão (name and "com Bia" (with Bia)); tapping it opens the wallet switcher.
+- **Mobile:** translucent floating bar with four tabs and the "+" as a round button on the right, separate. **From 900 px:** 248 px sidebar, with "Novo lançamento" (New transaction) as a button and the avatar at the bottom. The Divisão tab only shows up when the wallet splits expenses.
+- The Caixa shows a pending counter; it reads as a number, with no extra text.
 
-## Telas
+## Screens
 
-**Visão.** Título do mês ("Outubro") com ‹ › discretos. Abaixo, o saldo em fonte grande, e uma linha com "Entrou" e "Saiu" (pontos coloridos, valores em peso médio). Depois "Para onde foi": categorias com barra fina proporcional, em um bloco agrupado. No desktop, três números lado a lado (saldo, entrou, saiu) e duas colunas (Para onde foi, Recentes).
+**Visão.** Month title ("Outubro") with discreet ‹ › arrows. Below, the balance in a large font, and a line with "Entrou" (Came in) and "Saiu" (Went out) (colored dots, values in medium weight). Then "Para onde foi" (Where it went): categories with a thin proportional bar, in a grouped block. On desktop, three numbers side by side (balance, came in, went out) and two columns (Para onde foi, Recentes (Recent)).
 
-**Novo lançamento / editar (folha).** Controle segmentado Gasto | Entrada; valor grande no centro; lista agrupada com Categoria, Quando, Pago com, Descrição e o interruptor "Repetir todo mês"; um botão "Salvar" de largura total. Categoria, Quando e Pago com abrem uma escolha visual (grade de categorias, calendário, lista), não um teclado. Em lançamentos com divisão, uma linha "Dividir" abre as partes. Excluir fica no fim da folha de edição, com confirmação.
+**New transaction / edit (sheet).** Segmented control Gasto | Entrada (Expense | Income); large amount in the center; grouped list with Categoria, Quando, Pago com, Descrição and the "Repetir todo mês" switch; a full-width "Salvar" (Save) button. Categoria, Quando and Pago com open a visual choice (category grid, calendar, list), not a keyboard. On split transactions, a "Dividir" row opens the parts. Delete sits at the end of the edit sheet, with confirmation.
 
-**Lançamentos.** Título do mês, busca, lista agrupada por dia (data à esquerda, total do dia à direita). Tocar numa linha abre a folha de edição. A seção "Repetem todo mês" lista as recorrências com um interruptor para pausar e a linha abre a edição.
+**Lançamentos.** Month title, search, list grouped by day (date on the left, day total on the right). Tapping a row opens the edit sheet. The "Repetem todo mês" section lists the recurrences with a switch to pause and the row opens the edit.
 
-**Caixa.** Topo com "Aceitar N sugeridas" quando houver. Cada linha mostra descrição, valor e conta; tocar abre uma folha com a categoria (grade), o texto da regra opcional ("Usar nas próximas importações"), "Aceitar", "É este lançamento" (quando há candidato) e "Ignorar". Vazia: explica como importar e leva a Ajustes, Contas bancárias.
+**Caixa.** Top with "Aceitar N sugeridas" (Accept N suggested) when there are any. Each row shows description, amount and account; tapping opens a sheet with the category (grid), the optional rule text ("Usar nas próximas importações" (Use on the next imports)), "Aceitar", "É este lançamento" (This is that transaction) (when there is a candidate) and "Ignorar". Empty: explains how to import and links to Ajustes, Contas bancárias (Bank accounts).
 
-**Divisão.** Uma frase grande ("Bia deve R$ 120,00 a você") e a ação "Registrar acerto"; histórico abaixo.
+**Divisão.** A large sentence ("Bia deve R$ 120,00 a você" (Bia owes you R$ 120,00)) and the "Registrar acerto" (Record settlement) action; history below.
 
-**Ajustes.** Duas listas curtas, cada linha com seta e um destino próprio: Perfil; Pessoas, Categorias, Formas de pagamento, Orçamentos; Contas bancárias, Recorrentes, Aparência; Sair (vermelho, no fim). No desktop é mestre e detalhe: a lista à esquerda, o conteúdo à direita.
-- **Pessoas:** lista com a permissão como controle segmentado (Pode editar | Só leitura); convidar é um campo de e-mail, o segmentado e um botão "Convidar" de largura total.
-- **Categorias:** Gastos | Entradas; "Nova categoria" abre uma folha com pré-visualização (ícone e nome), segmentado de tipo, **cor em uma fileira de amostras** e **ícone em uma grade de emojis com abas por assunto** (Casa, Comida, Transporte, Lazer, Saúde, Dinheiro e outras). Para gastos, o tipo (Essencial | Supérfluo | Investimento) é um segmentado.
-- **Contas bancárias:** conta, forma de pagamento, importar extrato (OFX ou CSV, com o mapeamento de colunas só quando CSV) e as regras.
+**Ajustes.** Two short lists, each row with an arrow and its own destination: Perfil; Pessoas, Categorias, Formas de pagamento, Orçamentos; Contas bancárias, Recorrentes, Aparência; Sair (red, at the end). On desktop it is master and detail: the list on the left, the content on the right.
+- **Pessoas (People):** list with the permission as a segmented control (Pode editar | Só leitura (Can edit | Read only)); inviting is an email field, the segmented control and a full-width "Convidar" button.
+- **Categorias:** Gastos | Entradas; "Nova categoria" opens a sheet with a preview (icon and name), type segmented control, **color in a row of swatches** and **icon in an emoji grid with tabs by subject** (Casa, Comida, Transporte, Lazer, Saúde, Dinheiro and others). For expenses, the type (Essencial | Supérfluo | Investimento) is a segmented control.
+- **Contas bancárias:** account, payment method, import bank statement (OFX or CSV, with column mapping only for CSV) and the rules.
 - **Aparência:** Automático | Claro | Escuro.
 
-**Login e cadastro.** Campos grandes, um botão, o alternador de modo como texto. O cadastro mantém "Como você gostaria de ser chamado?" e a confirmação de senha (PR #26).
+**Login and sign-up.** Large fields, one button, the mode toggle as text. Sign-up keeps "Como você gostaria de ser chamado?" (What would you like to be called?) and the password confirmation (PR #26).
 
-## Sistema de design
+## Design system
 
-**Cores** (claro): fundo `#F2F3F4`, superfície `#FFFFFF`, tinta `#14181B`, texto secundário `#7B858B`, linha `#ECEEEF`, acento `#0E6577` (só ação e item ativo), entrada `#1E8E5A`, alerta `#C2412D` (estouro de orçamento e ações destrutivas). Gasto não é vermelho: dinheiro que sai usa a tinta normal. O escuro usa os mesmos papéis com fundo `#0F1113`, superfície `#191C1F` e acento `#6CC4D6`, seguindo `prefers-color-scheme`, com o seletor de Aparência para forçar.
+**Colors** (light): background `#F2F3F4`, surface `#FFFFFF`, ink `#14181B`, secondary text `#7B858B`, line `#ECEEEF`, accent `#0E6577` (only action and active item), income `#1E8E5A`, alert `#C2412D` (budget overruns and destructive actions). Expenses are not red: money going out uses the normal ink. Dark uses the same roles with background `#0F1113`, surface `#191C1F` and accent `#6CC4D6`, following `prefers-color-scheme`, with the Aparência selector to force it.
 
-**Tipografia:** uma família, Geist (400, 500, 600, 700), números tabulares. Saldo grande 44 px (mobile) e 54 px (desktop) em peso 700 com tracking apertado; títulos de página 32 px; corpo 14 a 15 px; texto secundário 12 a 13 px. Geist é servida do próprio app (arquivo local), sem pedir a terceiros.
+**Typography:** one family, Geist (400, 500, 600, 700), tabular numbers. Large balance 44 px (mobile) and 54 px (desktop) at weight 700 with tight tracking; page titles 32 px; body 14 to 15 px; secondary text 12 to 13 px. Geist is served from the app itself (local file), without asking third parties.
 
-**Forma:** blocos agrupados com raio 22, controles com raio 12, botões e seletores em pílula; sem bordas pesadas e sem sombras, exceto a barra flutuante. Espaço generoso: gutter de 20 px no celular, 56 px no desktop.
+**Shape:** grouped blocks with radius 22, controls with radius 12, buttons and selectors as pills; no heavy borders and no shadows, except the floating bar. Generous space: 20 px gutter on mobile, 56 px on desktop.
 
-**Alinhamento:** texto à esquerda, valores à direita, sem centralizar nada além de estados vazios. Isso é uma regra do sistema, não decidida tela a tela.
+**Alignment:** text on the left, values on the right, nothing centered except empty states. This is a system rule, not decided screen by screen.
 
-**Componentes:** `Sheet` (folha com puxador, `<dialog>` nativo), `Segmented`, `GroupedList` e `ListRow` (com seta, valor e variantes), `Switch`, `CategoryGrid`, `EmojiPicker`, `ColorSwatches`, `AmountInput`, `TabBar`, `Sidebar`, `Button` (primário, secundário, destrutivo), `EmptyState`. Os tokens ficam num arquivo CSS único, com variáveis para claro e escuro.
+**Components:** `Sheet` (sheet with a handle, native `<dialog>`), `Segmented`, `GroupedList` and `ListRow` (with arrow, value and variants), `Switch`, `CategoryGrid`, `EmojiPicker`, `ColorSwatches`, `AmountInput`, `TabBar`, `Sidebar`, `Button` (primary, secondary, destructive), `EmptyState`. The tokens live in a single CSS file, with variables for light and dark.
 
-**Movimento:** apenas o que responde a uma ação: folha subindo e descendo, interruptor, troca de aba. Respeita `prefers-reduced-motion`.
+**Motion:** only what responds to an action: sheet going up and down, switch, tab change. Respects `prefers-reduced-motion`.
 
-**Acessibilidade:** foco visível, alvos de toque de pelo menos 44 px, contraste AA nos dois temas, cada linha de lista como um único controle com nome claro, folha com foco preso e Esc para fechar.
+**Accessibility:** visible focus, touch targets of at least 44 px, AA contrast in both themes, each list row as a single control with a clear name, sheet with trapped focus and Esc to close.
 
-## Entrega
+## Delivery
 
-Cinco PRs pequenos, cada um revisável, com CI verde antes do merge. Cada PR reescreve os testes das telas que toca; a API e os dados não mudam.
+Five small PRs, each reviewable, with green CI before the merge. Each PR rewrites the tests of the screens it touches; the API and the data do not change.
 
-1. **Base:** tokens, fonte e a navegação nova (barra flutuante, barra lateral, avatar para Ajustes). Os componentes de tela (folha, segmentado, lista agrupada, seletores) chegam junto da primeira tela que os usa. As telas antigas continuam funcionando dentro do shell novo.
-2. **Visão e Novo lançamento** (folha, seletores visuais).
-3. **Lançamentos** (com a seção Repetem todo mês) e **Caixa**.
-4. **Ajustes inteiro:** Pessoas, Categorias (cor e emojis), Formas de pagamento, Orçamentos, Contas bancárias, Aparência.
-5. **Divisão, login e acabamento:** estados vazios, erros, acessibilidade, passada final de alinhamento.
+1. **Base:** tokens, font and the new navigation (floating bar, sidebar, avatar for Ajustes). The screen components (sheet, segmented control, grouped list, pickers) arrive together with the first screen that uses them. The old screens keep working inside the new shell.
+2. **Visão and New transaction** (sheet, visual pickers).
+3. **Lançamentos** (with the Repetem todo mês section) and **Caixa**.
+4. **All of Ajustes:** Pessoas, Categorias (color and emojis), Formas de pagamento (Payment methods), Orçamentos (Budgets), Contas bancárias, Aparência.
+5. **Divisão, login and finishing touches:** empty states, errors, accessibility, a final alignment pass.
 
-Cada PR é mergeado na master só com a aprovação do usuário, e o merge dispara o deploy.
+Each PR is merged into master only with the user's approval, and the merge triggers the deploy.
 
-## Testes
+## Tests
 
-- **Componentes e telas:** Vitest e Testing Library, por papel e nome acessível (hoje já é assim). Os componentes novos têm testes próprios (segmentado, seletor de emoji, folha: abrir, fechar, foco).
-- **e2e (Playwright, desktop e Pixel 5):** os fluxos existentes continuam, com os rótulos novos; ganham um fluxo "criar categoria com cor e emoji", "convidar alguém" e "navegar só pelas quatro abas e pelo avatar".
-- **Regressão visual:** capturas de tela das telas principais em claro e escuro, anexadas como artefato da CI, sem comparação automática por enquanto (comparação com tolerância fica para depois).
-- **Lint e tipos** continuam obrigatórios.
+- **Components and screens:** Vitest and Testing Library, by role and accessible name (already the case today). The new components have their own tests (segmented control, emoji picker, sheet: open, close, focus).
+- **e2e (Playwright, desktop and Pixel 5):** the existing flows continue, with the new labels; they gain a "create category with color and emoji" flow, an "invite someone" flow and a "navigate using only the four tabs and the avatar" flow.
+- **Visual regression:** screenshots of the main screens in light and dark, attached as a CI artifact, with no automatic comparison for now (comparison with tolerance comes later).
+- **Lint and types** remain mandatory.
 
-## Riscos e decisões
+## Risks and decisions
 
-- **Escopo grande.** Mitigado pelos cinco PRs: o app continua utilizável a cada merge.
-- **Emojis dependem do sistema.** A grade usa emojis do sistema operacional, então a aparência varia entre Windows, Android e iOS. É aceitável; ícones desenhados ficam fora de escopo.
-- **Recorrentes fora do menu.** Quem usa muito essa tela precisa de dois toques a mais; em troca, a navegação fica em quatro destinos. Revisitar se isso incomodar.
-- **Divisão condicional.** Em carteiras sem divisão, a barra tem três abas mais o "+".
-- **Fonte local.** Geist entra no repositório (arquivo de fonte); confirmar a licença (OFL) ao adicionar.
+- **Large scope.** Mitigated by the five PRs: the app stays usable at every merge.
+- **Emojis depend on the system.** The grid uses operating system emojis, so the look varies between Windows, Android and iOS. That is acceptable; drawn icons are out of scope.
+- **Recurrences out of the menu.** Whoever uses that screen a lot needs two more taps; in exchange, the navigation stays at four destinations. Revisit if it becomes annoying.
+- **Conditional Divisão.** In wallets without splitting, the bar has three tabs plus the "+".
+- **Local font.** Geist goes into the repository (font file); confirm the license (OFL) when adding it.

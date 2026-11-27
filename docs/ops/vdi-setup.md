@@ -1,23 +1,23 @@
-# Setup único da VDI
+# One-time VDI setup
 
-Faça uma vez, como root, na VDI. Depois disso o GitHub Actions cuida dos deploys (`.github/workflows/ci.yml`).
+Do this once, as root, on the VDI. After that, GitHub Actions handles the deploys (`.github/workflows/ci.yml`).
 
-**O deploy roda somente em push na `master`.** Branches e pull requests só executam os testes e o build; nunca publicam.
+**The deploy runs only on a push to `master`.** Branches and pull requests only run the tests and the build; they never publish.
 
-Layout: binários em `/opt/gastos/production/{releases,current}`, dados em `/var/lib/gastos/production`, configuração em `/etc/gastos/production.env`. O app escuta em `127.0.0.1:8000`.
+Layout: binaries in `/opt/gastos/production/{releases,current}`, data in `/var/lib/gastos/production`, configuration in `/etc/gastos/production.env`. The app listens on `127.0.0.1:8000`.
 
-## 1. Usuários e diretórios
+## 1. Users and directories
 
 ```bash
 useradd --system --home /var/lib/gastos --shell /usr/sbin/nologin gastos
 useradd --create-home --shell /bin/bash deploy
 
-install -d -o deploy -g deploy /opt/gastos/production /opt/gastos/production/releases # o deploy cria o link current dentro de production
+install -d -o deploy -g deploy /opt/gastos/production /opt/gastos/production/releases # the deploy creates the current link inside production
 install -d -o gastos -g gastos -m 750 /var/lib/gastos/production
 install -d /etc/gastos
 ```
 
-## 2. Configuração
+## 2. Configuration
 
 `/etc/gastos/production.env`:
 
@@ -27,36 +27,36 @@ GASTOS_DB_PATH=/var/lib/gastos/production/gastos.db
 GASTOS_BACKUP_DIR=/var/lib/gastos/production/backups
 ```
 
-**Cadastro.** O site é público, então o cadastro é fechado por padrão: só a **primeira conta** é criada sem código; depois disso ninguém consegue se cadastrar. Para convidar outra pessoa, gere um código no servidor e passe-o a ela por onde preferir.
+**Registration.** The site is public, so registration is closed by default: only the **first account** is created without a code; after that nobody can sign up. To invite another person, generate a code on the server and pass it to them however you prefer.
 
-**Uma vez só**, instale o script num lugar que só o root pode alterar (a cópia que vem com cada deploy pertence ao usuário de deploy; rodá-la com `sudo` daria root a quem tivesse a chave de deploy do CI):
+**One time only**, install the script somewhere only root can change (the copy that comes with each deploy belongs to the deploy user; running it with `sudo` would give root to whoever had the CI deploy key):
 
 ```bash
 sudo install -m 755 -o root -g root /opt/gastos/production/current/invite.sh /usr/local/sbin/gastos-invite
 ```
 
-Depois, para cada convite:
+Then, for each invite:
 
 ```bash
-sudo gastos-invite       # vale 24h
-sudo gastos-invite 2h    # ou outra duração: 30m, 2h, 3d... (de 5m a 7d)
+sudo gastos-invite       # valid for 24h
+sudo gastos-invite 2h    # or another duration: 30m, 2h, 3d... (from 5m to 7d)
 ```
 
-O script só lê a configuração do serviço e roda o programa da versão no ar como o usuário `gastos`, então a cópia instalada continua valendo nos próximos deploys; reinstale apenas se o próprio `scripts/invite.sh` mudar. Nunca rode com `sudo` a cópia de dentro de `/opt/gastos/production/`.
+The script only reads the service configuration and runs the program of the running version as the `gastos` user, so the installed copy stays valid across future deploys; reinstall it only if `scripts/invite.sh` itself changes. Never run the copy inside `/opt/gastos/production/` with `sudo`.
 
-Sai uma linha só, por exemplo `Código: K3J9-XQ2M-7PRT (vale até 15/11/2026 às 14:30, uso único)`. O código serve para **um** cadastro e expira no horário indicado; enquanto houver um código válido, a tela de entrada mostra o campo "Código de convite" (maiúsculas, minúsculas, espaços e traços tanto faz). Não é preciso reiniciar o serviço, e o código não fica guardado em lugar nenhum (o banco guarda só um hash). Códigos usados ou vencidos há mais de 7 dias são apagados sozinhos. A cópia instalada usa sempre o binário da versão no ar.
+It prints a single line, for example `Código: K3J9-XQ2M-7PRT (vale até 15/11/2026 às 14:30, uso único)`. The code works for **one** sign-up and expires at the time shown; while there is a valid code, the sign-in screen shows the "Código de convite" (Invite code) field (uppercase, lowercase, spaces and dashes do not matter). There is no need to restart the service, and the code is not stored anywhere (the database keeps only a hash). Codes used or expired for more than 7 days are deleted automatically. The installed copy always uses the binary of the running version.
 
-`GASTOS_INVITE_CODE` não é mais necessário. Ele continua funcionando como alternativa (um código fixo, de pelo menos 8 caracteres, que vale para qualquer número de cadastros enquanto estiver no arquivo, e que exige reiniciar o serviço ao entrar ou sair); se usar, **remova a linha** e reinicie quando todo mundo tiver conta.
+`GASTOS_INVITE_CODE` is no longer needed. It still works as an alternative (a fixed code of at least 8 characters, valid for any number of sign-ups while it is in the file, and requiring a service restart when added or removed); if you use it, **remove the line** and restart when everyone has an account.
 
-**Assistente.** Para habilitar o chat de consulta, acrescente a chave mestra (gere com `openssl rand -base64 32`; o valor fica só no servidor). Sem ela o assistente fica indisponível e o resto funciona normalmente. Detalhes e cuidados em [Assistente de consulta](../assistente.md).
+**Assistant.** To enable the query chat, add the master key (generate it with `openssl rand -base64 32`; the value stays on the server only). Without it the assistant is unavailable and everything else works normally. Details and precautions in [Query assistant](../assistant.md).
 
 ```
-GASTOS_SECRET_KEY=<saída do openssl rand -base64 32>
+GASTOS_SECRET_KEY=<output of openssl rand -base64 32>
 ```
 
-`GASTOS_COOKIE_SECURE` fica no padrão (`true`), então o acesso precisa ser por HTTPS (passo 4).
+`GASTOS_COOKIE_SECURE` stays at the default (`true`), so access must be over HTTPS (step 4).
 
-O arquivo guarda segredos (código de convite, chave mestra). Deixe-o legível só pelo root; o systemd o lê como root antes de iniciar o app com o usuário `gastos`, então o app continua recebendo as variáveis:
+The file holds secrets (invite code, master key). Make it readable by root only; systemd reads it as root before starting the app as the `gastos` user, so the app still receives the variables:
 
 ```bash
 chown root:root /etc/gastos/production.env
@@ -68,42 +68,42 @@ chmod 600 /etc/gastos/production.env
 ```bash
 install -m 644 deploy/gastos@.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable gastos@production   # só inicia depois do primeiro deploy
+systemctl enable gastos@production   # only starts after the first deploy
 ```
 
-Permissão mínima para o usuário de deploy reiniciar só esse serviço, em `/etc/sudoers.d/gastos-deploy` (valide com `visudo -c`):
+Minimum permission for the deploy user to restart only this service, in `/etc/sudoers.d/gastos-deploy` (validate with `visudo -c`):
 
 ```
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart gastos@production
 ```
 
-A unit já vem endurecida: o app só escreve em `/var/lib/gastos/production`, não enxerga a chave nem a cópia do backup fora do servidor (`/var/lib/gastos/.ssh` e `/var/lib/gastos/offsite`), não tem capacidades de root, só abre sockets de rede IPv4/IPv6 e locais e só pode fazer chamadas de sistema comuns de serviços. Nada disso atrapalha o que ele faz: servir HTTP, ler e gravar o SQLite e chamar APIs externas por HTTPS.
+The unit is already hardened: the app only writes to `/var/lib/gastos/production`, cannot see the key or the off-server backup copy (`/var/lib/gastos/.ssh` and `/var/lib/gastos/offsite`), has no root capabilities, only opens IPv4/IPv6 and local network sockets, and can only make the common system calls of services. None of this gets in the way of what it does: serving HTTP, reading and writing SQLite and calling external APIs over HTTPS.
 
-### O que o dono do servidor precisa aplicar
+### What the server owner needs to apply
 
-O deploy pelo CI troca só o binário; **a unit e as permissões não são atualizadas sozinhas**. Num servidor instalado antes desta versão, rode uma vez, como root, a partir de um clone atualizado do repositório:
+The CI deploy only swaps the binary; **the unit and the permissions are not updated automatically**. On a server installed before this version, run once, as root, from an up-to-date clone of the repository:
 
 ```bash
-# 1. segredos legíveis só pelo root (o systemd lê o arquivo como root)
+# 1. secrets readable by root only (systemd reads the file as root)
 chown root:root /etc/gastos/production.env
 chmod 600 /etc/gastos/production.env
 
-# 2. unit nova (isolamento do backup e endurecimento)
+# 2. new unit (backup isolation and hardening)
 install -m 644 deploy/gastos@.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl restart gastos@production
 
-# 3. conferir
+# 3. check
 systemctl status gastos@production --no-pager
 curl -fsS http://127.0.0.1:8000/healthz; echo
-systemd-analyze security gastos@production | tail -1   # a nota deve cair em relação à anterior
+systemd-analyze security gastos@production | tail -1   # the score should drop compared to the previous one
 ```
 
-Se o serviço não subir, `journalctl -u gastos@production -n 50 --no-pager` mostra o motivo; para voltar atrás, reinstale a unit anterior (`git log --oneline -- deploy/gastos@.service` mostra o commit; `git show <commit>~1:deploy/gastos@.service` traz o arquivo) e repita `daemon-reload` e `restart`. O serviço de backup fora do servidor não muda.
+If the service does not start, `journalctl -u gastos@production -n 50 --no-pager` shows the reason; to roll back, reinstall the previous unit (`git log --oneline -- deploy/gastos@.service` shows the commit; `git show <commit>~1:deploy/gastos@.service` gives the file) and repeat `daemon-reload` and `restart`. The off-server backup service does not change.
 
 ## 4. HTTPS (Caddy)
 
-O bloco que já existe na VDI não muda: o Caddy repassa `text/event-stream` sem buffer, então o SSE funciona.
+The block that already exists on the VDI does not change: Caddy forwards `text/event-stream` without buffering, so SSE works.
 
 ```
 gastos.gupa.dev {
@@ -111,42 +111,42 @@ gastos.gupa.dev {
 }
 ```
 
-## 5. Chave SSH do CI
+## 5. CI SSH key
 
 ```bash
 ssh-keygen -t ed25519 -N '' -f ci_deploy -C gastos-ci
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 cat ci_deploy.pub >> /home/deploy/.ssh/authorized_keys
-ssh-keyscan -t ed25519 <ip-da-vdi>     # saída vira o segredo DEPLOY_KNOWN_HOSTS
+ssh-keyscan -t ed25519 <vdi-ip>     # the output becomes the DEPLOY_KNOWN_HOSTS secret
 ```
 
-No GitHub, em Settings → Secrets and variables → Actions, crie:
+On GitHub, under Settings → Secrets and variables → Actions, create:
 
-| Segredo | Valor |
+| Secret | Value |
 |---|---|
-| `DEPLOY_HOST` | IP ou nome da VDI |
-| `DEPLOY_SSH_KEY` | conteúdo de `ci_deploy` (privada) |
-| `DEPLOY_KNOWN_HOSTS` | saída do `ssh-keyscan` |
+| `DEPLOY_HOST` | IP or name of the VDI |
+| `DEPLOY_SSH_KEY` | contents of `ci_deploy` (private) |
+| `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` |
 
-Apague `ci_deploy` do servidor depois.
+Delete `ci_deploy` from the server afterwards.
 
-Opcional, mas recomendado: crie a **variável** de repositório (não segredo) `PUBLIC_URL` com o endereço público, por exemplo `https://gastos.gupa.dev`. Depois de cada deploy o CI chama `$PUBLIC_URL/healthz` pelo mesmo caminho dos usuários (DNS, TLS e Caddy), e o job falha se não responder. Sem `DEPLOY_HOST` o job de deploy não faz nada. Para exigir aprovação manual antes de cada deploy, configure revisores obrigatórios no ambiente `production` (Settings → Environments).
+Optional, but recommended: create the repository **variable** (not a secret) `PUBLIC_URL` with the public address, for example `https://gastos.gupa.dev`. After each deploy, CI calls `$PUBLIC_URL/healthz` through the same path as users (DNS, TLS and Caddy), and the job fails if it does not respond. Without `DEPLOY_HOST` the deploy job does nothing. To require manual approval before each deploy, configure required reviewers on the `production` environment (Settings → Environments).
 
-## 6. Aposentar o app antigo
+## 6. Retiring the old app
 
-O serviço antigo se chama `gastos`, roda `gastos-app` na porta 8000 e usa o banco antigo, que **não é compatível** com o schema novo. Antes do primeiro deploy:
+The old service is named `gastos`, runs `gastos-app` on port 8000 and uses the old database, which is **not compatible** with the new schema. Before the first deploy:
 
 ```bash
 systemctl disable --now gastos
-cp /caminho/do/clone/antigo/gastos.db ~/gastos-antigo.db   # guarde por segurança
+cp /path/to/old/clone/gastos.db ~/gastos-antigo.db   # keep it for safety
 ```
 
-Depois remova `/etc/systemd/system/gastos.service` e o clone antigo.
+Then remove `/etc/systemd/system/gastos.service` and the old clone.
 
-## 7. Backup fora do servidor
+## 7. Off-server backup
 
-O backup do app fica no mesmo disco da VDI. Para ter uma cópia cifrada em outro lugar, sem custo, siga [backup.md](backup.md). Faça isso **antes** de usar o app de verdade.
+The app's backup lives on the same disk as the VDI. To have an encrypted copy somewhere else, at no cost, follow [backup.md](backup.md). Do this **before** using the app for real.
 
-## Primeiro deploy
+## First deploy
 
-Faça merge na `master`. O script `scripts/remote-deploy.sh` ativa a release nova e volta sozinho para a anterior se o `/healthz` não responder em 10 segundos.
+Merge into `master`. The `scripts/remote-deploy.sh` script activates the new release and rolls back on its own to the previous one if `/healthz` does not respond within 10 seconds.

@@ -1,42 +1,42 @@
-# Higiene do CI/CD — plano
+# CI/CD hygiene — plan
 
-**Data:** 2026-10-11
-**Status:** a implementar
+**Date:** 2026-10-11
+**Status:** to implement
 
-## Objetivo
+## Goal
 
-Pegar cedo o que os testes não pegam (formatação, bugs estáticos, dependências vulneráveis) e tornar o deploy mais seguro. Sem serviços pagos nem contas novas: tudo roda no GitHub Actions.
+Catch early what the tests do not catch (formatting, static bugs, vulnerable dependencies) and make the deploy safer. No paid services or new accounts: everything runs on GitHub Actions.
 
-## O que entra
+## What is included
 
-| Item | Como | Por quê |
+| Item | How | Why |
 |---|---|---|
-| Formatação Go | `test -z "$(gofmt -l .)"` no job `backend` | já houve arquivo fora do padrão que só o `gofmt` pegou |
-| Lint Go | `golangci-lint` com o conjunto padrão (`govet`, `errcheck`, `staticcheck`, `ineffassign`, `unused`) | erros ignorados e código morto |
-| Vulnerabilidades Go | `govulncheck ./...` | avisa de CVE nas dependências **que o código realmente chama** |
-| Lint do frontend | ESLint (`typescript-eslint`, `react-hooks`) em `npm run lint` | hoje há comentários `eslint-disable` sem ESLint configurado |
-| Vulnerabilidades npm | `npm audit --omit=dev --audit-level=high` | dependências de produção |
-| Atualizações | Dependabot semanal para `gomod`, `npm` (em `web/`) e `github-actions`, agrupando minor e patch | PRs pequenos em vez de dívida acumulada |
-| Deploy sem corrida | `concurrency: { group: deploy, cancel-in-progress: false }` | dois merges seguidos não rodam o script ao mesmo tempo |
-| Teste de fumaça | depois do deploy, `curl -fsS https://gastos.gupa.dev/healthz` com 10 tentativas | o `healthz` local do script não prova que o Caddy e o DNS funcionam |
-| e2e no celular | segundo projeto do Playwright com viewport 390×844 | só testamos em 1280 px |
-| Teste do backup | `bash scripts/offsite-backup.test.sh` no job `backend` | o script de backup precisa continuar funcionando |
+| Go formatting | `test -z "$(gofmt -l .)"` in the `backend` job | a file once got out of format and only `gofmt` caught it |
+| Go lint | `golangci-lint` with the default set (`govet`, `errcheck`, `staticcheck`, `ineffassign`, `unused`) | ignored errors and dead code |
+| Go vulnerabilities | `govulncheck ./...` | warns about CVEs in dependencies **that the code actually calls** |
+| Frontend lint | ESLint (`typescript-eslint`, `react-hooks`) in `npm run lint` | today there are `eslint-disable` comments with no ESLint configured |
+| npm vulnerabilities | `npm audit --omit=dev --audit-level=high` | production dependencies |
+| Updates | Weekly Dependabot for `gomod`, `npm` (in `web/`) and `github-actions`, grouping minor and patch | small PRs instead of accumulated debt |
+| Deploy without races | `concurrency: { group: deploy, cancel-in-progress: false }` | two merges in a row do not run the script at the same time |
+| Smoke test | after the deploy, `curl -fsS https://gastos.gupa.dev/healthz` with 10 attempts | the script's local `healthz` does not prove that Caddy and DNS work |
+| e2e on mobile | second Playwright project with a 390×844 viewport | we only test at 1280 px |
+| Backup test | `bash scripts/offsite-backup.test.sh` in the `backend` job | the backup script must keep working |
 
-## Tarefas
+## Tasks
 
-- [ ] **1. gofmt e golangci-lint** no job `backend`; corrigir o que aparecer (o repositório precisa estar limpo para o job passar).
-- [ ] **2. govulncheck** como job separado (`vuln`), para uma falha de vulnerabilidade não esconder uma falha de teste.
-- [ ] **3. ESLint** no `web/`: `eslint.config.js`, script `lint`, passo no job `web`; corrigir o que aparecer.
-- [ ] **4. `npm audit`** no job `vuln`.
+- [ ] **1. gofmt and golangci-lint** in the `backend` job; fix whatever shows up (the repository must be clean for the job to pass).
+- [ ] **2. govulncheck** as a separate job (`vuln`), so a vulnerability failure does not hide a test failure.
+- [ ] **3. ESLint** in `web/`: `eslint.config.js`, `lint` script, step in the `web` job; fix whatever shows up.
+- [ ] **4. `npm audit`** in the `vuln` job.
 - [ ] **5. Dependabot** (`.github/dependabot.yml`).
-- [ ] **6. Deploy:** `concurrency` e teste de fumaça pela URL pública. O teste de fumaça só roda quando `DEPLOY_HOST` existe; a URL vem da variável de repositório `PUBLIC_URL` (sem ela, o passo é pulado).
-- [ ] **7. e2e mobile:** projeto `mobile` no `playwright.config.ts`; ajustar seletores que dependem do layout de desktop (o botão "Novo lançamento" vira o `+` flutuante).
-- [ ] **8. Teste do script de backup** no job `backend`.
+- [ ] **6. Deploy:** `concurrency` and a smoke test through the public URL. The smoke test only runs when `DEPLOY_HOST` exists; the URL comes from the repository variable `PUBLIC_URL` (without it, the step is skipped).
+- [ ] **7. e2e mobile:** `mobile` project in `playwright.config.ts`; adjust selectors that depend on the desktop layout (the "Novo lançamento" (New transaction) button becomes the floating `+`).
+- [ ] **8. Backup script test** in the `backend` job.
 
-## Fora de escopo
+## Out of scope
 
-CodeQL (o `govulncheck` e o `npm audit` já cobrem dependências; análise estática profunda pode vir depois), SBOM, assinatura de binários, imagem Docker.
+CodeQL (`govulncheck` and `npm audit` already cover dependencies; deep static analysis can come later), SBOM, binary signing, Docker image.
 
-## Risco
+## Risk
 
-Lint novo costuma achar coisas no código existente. A regra é corrigir o achado em vez de relaxar a regra; só se for ruído de verdade eu desligo a regra específica, com um comentário dizendo por quê.
+A new lint usually finds things in existing code. The rule is to fix the finding instead of relaxing the rule; only if it is real noise is the specific rule turned off, with a comment saying why.
