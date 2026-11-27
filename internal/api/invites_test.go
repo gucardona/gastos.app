@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"gastos/internal/config"
+
+	"gastos/internal/api/httpx"
 )
 
 func newInvite(t *testing.T, app *testApp, ttl time.Duration) string {
@@ -82,8 +84,8 @@ func TestCreateInviteStoresOnlyTheHash(t *testing.T) {
 	if err := app.s.DB.QueryRow(`SELECT code_hash, expires_at, used_at, used_by FROM invite_codes`).Scan(&hash, &expires, &usedAt, &usedBy); err != nil {
 		t.Fatal(err)
 	}
-	if string(hash) != string(want[:]) || expires != exp.UTC().Format(tsLayout) || usedAt != nil || usedBy != nil {
-		t.Fatalf("row: hash ok %v, expires %q (want %q), used %v/%v", string(hash) == string(want[:]), expires, exp.UTC().Format(tsLayout), usedAt, usedBy)
+	if string(hash) != string(want[:]) || expires != exp.UTC().Format(httpx.TSLayout) || usedAt != nil || usedBy != nil {
+		t.Fatalf("row: hash ok %v, expires %q (want %q), used %v/%v", string(hash) == string(want[:]), expires, exp.UTC().Format(httpx.TSLayout), usedAt, usedBy)
 	}
 }
 
@@ -200,7 +202,7 @@ func TestRegistrationModeFollowsDBCodes(t *testing.T) {
 func TestHousekeepingRemovesOldInviteCodes(t *testing.T) {
 	app := newTestApp(t)
 	now := app.s.Now().UTC()
-	at := func(d time.Duration) string { return now.Add(d).Format(tsLayout) }
+	at := func(d time.Duration) string { return now.Add(d).Format(httpx.TSLayout) }
 	day := 24 * time.Hour
 	for _, row := range []struct {
 		hash    string

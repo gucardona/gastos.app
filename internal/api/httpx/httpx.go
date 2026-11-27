@@ -22,6 +22,9 @@ import (
 // DateLayout is the layout of every stored date (YYYY-MM-DD).
 const DateLayout = "2006-01-02"
 
+// TSLayout is the layout of every stored timestamp (UTC, second precision).
+const TSLayout = "2006-01-02T15:04:05Z"
+
 // Env holds what the HTTP handlers share: the database, the settings and the background services.
 type Env struct {
 	DB  *sql.DB

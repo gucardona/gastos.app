@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"strings"
 	"time"
+
+	"gastos/internal/api/httpx"
 )
 
 // inviteAlphabet is Crockford base32 without 0 and 1 (no I, L, O, U either), so a code read aloud or
@@ -54,7 +56,7 @@ func CreateInvite(ctx context.Context, d *sql.DB, now time.Time, ttl time.Durati
 	}
 	exp := now.UTC().Add(ttl)
 	if _, err := d.ExecContext(ctx, `INSERT INTO invite_codes (code_hash, expires_at) VALUES (?, ?)`,
-		inviteHash(code), exp.Format(tsLayout)); err != nil {
+		inviteHash(code), exp.Format(httpx.TSLayout)); err != nil {
 		return "", time.Time{}, err
 	}
 	return code, exp, nil

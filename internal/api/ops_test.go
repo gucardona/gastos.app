@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"gastos/internal/config"
+
+	"gastos/internal/api/httpx"
 )
 
 // ---- /healthz: the deploy decides on rollback based on it ----
@@ -91,7 +93,7 @@ func TestHousekeepingRemovesExpiredSessionsOnly(t *testing.T) {
 
 func addChat(t *testing.T, app *testApp, c *client, daysOld int) {
 	t.Helper()
-	at := app.s.Now().UTC().AddDate(0, 0, -daysOld).Format(tsLayout)
+	at := app.s.Now().UTC().AddDate(0, 0, -daysOld).Format(httpx.TSLayout)
 	if _, err := app.s.DB.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content, created_at) VALUES (?, ?, 'user', 'hi', ?)`, c.user.ID, c.walletID, at); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +126,7 @@ func TestHousekeepingDeletesExpiredChat(t *testing.T) {
 		t.Fatalf("%d messages, want 1 (the 2-day-old one stays)", n)
 	}
 	var age int
-	if err := app.s.DB.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.s.Now().UTC().Format(tsLayout)).Scan(&age); err != nil || age != 2 {
+	if err := app.s.DB.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.s.Now().UTC().Format(httpx.TSLayout)).Scan(&age); err != nil || age != 2 {
 		t.Fatalf("remaining message age %d (err %v), want 2", age, err)
 	}
 }

@@ -120,7 +120,7 @@ func (s *Server) loadChat(ctx context.Context, userID, walletID int64, limit int
 	if err != nil {
 		return nil, err
 	}
-	since := s.Now().UTC().AddDate(0, 0, -ai.retention).Format(tsLayout)
+	since := s.Now().UTC().AddDate(0, 0, -ai.retention).Format(httpx.TSLayout)
 	rows, err := s.DB.QueryContext(ctx, `
 		SELECT id, role, content, charts, wallet_ids, created_at FROM chat_messages
 		WHERE user_id = ? AND wallet_id = ? AND created_at >= ? ORDER BY id DESC LIMIT ?`, userID, walletID, since, limit)

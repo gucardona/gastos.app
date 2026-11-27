@@ -25,7 +25,6 @@ const (
 	sessionCookie = "gastos_session"
 	sessionTTL    = 30 * 24 * time.Hour
 	sessionRenew  = 15 * 24 * time.Hour
-	tsLayout      = "2006-01-02T15:04:05Z"
 )
 
 // userDTO is a user as the API returns it.
@@ -67,7 +66,7 @@ func (s *Server) currentMode(ctx context.Context, q httpx.Querier) (registration
 	var dbCode bool
 	if err := q.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM users),
 		EXISTS (SELECT 1 FROM invite_codes WHERE used_at IS NULL AND expires_at > ?)`,
-		s.Now().UTC().Format(tsLayout)).Scan(&users, &dbCode); err != nil {
+		s.Now().UTC().Format(httpx.TSLayout)).Scan(&users, &dbCode); err != nil {
 		return "", err
 	}
 	return modeFor(users, s.Cfg.InviteCode != "" || dbCode), nil
@@ -90,7 +89,7 @@ func (s *Server) checkRegistration(ctx context.Context, q httpx.Querier, code st
 		}
 		var ok bool
 		if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM invite_codes WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?)`,
-			inviteHash(code), s.Now().UTC().Format(tsLayout)).Scan(&ok); err != nil {
+			inviteHash(code), s.Now().UTC().Format(httpx.TSLayout)).Scan(&ok); err != nil {
 			return false, err
 		}
 		if ok {
@@ -102,7 +101,7 @@ func (s *Server) checkRegistration(ctx context.Context, q httpx.Querier, code st
 
 // useInvite marks a single-use code as used by userID; the conditional update lets only one sign-up have it.
 func (s *Server) useInvite(ctx context.Context, tx *sql.Tx, code string, userID int64) error {
-	now := s.Now().UTC().Format(tsLayout)
+	now := s.Now().UTC().Format(httpx.TSLayout)
 	res, err := tx.ExecContext(ctx, `UPDATE invite_codes SET used_at = ?, used_by = ?
 		WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?`, now, userID, inviteHash(code), now)
 	if err != nil {
@@ -390,7 +389,7 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, userID
 	h := sha256.Sum256([]byte(token))
 	exp := s.Now().UTC().Add(sessionTTL)
 	if _, err := s.DB.ExecContext(ctx, `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
-		h[:], userID, exp.Format(tsLayout)); err != nil {
+		h[:], userID, exp.Format(httpx.TSLayout)); err != nil {
 		return err
 	}
 	s.setSessionCookie(w, token, exp)
@@ -420,7 +419,7 @@ func (s *Server) RequireUser(next http.Handler) http.Handler {
 		var expStr string
 		err = s.DB.QueryRowContext(r.Context(),
 			`SELECT user_id, expires_at FROM sessions WHERE token_hash = ? AND expires_at > ?`,
-			h[:], now.Format(tsLayout)).Scan(&userID, &expStr)
+			h[:], now.Format(httpx.TSLayout)).Scan(&userID, &expStr)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				err = httpx.ErrUnauthenticated
@@ -428,10 +427,10 @@ func (s *Server) RequireUser(next http.Handler) http.Handler {
 			s.WriteError(w, r, err)
 			return
 		}
-		if exp, _ := time.Parse(tsLayout, expStr); exp.Sub(now) < sessionRenew {
+		if exp, _ := time.Parse(httpx.TSLayout, expStr); exp.Sub(now) < sessionRenew {
 			newExp := now.Add(sessionTTL)
 			if _, err := s.DB.ExecContext(r.Context(), `UPDATE sessions SET expires_at = ? WHERE token_hash = ?`,
-				newExp.Format(tsLayout), h[:]); err == nil {
+				newExp.Format(httpx.TSLayout), h[:]); err == nil {
 				s.setSessionCookie(w, c.Value, newExp)
 			}
 		}

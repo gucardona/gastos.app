@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"gastos/internal/config"
+
+	"gastos/internal/api/httpx"
 )
 
 // awesomeBody is AwesomeAPI's real response shape for /last/USD-BRL, with the ask price replaced.
@@ -46,7 +48,7 @@ func TestRefreshFXStoresAsk(t *testing.T) {
 	reply.Store(awesomeBody("5.0631"))
 	app, _ := newFXApp(t, reply)
 	app.s.Now = func() time.Time { return time.Date(2026, 10, 17, 9, 30, 0, 0, time.UTC) }
-	if err := app.s.refreshFX(t.Context()); err != nil {
+	if err := app.s.RefreshFX(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	micro, at, ok := app.s.fxRate(t.Context())
@@ -59,13 +61,13 @@ func TestRefreshFXKeepsPreviousRateOnBadAnswers(t *testing.T) {
 	reply := &atomic.Value{}
 	reply.Store(awesomeBody("5.0631"))
 	app, _ := newFXApp(t, reply)
-	if err := app.s.refreshFX(t.Context()); err != nil {
+	if err := app.s.RefreshFX(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	_, before := storedFX(t, app)
 	for _, body := range []string{"500", "not json", `{"USDBRL":{}}`, awesomeBody("0"), awesomeBody("-1"), awesomeBody("abc"), awesomeBody("100.5"), awesomeBody("0.5"), awesomeBody("25"), awesomeBody("NaN"), awesomeBody("1e300")} {
 		reply.Store(body)
-		if err := app.s.refreshFX(t.Context()); err == nil {
+		if err := app.s.RefreshFX(t.Context()); err == nil {
 			t.Errorf("%.40s: want an error", body)
 		}
 		if micro, at := storedFX(t, app); micro != 5063100 || at != before {
@@ -103,7 +105,7 @@ func TestHousekeepingFetchesFXOnlyWhenStale(t *testing.T) {
 	later := time.Now().Add(21 * time.Hour)
 	app.s.Now = func() time.Time { return later }
 	runHousekeeping(t, app, func() bool { micro, _ := storedFX(t, app); return micro == 5500000 })
-	if micro, at := storedFX(t, app); micro != 5500000 || hits.Load() != 2 || at != later.UTC().Format(tsLayout) {
+	if micro, at := storedFX(t, app); micro != 5500000 || hits.Load() != 2 || at != later.UTC().Format(httpx.TSLayout) {
 		t.Fatalf("stale: rate %d at %s, %d requests", micro, at, hits.Load())
 	}
 }

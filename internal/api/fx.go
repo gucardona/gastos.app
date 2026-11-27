@@ -11,13 +11,15 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"gastos/internal/api/httpx"
 )
 
 var _fxClient = &http.Client{Timeout: 10 * time.Second}
 
-// refreshFX fetches the USD-BRL quote from cfg.FXURL and stores its ask price (what a buyer pays, the
+// RefreshFX fetches the USD-BRL quote from cfg.FXURL and stores its ask price (what a buyer pays, the
 // conservative side). On any failure the stored rate is left as it was.
-func (s *Server) refreshFX(ctx context.Context) error {
+func (s *Server) RefreshFX(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.Cfg.FXURL, nil)
 	if err != nil {
 		return err
@@ -44,11 +46,11 @@ func (s *Server) refreshFX(ctx context.Context) error {
 	}
 	_, err = s.DB.ExecContext(ctx, `INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET usd_brl_micro = excluded.usd_brl_micro, fetched_at = excluded.fetched_at`,
-		int64(math.Round(ask*1e6)), s.Now().UTC().Format(tsLayout))
+		int64(math.Round(ask*1e6)), s.Now().UTC().Format(httpx.TSLayout))
 	return err
 }
 
-// fxRate returns the stored rate in micro-reais per dollar and when it was fetched (tsLayout); ok is false when none.
+// fxRate returns the stored rate in micro-reais per dollar and when it was fetched (httpx.TSLayout); ok is false when none.
 func (s *Server) fxRate(ctx context.Context) (micro int64, fetchedAt string, ok bool) {
 	err := s.DB.QueryRowContext(ctx, `SELECT usd_brl_micro, fetched_at FROM fx_rate WHERE id = 1`).Scan(&micro, &fetchedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -57,12 +59,12 @@ func (s *Server) fxRate(ctx context.Context) (micro int64, fetchedAt string, ok 
 	return micro, fetchedAt, err == nil
 }
 
-// fxStale reports whether the rate is missing or older than 20 hours (a daily fetch, with slack for the hourly tick).
-func (s *Server) fxStale(ctx context.Context) bool {
+// FXStale reports whether the rate is missing or older than 20 hours (a daily fetch, with slack for the hourly tick).
+func (s *Server) FXStale(ctx context.Context) bool {
 	_, at, ok := s.fxRate(ctx)
 	if !ok {
 		return true
 	}
-	t, err := time.Parse(tsLayout, at)
+	t, err := time.Parse(httpx.TSLayout, at)
 	return err != nil || s.Now().Sub(t) > 20*time.Hour
 }
