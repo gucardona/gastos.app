@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "../api/types";
-import { Ctx } from "../context";
+import { Ctx } from "../app/context";
 import { appCtx, wallet } from "../test/fixtures";
 import { Chat } from "./Chat";
 

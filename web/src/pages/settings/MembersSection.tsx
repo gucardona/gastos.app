@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { api } from "../../api/client";
 import type { Member } from "../../api/types";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { MemberSheet } from "../../components/MemberSheet";
-import { Segmented } from "../../components/Segmented";
-import { Sheet } from "../../components/Sheet";
-import { useApp } from "../../context";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { MemberSheet } from "../../features/members/MemberSheet";
+import { Segmented } from "../../ui/Segmented";
+import { Sheet } from "../../ui/Sheet";
+import { useApp } from "../../app/context";
 import { useAction } from "../../hooks/useAction";
 
 const ROLE_LABEL = { owner: "Administra", editor: "Pode editar", reader: "Só leitura" } as const;

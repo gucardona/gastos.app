@@ -4,8 +4,8 @@ import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import type { Category, Member, PaymentMethod, Transaction, Wallet } from "../api/types";
-import { ToastContext } from "../components/Toast";
-import { Ctx, type AppCtx } from "../context";
+import { ToastContext } from "../ui/Toast";
+import { Ctx, type AppCtx } from "../app/context";
 import { today } from "../lib/dates";
 
 export const ana = { id: 1, name: "Ana Souza", email: "ana@example.com" };

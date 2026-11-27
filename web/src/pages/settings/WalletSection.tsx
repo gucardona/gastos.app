@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { api } from "../../api/client";
 import type { Wallet } from "../../api/types";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { Sheet } from "../../components/Sheet";
-import { Switch } from "../../components/Switch";
-import { useApp } from "../../context";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { Sheet } from "../../ui/Sheet";
+import { Switch } from "../../ui/Switch";
+import { useApp } from "../../app/context";
 import { useAction } from "../../hooks/useAction";
 
 export function WalletSection() {

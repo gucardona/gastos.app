@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { Category, Kind } from "../../api/types";
-import { CategorySheet } from "../../components/CategorySheet";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { Segmented } from "../../components/Segmented";
-import { useApp } from "../../context";
+import { CategorySheet } from "../../features/categories/CategorySheet";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { Segmented } from "../../ui/Segmented";
+import { useApp } from "../../app/context";
 
 const ESSENTIALITY = { essential: "Essencial", nonessential: "Não essencial", investment: "Investimento" } as const;
 

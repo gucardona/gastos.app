@@ -4,11 +4,11 @@ import { Navigate, useNavigate } from "react-router";
 import { api, ApiError, isUnauthenticated } from "../api/client";
 import { useChat } from "../api/queries";
 import type { ChatMessage } from "../api/types";
-import { Chart } from "../components/Chart";
-import { ConfirmButton } from "../components/ConfirmButton";
-import { PageBar } from "../components/PageBar";
-import { WalletPicker } from "../components/WalletPicker";
-import { useApp } from "../context";
+import { Chart } from "../features/reports/Chart";
+import { ConfirmButton } from "../ui/ConfirmButton";
+import { PageBar } from "../app/PageBar";
+import { WalletPicker } from "../features/wallets/WalletPicker";
+import { useApp } from "../app/context";
 import { useAction } from "../hooks/useAction";
 import { streamChat } from "../lib/chatStream";
 
