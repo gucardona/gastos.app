@@ -13,11 +13,12 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"gastos/internal/api/httpx"
 )
 
 const (
@@ -26,24 +27,6 @@ const (
 	sessionRenew  = 15 * 24 * time.Hour
 	tsLayout      = "2006-01-02T15:04:05Z"
 )
-
-// ctxKey keys the values the middleware stores in a request context.
-type ctxKey int
-
-const (
-	ctxUserID ctxKey = iota
-	ctxWalletID
-	ctxRole
-)
-
-// userIDFrom returns the signed-in user's id, set by requireUser.
-func userIDFrom(ctx context.Context) int64 { v, _ := ctx.Value(ctxUserID).(int64); return v }
-
-// walletIDFrom returns the wallet id of the route, set by requireWallet.
-func walletIDFrom(ctx context.Context) int64 { v, _ := ctx.Value(ctxWalletID).(int64); return v }
-
-// roleFrom returns the user's role in the route's wallet, set by requireWallet.
-func roleFrom(ctx context.Context) role { v, _ := ctx.Value(ctxRole).(role); return v }
 
 // userDTO is a user as the API returns it.
 type userDTO struct {
@@ -76,24 +59,24 @@ func modeFor(userCount int, codeAvailable bool) registrationMode {
 }
 
 // errSignupClosed is the same for a missing and a wrong code, so it reveals nothing about the code.
-var errSignupClosed = &apiError{Status: 403, Code: "forbidden", Message: "O cadastro está fechado. Peça um convite."}
+var errSignupClosed = &httpx.APIError{Status: 403, Code: "forbidden", Message: "O cadastro está fechado. Peça um convite."}
 
 // currentMode works out the registration mode from the number of users and the unused invite codes.
-func (s *Server) currentMode(ctx context.Context, q querier) (registrationMode, error) {
+func (s *Server) currentMode(ctx context.Context, q httpx.Querier) (registrationMode, error) {
 	var users int
 	var dbCode bool
 	if err := q.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM users),
 		EXISTS (SELECT 1 FROM invite_codes WHERE used_at IS NULL AND expires_at > ?)`,
-		s.now().UTC().Format(tsLayout)).Scan(&users, &dbCode); err != nil {
+		s.Now().UTC().Format(tsLayout)).Scan(&users, &dbCode); err != nil {
 		return "", err
 	}
-	return modeFor(users, s.cfg.InviteCode != "" || dbCode), nil
+	return modeFor(users, s.Cfg.InviteCode != "" || dbCode), nil
 }
 
 // checkRegistration applies the sign-up policy. q is the transaction when called from inside one,
 // so two simultaneous "first" sign-ups cannot both succeed. dbCode reports that the code is a valid
 // single-use one, which the caller must consume (useInvite) in the transaction that creates the user.
-func (s *Server) checkRegistration(ctx context.Context, q querier, code string) (dbCode bool, err error) {
+func (s *Server) checkRegistration(ctx context.Context, q httpx.Querier, code string) (dbCode bool, err error) {
 	mode, err := s.currentMode(ctx, q)
 	if err != nil {
 		return false, err
@@ -102,12 +85,12 @@ func (s *Server) checkRegistration(ctx context.Context, q querier, code string) 
 	case modeOpen:
 		return false, nil
 	case modeCode:
-		if s.cfg.InviteCode != "" && subtle.ConstantTimeCompare([]byte(code), []byte(s.cfg.InviteCode)) == 1 {
+		if s.Cfg.InviteCode != "" && subtle.ConstantTimeCompare([]byte(code), []byte(s.Cfg.InviteCode)) == 1 {
 			return false, nil
 		}
 		var ok bool
 		if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM invite_codes WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?)`,
-			inviteHash(code), s.now().UTC().Format(tsLayout)).Scan(&ok); err != nil {
+			inviteHash(code), s.Now().UTC().Format(tsLayout)).Scan(&ok); err != nil {
 			return false, err
 		}
 		if ok {
@@ -119,7 +102,7 @@ func (s *Server) checkRegistration(ctx context.Context, q querier, code string) 
 
 // useInvite marks a single-use code as used by userID; the conditional update lets only one sign-up have it.
 func (s *Server) useInvite(ctx context.Context, tx *sql.Tx, code string, userID int64) error {
-	now := s.now().UTC().Format(tsLayout)
+	now := s.Now().UTC().Format(tsLayout)
 	res, err := tx.ExecContext(ctx, `UPDATE invite_codes SET used_at = ?, used_by = ?
 		WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?`, now, userID, inviteHash(code), now)
 	if err != nil {
@@ -137,18 +120,18 @@ func (s *Server) useInvite(ctx context.Context, tx *sql.Tx, code string, userID 
 
 // registrationInfo tells the sign-in screen what to show. It is public and reveals only the mode.
 func (s *Server) registrationInfo(w http.ResponseWriter, r *http.Request) error {
-	mode, err := s.currentMode(r.Context(), s.db)
+	mode, err := s.currentMode(r.Context(), s.DB)
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, map[string]registrationMode{"mode": mode})
+	httpx.WriteJSON(w, http.StatusOK, map[string]registrationMode{"mode": mode})
 	return nil
 }
 
 // register creates an account, signs it in and creates its first wallet.
 func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
-	if !s.limiter.allow("register:ip:" + clientIP(r)) {
-		return errRateLimited
+	if !s.limiter.Allow("register:ip:" + clientIP(r)) {
+		return httpx.ErrRateLimited
 	}
 	var in struct {
 		Name       string `json:"name"`
@@ -156,29 +139,29 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 		Password   string `json:"password"`
 		InviteCode string `json:"inviteCode"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	// refuse early, before spending a bcrypt hash; the check is repeated inside the transaction
-	if _, err := s.checkRegistration(r.Context(), s.db, in.InviteCode); err != nil {
+	if _, err := s.checkRegistration(r.Context(), s.DB, in.InviteCode); err != nil {
 		return err
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if in.Name == "" {
-		fe.add("name", "obrigatório")
+		fe.Add("name", "obrigatório")
 	}
 	if _, err := mail.ParseAddress(in.Email); err != nil {
-		fe.add("email", "e-mail inválido")
+		fe.Add("email", "e-mail inválido")
 	}
 	switch {
 	case len(in.Password) < 8:
-		fe.add("password", "mínimo de 8 caracteres")
+		fe.Add("password", "mínimo de 8 caracteres")
 	case len(in.Password) > 72: // bcrypt refuses longer passwords
-		fe.add("password", "máximo de 72 caracteres")
+		fe.Add("password", "máximo de 72 caracteres")
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), _bcryptCost)
@@ -187,7 +170,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	var userID int64
-	err = s.inTx(r.Context(), func(tx *sql.Tx) error {
+	err = s.InTx(r.Context(), func(tx *sql.Tx) error {
 		dbCode, err := s.checkRegistration(r.Context(), tx, in.InviteCode)
 		if err != nil {
 			return err
@@ -196,8 +179,8 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 			`INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?) RETURNING id`,
 			in.Name, in.Email, string(hash)).Scan(&userID)
 		if err != nil {
-			if isUnique(err) {
-				return errConflict("E-mail já cadastrado")
+			if httpx.IsUnique(err) {
+				return httpx.ErrConflict("E-mail já cadastrado")
 			}
 			return err
 		}
@@ -215,7 +198,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if err := s.startSession(r.Context(), w, userID); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusCreated, userDTO{userID, in.Name, in.Email})
+	httpx.WriteJSON(w, http.StatusCreated, userDTO{userID, in.Name, in.Email})
 	return nil
 }
 
@@ -225,23 +208,23 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
-	if !s.limiter.allow("ip:" + clientIP(r)) {
-		return errRateLimited
+	if !s.limiter.Allow("ip:" + clientIP(r)) {
+		return httpx.ErrRateLimited
 	}
 	// The email key counts failures only and never refuses the right password, so strangers cannot lock a user out.
 	failed := func() error {
-		if !s.limiter.allow("email:" + in.Email) {
-			return errRateLimited
+		if !s.limiter.Allow("email:" + in.Email) {
+			return httpx.ErrRateLimited
 		}
 		return errBadLogin
 	}
 	var u userDTO
 	var hash string
-	err := s.db.QueryRowContext(r.Context(),
+	err := s.DB.QueryRowContext(r.Context(),
 		`SELECT id, name, email, password_hash FROM users WHERE email = ?`, in.Email).
 		Scan(&u.ID, &u.Name, &u.Email, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -258,11 +241,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	if err := s.startSession(r.Context(), w, u.ID); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, u)
+	httpx.WriteJSON(w, http.StatusOK, u)
 	return nil
 }
 
-var errBadLogin = &apiError{Status: 401, Code: "unauthenticated", Message: "E-mail ou senha incorretos"}
+var errBadLogin = &httpx.APIError{Status: 401, Code: "unauthenticated", Message: "E-mail ou senha incorretos"}
 
 // _dummyHash is a valid bcrypt hash of an arbitrary password, used to equalize response time.
 var _dummyHash = func() string {
@@ -274,7 +257,7 @@ var _dummyHash = func() string {
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) error {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		h := sha256.Sum256([]byte(c.Value))
-		if _, err := s.db.ExecContext(r.Context(), `DELETE FROM sessions WHERE token_hash = ?`, h[:]); err != nil {
+		if _, err := s.DB.ExecContext(r.Context(), `DELETE FROM sessions WHERE token_hash = ?`, h[:]); err != nil {
 			return err
 		}
 	}
@@ -286,8 +269,8 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) error {
 // me returns the signed-in user.
 func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 	var u userDTO
-	if err := s.db.QueryRowContext(r.Context(), `SELECT id, name, email FROM users WHERE id = ?`,
-		userIDFrom(r.Context())).Scan(&u.ID, &u.Name, &u.Email); err != nil {
+	if err := s.DB.QueryRowContext(r.Context(), `SELECT id, name, email FROM users WHERE id = ?`,
+		httpx.UserIDFrom(r.Context())).Scan(&u.ID, &u.Name, &u.Email); err != nil {
 		return err
 	}
 	wallets, err := s.walletsFor(r.Context(), u.ID)
@@ -298,7 +281,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 	if aiErr != nil && !errors.Is(aiErr, errAIDisabled) && !errors.Is(aiErr, errAIKeyUnreadable) {
 		return aiErr
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets, "assistantEnabled": aiErr == nil})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets, "assistantEnabled": aiErr == nil})
 	return nil
 }
 
@@ -309,36 +292,36 @@ func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Name string `json:"name"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	in.Name = strings.TrimSpace(in.Name)
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if in.Name == "" {
-		fe.add("name", "obrigatório")
+		fe.Add("name", "obrigatório")
 	} else if utf8.RuneCountInString(in.Name) > maxNameLen {
-		fe.add("name", "use até 60 caracteres")
+		fe.Add("name", "use até 60 caracteres")
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
-	uid := userIDFrom(r.Context())
+	uid := httpx.UserIDFrom(r.Context())
 	var u userDTO
-	if err := s.db.QueryRowContext(r.Context(), `UPDATE users SET name = ? WHERE id = ? RETURNING id, name, email`,
+	if err := s.DB.QueryRowContext(r.Context(), `UPDATE users SET name = ? WHERE id = ? RETURNING id, name, email`,
 		in.Name, uid).Scan(&u.ID, &u.Name, &u.Email); err != nil {
 		return err
 	}
-	s.notifyUsers(uid) // their other tabs, even with no wallet left
-	ctx, cancel := notifyCtx(r.Context())
+	s.NotifyUsers(uid) // their other tabs, even with no wallet left
+	ctx, cancel := httpx.NotifyCtx(r.Context())
 	defer cancel()
 	wallets, err := s.walletsFor(ctx, uid)
 	if err != nil {
-		s.log.ErrorContext(ctx, "notify co-members", "user", uid, "err", err) // the new name is saved: only the notice is lost
+		s.Log.ErrorContext(ctx, "notify co-members", "user", uid, "err", err) // the new name is saved: only the notice is lost
 	}
 	for _, wl := range wallets {
-		s.notifyWallet(ctx, wl.ID)
+		s.NotifyWallet(ctx, wl.ID)
 	}
-	writeJSON(w, http.StatusOK, u)
+	httpx.WriteJSON(w, http.StatusOK, u)
 	return nil
 }
 
@@ -349,30 +332,30 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 		CurrentPassword string `json:"currentPassword"`
 		NewPassword     string `json:"newPassword"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	uid := userIDFrom(r.Context())
-	if !s.limiter.allow("password:user:" + strconv.FormatInt(uid, 10)) { // stops guessing the current password
-		return errRateLimited
+	uid := httpx.UserIDFrom(r.Context())
+	if !s.limiter.Allow("password:user:" + strconv.FormatInt(uid, 10)) { // stops guessing the current password
+		return httpx.ErrRateLimited
 	}
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	switch {
 	case len(in.NewPassword) < 8:
-		fe.add("newPassword", "mínimo de 8 caracteres")
+		fe.Add("newPassword", "mínimo de 8 caracteres")
 	case len(in.NewPassword) > 72: // bcrypt ignores everything after 72 bytes
-		fe.add("newPassword", "máximo de 72 caracteres")
+		fe.Add("newPassword", "máximo de 72 caracteres")
 	case in.NewPassword == in.CurrentPassword:
-		fe.add("newPassword", "use uma senha diferente da atual")
+		fe.Add("newPassword", "use uma senha diferente da atual")
 	}
 	var hash string
-	if err := s.db.QueryRowContext(r.Context(), `SELECT password_hash FROM users WHERE id = ?`, uid).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(r.Context(), `SELECT password_hash FROM users WHERE id = ?`, uid).Scan(&hash); err != nil {
 		return err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.CurrentPassword)) != nil {
-		fe.add("currentPassword", "senha atual incorreta")
+		fe.Add("currentPassword", "senha atual incorreta")
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
 	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), _bcryptCost)
@@ -383,7 +366,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		keep = sha256.Sum256([]byte(c.Value))
 	}
-	if err := s.inTx(r.Context(), func(tx *sql.Tx) error {
+	if err := s.InTx(r.Context(), func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(r.Context(), `UPDATE users SET password_hash = ? WHERE id = ?`, string(newHash), uid); err != nil {
 			return err
 		}
@@ -392,7 +375,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	}); err != nil {
 		return err
 	}
-	s.notifyUsers(uid) // the sessions just ended refetch, get a 401 and go to the login right away
+	s.NotifyUsers(uid) // the sessions just ended refetch, get a 401 and go to the login right away
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -405,8 +388,8 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, userID
 	}
 	token := base64.RawURLEncoding.EncodeToString(b)
 	h := sha256.Sum256([]byte(token))
-	exp := s.now().UTC().Add(sessionTTL)
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
+	exp := s.Now().UTC().Add(sessionTTL)
+	if _, err := s.DB.ExecContext(ctx, `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
 		h[:], userID, exp.Format(tsLayout)); err != nil {
 		return err
 	}
@@ -419,7 +402,7 @@ func (s *Server) startSession(ctx context.Context, w http.ResponseWriter, userID
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, exp time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: token, Path: "/", Expires: exp,
-		HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
+		HttpOnly: true, Secure: s.Cfg.CookieSecure, SameSite: http.SameSiteLaxMode,
 	})
 }
 
@@ -428,31 +411,31 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(sessionCookie)
 		if err != nil {
-			s.writeError(w, r, errUnauthenticated)
+			s.WriteError(w, r, httpx.ErrUnauthenticated)
 			return
 		}
 		h := sha256.Sum256([]byte(c.Value))
-		now := s.now().UTC()
+		now := s.Now().UTC()
 		var userID int64
 		var expStr string
-		err = s.db.QueryRowContext(r.Context(),
+		err = s.DB.QueryRowContext(r.Context(),
 			`SELECT user_id, expires_at FROM sessions WHERE token_hash = ? AND expires_at > ?`,
 			h[:], now.Format(tsLayout)).Scan(&userID, &expStr)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				err = errUnauthenticated
+				err = httpx.ErrUnauthenticated
 			}
-			s.writeError(w, r, err)
+			s.WriteError(w, r, err)
 			return
 		}
 		if exp, _ := time.Parse(tsLayout, expStr); exp.Sub(now) < sessionRenew {
 			newExp := now.Add(sessionTTL)
-			if _, err := s.db.ExecContext(r.Context(), `UPDATE sessions SET expires_at = ? WHERE token_hash = ?`,
+			if _, err := s.DB.ExecContext(r.Context(), `UPDATE sessions SET expires_at = ? WHERE token_hash = ?`,
 				newExp.Format(tsLayout), h[:]); err == nil {
 				s.setSessionCookie(w, c.Value, newExp)
 			}
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUserID, userID)))
+		next.ServeHTTP(w, r.WithContext(httpx.WithUser(r.Context(), userID)))
 	})
 }
 
@@ -466,36 +449,4 @@ func clientIP(r *http.Request) string {
 		}
 	}
 	return host
-}
-
-// rateLimiter counts attempts per key in a sliding window.
-type rateLimiter struct {
-	mu     sync.Mutex
-	max    int
-	window time.Duration
-	hits   map[string][]time.Time
-}
-
-// newRateLimiter returns a limiter that allows limit attempts per key within window.
-func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{max: limit, window: window, hits: map[string][]time.Time{}}
-}
-
-// allow records an attempt and reports whether it is still within the limit.
-func (l *rateLimiter) allow(key string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := time.Now()
-	kept := l.hits[key][:0]
-	for _, t := range l.hits[key] {
-		if now.Sub(t) < l.window {
-			kept = append(kept, t)
-		}
-	}
-	if len(kept) >= l.max {
-		l.hits[key] = kept
-		return false
-	}
-	l.hits[key] = append(kept, now)
-	return true
 }

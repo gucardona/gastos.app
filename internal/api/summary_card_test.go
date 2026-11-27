@@ -9,8 +9,8 @@ import (
 func cardApp(t *testing.T) (*client, methodDTO) {
 	t.Helper()
 	app := newTestApp(t)
-	loc := app.s.cfg.Location
-	app.s.now = func() time.Time { return time.Date(2026, 12, 5, 12, 0, 0, 0, loc) }
+	loc := app.s.Cfg.Location
+	app.s.Now = func() time.Time { return time.Date(2026, 12, 5, 12, 0, 0, 0, loc) }
 	c := app.register("Ana", "ana@example.com")
 	return c, card2027(c)
 }
@@ -44,7 +44,7 @@ func TestCardPurchaseCountsInInvoiceMonth(t *testing.T) {
 		t.Errorf("December to pay: %+v (%d)", dec.Upcoming, dec.UpcomingExpenseCents)
 	}
 
-	c.app.s.now = func() time.Time { return time.Date(2026, 12, 27, 12, 0, 0, 0, c.app.s.cfg.Location) }
+	c.app.s.Now = func() time.Time { return time.Date(2026, 12, 27, 12, 0, 0, 0, c.app.s.Cfg.Location) }
 	check("2026-12", 8700)
 	if d := getSummary(c, "2026-12"); len(d.Upcoming) != 0 {
 		t.Errorf("paid on the due day, nothing left: %+v", d.Upcoming)
@@ -81,7 +81,7 @@ func TestOldTransactionsKeepTheirMonth(t *testing.T) {
 func TestUpcomingCardRecurrenceLandsInInvoiceMonth(t *testing.T) {
 	c, card := cardApp(t)
 	id := insertRecurrence(t, c, c.walletID, recRow{kind: "expense", description: "Streaming", start: "2026-12-01", amount: 3990, day: 22, enabled: true})
-	if _, err := c.app.s.db.Exec(`UPDATE recurrences SET payment_method_id = ? WHERE id = ?`, card.ID, id); err != nil {
+	if _, err := c.app.s.DB.Exec(`UPDATE recurrences SET payment_method_id = ? WHERE id = ?`, card.ID, id); err != nil {
 		t.Fatal(err)
 	}
 	dec, jan := getSummary(c, "2026-12"), getSummary(c, "2027-01")

@@ -18,7 +18,7 @@ var _fxClient = &http.Client{Timeout: 10 * time.Second}
 // refreshFX fetches the USD-BRL quote from cfg.FXURL and stores its ask price (what a buyer pays, the
 // conservative side). On any failure the stored rate is left as it was.
 func (s *Server) refreshFX(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.FXURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.Cfg.FXURL, nil)
 	if err != nil {
 		return err
 	}
@@ -42,17 +42,17 @@ func (s *Server) refreshFX(ctx context.Context) error {
 	if err != nil || !(ask >= 1 && ask <= 20) { // also rejects NaN
 		return fmt.Errorf("fx: implausible ask %q", body.USDBRL.Ask)
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)
+	_, err = s.DB.ExecContext(ctx, `INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET usd_brl_micro = excluded.usd_brl_micro, fetched_at = excluded.fetched_at`,
-		int64(math.Round(ask*1e6)), s.now().UTC().Format(tsLayout))
+		int64(math.Round(ask*1e6)), s.Now().UTC().Format(tsLayout))
 	return err
 }
 
 // fxRate returns the stored rate in micro-reais per dollar and when it was fetched (tsLayout); ok is false when none.
 func (s *Server) fxRate(ctx context.Context) (micro int64, fetchedAt string, ok bool) {
-	err := s.db.QueryRowContext(ctx, `SELECT usd_brl_micro, fetched_at FROM fx_rate WHERE id = 1`).Scan(&micro, &fetchedAt)
+	err := s.DB.QueryRowContext(ctx, `SELECT usd_brl_micro, fetched_at FROM fx_rate WHERE id = 1`).Scan(&micro, &fetchedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		s.log.Error("read fx rate", "err", err)
+		s.Log.Error("read fx rate", "err", err)
 	}
 	return micro, fetchedAt, err == nil
 }
@@ -64,5 +64,5 @@ func (s *Server) fxStale(ctx context.Context) bool {
 		return true
 	}
 	t, err := time.Parse(tsLayout, at)
-	return err != nil || s.now().Sub(t) > 20*time.Hour
+	return err != nil || s.Now().Sub(t) > 20*time.Hour
 }

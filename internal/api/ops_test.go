@@ -27,7 +27,8 @@ func TestHealthzOK(t *testing.T) {
 
 func TestHealthzFailsWhenDatabaseIsGone(t *testing.T) {
 	app := newTestApp(t)
-	app.s.db.Close()
+	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	app.s.DB.Close()
 	res, err := http.Get(app.srv.URL + "/healthz")
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +44,7 @@ func TestHealthzFailsWhenDatabaseIsGone(t *testing.T) {
 func countRows(t *testing.T, app *testApp, query string) int {
 	t.Helper()
 	var n int
-	if err := app.s.db.QueryRow(query).Scan(&n); err != nil {
+	if err := app.s.DB.QueryRow(query).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
@@ -68,14 +69,14 @@ func runHousekeeping(t *testing.T, app *testApp, until func() bool) {
 }
 
 func backups(app *testApp) []string {
-	files, _ := filepath.Glob(filepath.Join(app.s.cfg.BackupDir, "gastos-*.db"))
+	files, _ := filepath.Glob(filepath.Join(app.s.Cfg.BackupDir, "gastos-*.db"))
 	return files
 }
 
 func TestHousekeepingRemovesExpiredSessionsOnly(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
-	if _, err := app.s.db.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (x'01', ?, '2000-01-01T00:00:00Z')`, ana.user.ID); err != nil {
+	if _, err := app.s.DB.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (x'01', ?, '2000-01-01T00:00:00Z')`, ana.user.ID); err != nil {
 		t.Fatal(err)
 	}
 	if n := countRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 2 {
@@ -90,15 +91,15 @@ func TestHousekeepingRemovesExpiredSessionsOnly(t *testing.T) {
 
 func addChat(t *testing.T, app *testApp, c *client, daysOld int) {
 	t.Helper()
-	at := app.s.now().UTC().AddDate(0, 0, -daysOld).Format(tsLayout)
-	if _, err := app.s.db.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content, created_at) VALUES (?, ?, 'user', 'hi', ?)`, c.user.ID, c.walletID, at); err != nil {
+	at := app.s.Now().UTC().AddDate(0, 0, -daysOld).Format(tsLayout)
+	if _, err := app.s.DB.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content, created_at) VALUES (?, ?, 'user', 'hi', ?)`, c.user.ID, c.walletID, at); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func setRetention(t *testing.T, app *testApp, c *client, days int) {
 	t.Helper()
-	if _, err := app.s.db.Exec(`INSERT INTO ai_settings (user_id, api_key_enc, key_hint, retention_days) VALUES (?, x'', '1234', ?)`, c.user.ID, days); err != nil {
+	if _, err := app.s.DB.Exec(`INSERT INTO ai_settings (user_id, api_key_enc, key_hint, retention_days) VALUES (?, x'', '1234', ?)`, c.user.ID, days); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -106,7 +107,7 @@ func setRetention(t *testing.T, app *testApp, c *client, days int) {
 func chatCount(t *testing.T, app *testApp, c *client) int {
 	t.Helper()
 	var n int
-	if err := app.s.db.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE user_id = ?`, c.user.ID).Scan(&n); err != nil {
+	if err := app.s.DB.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE user_id = ?`, c.user.ID).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
@@ -123,7 +124,7 @@ func TestHousekeepingDeletesExpiredChat(t *testing.T) {
 		t.Fatalf("%d messages, want 1 (the 2-day-old one stays)", n)
 	}
 	var age int
-	if err := app.s.db.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.s.now().UTC().Format(tsLayout)).Scan(&age); err != nil || age != 2 {
+	if err := app.s.DB.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.s.Now().UTC().Format(tsLayout)).Scan(&age); err != nil || age != 2 {
 		t.Fatalf("remaining message age %d (err %v), want 2", age, err)
 	}
 }
@@ -176,7 +177,7 @@ func TestHousekeepingMakesBackupOnlyWhenTheLastIsOld(t *testing.T) {
 
 func TestHousekeepingRotatesOldBackups(t *testing.T) {
 	app := newTestAppWith(t, func(c *config.Config) { c.BackupKeep = 2 })
-	dir := app.s.cfg.BackupDir
+	dir := app.s.Cfg.BackupDir
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}

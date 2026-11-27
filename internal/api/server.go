@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/config"
 	"gastos/internal/events"
 	"gastos/internal/recurrence"
@@ -18,17 +19,12 @@ import (
 
 // Server holds what the HTTP handlers share: the database, the settings and the background services.
 type Server struct {
-	db      *sql.DB
-	cfg     config.Config
-	bus     *events.Bus
-	mat     *recurrence.Materializer
-	log     *slog.Logger
-	limiter *rateLimiter
-	now     func() time.Time
+	*httpx.Env
+	limiter *httpx.RateLimiter
 
 	anthropicURL string
 
-	chatLimiter  *rateLimiter
+	chatLimiter  *httpx.RateLimiter
 	chatMu       sync.Mutex
 	chatInFlight map[int64]bool // users with an answer being generated
 }
@@ -39,18 +35,19 @@ func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materia
 	if aiURL == "" {
 		aiURL = config.DefaultAnthropicURL
 	}
-	return &Server{db: db, cfg: cfg, bus: bus, mat: mat, log: log, limiter: newRateLimiter(10, 15*time.Minute), now: time.Now, anthropicURL: aiURL,
-		chatLimiter: newRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
+	env := &httpx.Env{DB: db, Cfg: cfg, Bus: bus, Mat: mat, Log: log, Now: time.Now}
+	return &Server{Env: env, limiter: httpx.NewRateLimiter(10, 15*time.Minute), anthropicURL: aiURL,
+		chatLimiter: httpx.NewRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
 }
 
 // Routes returns the handler for every route: the API, /healthz and the web app served from spa,
 // wrapped in logging, panic recovery and the security headers.
 func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux := http.NewServeMux()
-	public := s.handle
-	user := func(h handlerFunc) http.Handler { return s.requireUser(s.handle(h)) }
-	wallet := func(minRole role, h handlerFunc) http.Handler {
-		return s.requireUser(s.requireWallet(minRole, s.handle(h)))
+	public := s.Handle
+	user := func(h httpx.HandlerFunc) http.Handler { return s.requireUser(s.Handle(h)) }
+	wallet := func(minRole httpx.Role, h httpx.HandlerFunc) http.Handler {
+		return s.requireUser(s.requireWallet(minRole, s.Handle(h)))
 	}
 
 	mux.Handle("GET /api/auth/registration", public(s.registrationInfo))
@@ -70,13 +67,13 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 
 	mux.Handle("GET /api/wallets", user(s.listWallets))
 	mux.Handle("POST /api/wallets", user(s.createWallet))
-	mux.Handle("PATCH /api/wallets/{walletID}", wallet(roleOwner, s.updateWallet))
-	mux.Handle("DELETE /api/wallets/{walletID}", wallet(roleOwner, s.deleteWallet))
-	mux.Handle("GET /api/wallets/{walletID}/members", wallet(roleReader, s.listMembers))
-	mux.Handle("POST /api/wallets/{walletID}/members", wallet(roleOwner, s.addMember))
-	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", wallet(roleOwner, s.updateMember))
-	mux.Handle("PUT /api/wallets/{walletID}/default-payment-method", wallet(roleEditor, s.setDefaultPaymentMethod))
-	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(roleReader, s.removeMember)) // owner or the member themselves: checked in the handler
+	mux.Handle("PATCH /api/wallets/{walletID}", wallet(httpx.RoleOwner, s.updateWallet))
+	mux.Handle("DELETE /api/wallets/{walletID}", wallet(httpx.RoleOwner, s.deleteWallet))
+	mux.Handle("GET /api/wallets/{walletID}/members", wallet(httpx.RoleReader, s.listMembers))
+	mux.Handle("POST /api/wallets/{walletID}/members", wallet(httpx.RoleOwner, s.addMember))
+	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", wallet(httpx.RoleOwner, s.updateMember))
+	mux.Handle("PUT /api/wallets/{walletID}/default-payment-method", wallet(httpx.RoleEditor, s.setDefaultPaymentMethod))
+	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", wallet(httpx.RoleReader, s.removeMember)) // owner or the member themselves: checked in the handler
 
 	s.catalogRoutes(mux, wallet)
 	s.transactionRoutes(mux, wallet)
@@ -87,7 +84,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	s.summaryRoutes(mux, wallet)
 
 	mux.HandleFunc("GET /healthz", s.healthz)
-	mux.Handle("/api/", public(func(http.ResponseWriter, *http.Request) error { return errNotFound }))
+	mux.Handle("/api/", public(func(http.ResponseWriter, *http.Request) error { return httpx.ErrNotFound }))
 	mux.Handle("/", spaHandler(spa))
 
 	return s.logRequests(s.recoverPanic(s.securityHeaders(s.devCORS(s.sameOriginWrites(mux)))))
@@ -95,7 +92,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 
 // healthz answers "ok" while the database responds, and 503 otherwise.
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
-	if err := s.db.PingContext(r.Context()); err != nil {
+	if err := s.DB.PingContext(r.Context()); err != nil {
 		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -117,11 +114,11 @@ func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter 
 // logRequests logs the method, path, status and duration of every request.
 func (s *Server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := s.now()
+		start := s.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: 200}
 		next.ServeHTTP(rec, r)
-		s.log.InfoContext(r.Context(), "http", "method", r.Method, "path", r.URL.Path, "status", rec.status,
-			"ms", s.now().Sub(start).Milliseconds())
+		s.Log.InfoContext(r.Context(), "http", "method", r.Method, "path", r.URL.Path, "status", rec.status,
+			"ms", s.Now().Sub(start).Milliseconds())
 	})
 }
 
@@ -130,8 +127,8 @@ func (s *Server) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if v := recover(); v != nil {
-				s.log.ErrorContext(r.Context(), "panic", "value", v, "stack", string(debug.Stack()))
-				writeJSON(w, 500, map[string]any{"error": &apiError{Code: "internal", Message: "Erro interno"}})
+				s.Log.ErrorContext(r.Context(), "panic", "value", v, "stack", string(debug.Stack()))
+				httpx.WriteJSON(w, 500, map[string]any{"error": &httpx.APIError{Code: "internal", Message: "Erro interno"}})
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -140,7 +137,7 @@ func (s *Server) recoverPanic(next http.Handler) http.Handler {
 
 // devCORS allows Vite on localhost:5173 only when GASTOS_DEV=true.
 func (s *Server) devCORS(next http.Handler) http.Handler {
-	if !s.cfg.Dev {
+	if !s.Cfg.Dev {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +167,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Content-Security-Policy", csp)
-		if s.cfg.CookieSecure {
+		if s.Cfg.CookieSecure {
 			h.Set("Strict-Transport-Security", "max-age=31536000")
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -180,7 +177,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-var errCrossSite = &apiError{Status: 403, Code: "forbidden", Message: "Requisição de outro site bloqueada"}
+var errCrossSite = &httpx.APIError{Status: 403, Code: "forbidden", Message: "Requisição de outro site bloqueada"}
 
 // sameOriginWrites refuses API writes that the browser says come from another origin, a CSRF barrier for
 // the endpoints that take no JSON body. Without the header (old browsers, curl) the request goes through.
@@ -190,9 +187,9 @@ func (s *Server) sameOriginWrites(next http.Handler) http.Handler {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
 			site := r.Header.Get("Sec-Fetch-Site")
-			ok := site == "" || site == "same-origin" || (s.cfg.Dev && site == "same-site") // dev: Vite on another port
+			ok := site == "" || site == "same-origin" || (s.Cfg.Dev && site == "same-site") // dev: Vite on another port
 			if !ok && strings.HasPrefix(r.URL.Path, "/api/") {
-				s.writeError(w, r, errCrossSite)
+				s.WriteError(w, r, errCrossSite)
 				return
 			}
 		}

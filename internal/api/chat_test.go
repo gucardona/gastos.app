@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gastos/internal/anthropic"
+	"gastos/internal/api/httpx"
 	"gastos/internal/config"
 )
 
@@ -317,7 +318,7 @@ func TestChatToolInputErrorReachesModel(t *testing.T) {
 
 func TestChatToolInternalErrorIsHidden(t *testing.T) {
 	res := toolResultOf(t, `{"de":"2026-10-01","ate":"2026-10-31"}`, func(app *testApp) {
-		if _, err := app.s.db.Exec(`ALTER TABLE transactions RENAME TO transactions_gone`); err != nil {
+		if _, err := app.s.DB.Exec(`ALTER TABLE transactions RENAME TO transactions_gone`); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -474,7 +475,7 @@ func TestChatNeedsEnabledAssistant(t *testing.T) {
 	app, fake := newChatApp(t, replyText("x"))
 	ana := app.register("Ana", "ana@example.com")
 	var e struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	st, raw, _ := ana.ask("oi")
 	json.Unmarshal([]byte(raw), &e)
@@ -670,7 +671,7 @@ func TestChatKeyUnreadableAfterRotation(t *testing.T) {
 	app, fake := newChatApp(t, replyText("x"))
 	ana := app.register("Ana", "ana@example.com")
 	enableAI(ana)
-	app.s.cfg.SecretKey = bytes.Repeat([]byte{9}, 32)
+	app.s.Cfg.SecretKey = bytes.Repeat([]byte{9}, 32)
 	st, _, evs := ana.ask("oi")
 	if st != 200 || errorEvent(t, evs) != "A chave do assistente precisa ser informada de novo em Ajustes." {
 		t.Fatalf("status %d events %+v", st, evs)
@@ -741,7 +742,7 @@ func TestChatSendsOnlyRecentHistory(t *testing.T) {
 			if i%2 == 1 {
 				role = "assistant"
 			}
-			if _, err := app.s.db.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content) VALUES (?, ?, ?, ?)`,
+			if _, err := app.s.DB.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content) VALUES (?, ?, ?, ?)`,
 				ana.user.ID, ana.walletID, role, content(i)); err != nil {
 				t.Fatal(err)
 			}
@@ -827,7 +828,7 @@ var spLoc, _ = time.LoadLocation("America/Sao_Paulo")
 func limitApp(t *testing.T, at time.Time, script func(int, anthropicReq, http.ResponseWriter, *http.Request)) (*testApp, *fakeAnthropic, *client) {
 	t.Helper()
 	app, fake := newChatApp(t, script)
-	app.s.now = func() time.Time { return at }
+	app.s.Now = func() time.Time { return at }
 	ana := app.register("Ana", "ana@example.com")
 	enableAI(ana)
 	return app, fake, ana
@@ -842,7 +843,7 @@ func askBlocked(t *testing.T, fake *fakeAnthropic, c *client, want string) {
 	before := len(c.history(c.walletID))
 	st, raw, _ := c.ask("oi")
 	var e struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	json.Unmarshal([]byte(raw), &e)
 	if st != 429 || e.Error.Code != "limit" || e.Error.Message != want {
@@ -913,7 +914,7 @@ func TestChatLimitsNeedARate(t *testing.T) {
 
 func usageOf(t *testing.T, app *testApp, c *client, day string) (cost int64, in, out int) {
 	t.Helper()
-	err := app.s.db.QueryRow(`SELECT cost_micro_brl, input_tokens, output_tokens FROM ai_usage WHERE user_id = ? AND day = ?`, c.user.ID, day).
+	err := app.s.DB.QueryRow(`SELECT cost_micro_brl, input_tokens, output_tokens FROM ai_usage WHERE user_id = ? AND day = ?`, c.user.ID, day).
 		Scan(&cost, &in, &out)
 	if err != nil {
 		t.Fatalf("usage %s: %v", day, err)
@@ -1006,7 +1007,7 @@ func TestChatLimitDayRollover(t *testing.T) {
 	app, fake := newChatApp(t, replyText("ok"))
 	var now atomic.Int64
 	now.Store(time.Date(2026, 10, 17, 23, 30, 0, 0, spLoc).UnixNano())
-	app.s.now = func() time.Time { return time.Unix(0, now.Load()) }
+	app.s.Now = func() time.Time { return time.Unix(0, now.Load()) }
 	ana := app.register("Ana", "ana@example.com")
 	enableAI(ana)
 	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")
@@ -1025,7 +1026,7 @@ func TestChatLimitMonthRollover(t *testing.T) {
 	app, fake := newChatApp(t, replyText("ok"))
 	var now atomic.Int64
 	now.Store(time.Date(2026, 10, 31, 23, 30, 0, 0, spLoc).UnixNano())
-	app.s.now = func() time.Time { return time.Unix(0, now.Load()) }
+	app.s.Now = func() time.Time { return time.Unix(0, now.Load()) }
 	ana := app.register("Ana", "ana@example.com")
 	enableAI(ana)
 	seedFX(t, app, 5_000_000, "2026-10-17T09:00:00Z")

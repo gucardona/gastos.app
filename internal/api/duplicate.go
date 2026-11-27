@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+
+	"gastos/internal/api/httpx"
 )
 
 // duplicateWindow is how recent one's own identical entry must be to look like a double tap rather than a second purchase.
@@ -11,7 +13,7 @@ const duplicateWindow = "-15 minutes"
 
 // checkDuplicate refuses a new manual entry identical (kind, amount, date, category, method; never the description) to one
 // the same person saved minutes ago, or to one another member saved for that day: the client asks and resends with allowDuplicate.
-func checkDuplicate(ctx context.Context, q querier, walletID, userID int64, in *transactionInput) error {
+func checkDuplicate(ctx context.Context, q httpx.Querier, walletID, userID int64, in *transactionInput) error {
 	var desc, name string
 	var by int64
 	err := q.QueryRowContext(ctx, `
@@ -32,7 +34,7 @@ func checkDuplicate(ctx context.Context, q querier, walletID, userID int64, in *
 		msg = "Você lançou um igual há poucos minutos"
 	}
 	if desc != "" {
-		return &apiError{Status: 409, Code: "duplicate", Message: msg + `: "` + desc + `".`}
+		return &httpx.APIError{Status: 409, Code: "duplicate", Message: msg + `: "` + desc + `".`}
 	}
-	return &apiError{Status: 409, Code: "duplicate", Message: msg + "."}
+	return &httpx.APIError{Status: 409, Code: "duplicate", Message: msg + "."}
 }

@@ -15,7 +15,7 @@ import (
 
 func newInvite(t *testing.T, app *testApp, ttl time.Duration) string {
 	t.Helper()
-	code, _, err := CreateInvite(context.Background(), app.s.db, app.s.now(), ttl)
+	code, _, err := CreateInvite(context.Background(), app.s.DB, app.s.Now(), ttl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,18 +68,18 @@ func TestNormalizeInvite(t *testing.T) {
 
 func TestCreateInviteStoresOnlyTheHash(t *testing.T) {
 	app := newTestApp(t)
-	code, exp, err := CreateInvite(context.Background(), app.s.db, app.s.now(), 2*time.Hour)
+	code, exp, err := CreateInvite(context.Background(), app.s.DB, app.s.Now(), 2*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := exp.Sub(app.s.now()); d < 2*time.Hour-time.Second || d > 2*time.Hour+time.Second {
+	if d := exp.Sub(app.s.Now()); d < 2*time.Hour-time.Second || d > 2*time.Hour+time.Second {
 		t.Errorf("expires in %v, want 2h", d)
 	}
 	want := sha256.Sum256([]byte(normalizeInvite(code)))
 	var hash []byte
 	var expires string
 	var usedAt, usedBy any
-	if err := app.s.db.QueryRow(`SELECT code_hash, expires_at, used_at, used_by FROM invite_codes`).Scan(&hash, &expires, &usedAt, &usedBy); err != nil {
+	if err := app.s.DB.QueryRow(`SELECT code_hash, expires_at, used_at, used_by FROM invite_codes`).Scan(&hash, &expires, &usedAt, &usedBy); err != nil {
 		t.Fatal(err)
 	}
 	if string(hash) != string(want[:]) || expires != exp.UTC().Format(tsLayout) || usedAt != nil || usedBy != nil {
@@ -94,11 +94,12 @@ func TestInviteCodeIsSingleUse(t *testing.T) {
 		t.Fatalf("first use: status %d, want 201", status)
 	}
 	var usedBy int64
-	if err := app.s.db.QueryRow(`SELECT used_by FROM invite_codes WHERE used_at IS NOT NULL`).Scan(&usedBy); err != nil {
+	if err := app.s.DB.QueryRow(`SELECT used_by FROM invite_codes WHERE used_at IS NOT NULL`).Scan(&usedBy); err != nil {
 		t.Fatal(err)
 	}
 	var bia int64
-	app.s.db.QueryRow(`SELECT id FROM users WHERE email = 'bia@example.com'`).Scan(&bia)
+	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	app.s.DB.QueryRow(`SELECT id FROM users WHERE email = 'bia@example.com'`).Scan(&bia)
 	if usedBy != bia {
 		t.Errorf("used_by = %d, want %d", usedBy, bia)
 	}
@@ -112,7 +113,7 @@ func TestInviteCodeIsSingleUse(t *testing.T) {
 func TestExpiredInviteCodeIsRefused(t *testing.T) {
 	app := noEnvCode(t)
 	code := newInvite(t, app, time.Hour)
-	app.s.now = func() time.Time { return time.Now().Add(time.Hour + time.Minute) }
+	app.s.Now = func() time.Time { return time.Now().Add(time.Hour + time.Minute) }
 	status, expired := signUp(app, "bia@example.com", code)
 	_, wrong := signUp(app, "bia@example.com", "AAAA-BBBB-CCCC")
 	if status != http.StatusForbidden || expired.Message != wrong.Message || expired.Code != wrong.Code {
@@ -190,7 +191,7 @@ func TestRegistrationModeFollowsDBCodes(t *testing.T) {
 		t.Fatalf("code used: mode %q, want closed", m)
 	}
 	newInvite(t, app, time.Hour)
-	app.s.now = func() time.Time { return time.Now().Add(2 * time.Hour) }
+	app.s.Now = func() time.Time { return time.Now().Add(2 * time.Hour) }
 	if m := registrationModeOf(t, app); m != "closed" {
 		t.Fatalf("code expired: mode %q, want closed", m)
 	}
@@ -198,7 +199,7 @@ func TestRegistrationModeFollowsDBCodes(t *testing.T) {
 
 func TestHousekeepingRemovesOldInviteCodes(t *testing.T) {
 	app := newTestApp(t)
-	now := app.s.now().UTC()
+	now := app.s.Now().UTC()
 	at := func(d time.Duration) string { return now.Add(d).Format(tsLayout) }
 	day := 24 * time.Hour
 	for _, row := range []struct {
@@ -212,7 +213,7 @@ func TestHousekeepingRemovesOldInviteCodes(t *testing.T) {
 		{"drop-expired-long-ago", at(-8 * day), nil},
 		{"drop-used-long-ago", at(-day), at(-8 * day)}, // a 7-day code used 8 days ago, expired only yesterday
 	} {
-		if _, err := app.s.db.Exec(`INSERT INTO invite_codes (code_hash, expires_at, used_at) VALUES (?, ?, ?)`, []byte(row.hash), row.expires, row.usedAt); err != nil {
+		if _, err := app.s.DB.Exec(`INSERT INTO invite_codes (code_hash, expires_at, used_at) VALUES (?, ?, ?)`, []byte(row.hash), row.expires, row.usedAt); err != nil {
 			t.Fatal(err)
 		}
 	}

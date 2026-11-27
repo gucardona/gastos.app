@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"gastos/internal/api/httpx"
+)
 
 type memberShare struct {
 	UserID          int64 `json:"userId"`
@@ -47,7 +51,7 @@ func TestMemberDefaultSharePatch(t *testing.T) {
 	}
 	for _, bad := range []int{10001, -1} {
 		var res struct {
-			Error apiError `json:"error"`
+			Error httpx.APIError `json:"error"`
 		}
 		ana.do("PATCH", path, map[string]any{"defaultShareBp": bad}, 400, &res)
 		if res.Error.Fields["defaultShareBp"] != "use entre 0 e 100%" {

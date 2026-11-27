@@ -210,12 +210,12 @@ func TestNotifyWalletSurvivesACancelledRequest(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	bia := app.register("Bia", "bia@example.com")
 	shareWallet(ana, bia, "editor")
-	ch := app.s.bus.Subscribe(bia.user.ID)
-	defer app.s.bus.Unsubscribe(bia.user.ID, ch)
+	ch := app.s.Bus.Subscribe(bia.user.ID)
+	defer app.s.Bus.Unsubscribe(bia.user.ID, ch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	app.s.notifyWallet(ctx, ana.walletID)
+	app.s.NotifyWallet(ctx, ana.walletID)
 	select {
 	case <-ch:
 	default:

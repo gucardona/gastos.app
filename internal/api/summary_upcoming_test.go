@@ -10,8 +10,8 @@ import (
 func upcomingApp(t *testing.T) (*testApp, *client) {
 	t.Helper()
 	app := newTestApp(t)
-	loc := app.s.cfg.Location
-	app.s.now = func() time.Time { return time.Date(2026, 11, 14, 12, 0, 0, 0, loc) }
+	loc := app.s.Cfg.Location
+	app.s.Now = func() time.Time { return time.Date(2026, 11, 14, 12, 0, 0, 0, loc) }
 	return app, app.register("Ana", "ana@example.com")
 }
 
@@ -29,7 +29,7 @@ func insertRecurrence(t *testing.T, c *client, walletID int64, r recRow) int64 {
 		to = c.user.ID
 	} else {
 		var err error
-		if err = c.app.s.db.QueryRow(`SELECT id FROM categories WHERE wallet_id = ? AND kind = ? ORDER BY id LIMIT 1`, walletID, r.kind).Scan(&cat); err != nil {
+		if err = c.app.s.DB.QueryRow(`SELECT id FROM categories WHERE wallet_id = ? AND kind = ? ORDER BY id LIMIT 1`, walletID, r.kind).Scan(&cat); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -38,7 +38,7 @@ func insertRecurrence(t *testing.T, c *client, walletID int64, r recRow) int64 {
 		end = r.end
 	}
 	var id int64
-	if err := c.app.s.db.QueryRow(`INSERT INTO recurrences (wallet_id, kind, amount_cents, description, category_id, paid_by_user_id,
+	if err := c.app.s.DB.QueryRow(`INSERT INTO recurrences (wallet_id, kind, amount_cents, description, category_id, paid_by_user_id,
 		to_user_id, day_of_month, start_date, end_date, enabled, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		walletID, r.kind, r.amount, r.description, cat, c.user.ID, to, r.day, r.start, end, r.enabled, c.user.ID).Scan(&id); err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestSummaryUpcomingMidMonth(t *testing.T) {
 	insertRecurrence(t, ana, w, recRow{kind: "settlement", start: "2026-01-01", amount: 100, day: 20, enabled: true})
 	skipped := insertRecurrence(t, ana, w, recRow{kind: "expense", description: "Apagada", start: "2026-01-01", amount: 100, day: 21, enabled: true})
 	early := insertRecurrence(t, ana, w, recRow{kind: "expense", description: "Adiantada", start: "2026-01-01", amount: 100, day: 22, enabled: true})
-	db := app.s.db
+	db := app.s.DB
 	if _, err := db.Exec(`INSERT INTO recurrence_skips (recurrence_id, occurrence) VALUES (?, '2026-11')`, skipped); err != nil {
 		t.Fatal(err)
 	}

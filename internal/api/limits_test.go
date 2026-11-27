@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/money"
 )
 
@@ -11,7 +12,7 @@ import (
 func fieldError(c *client, method, path string, body map[string]any, field string) string {
 	c.app.t.Helper()
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	c.do(method, path, body, 400, &res)
 	return res.Error.Fields[field]
@@ -87,12 +88,12 @@ func TestRecurrenceDatesAndAmountsAreBounded(t *testing.T) {
 	}
 
 	var created recurrenceDTO
-	limit := time.Now().In(app.s.cfg.Location).AddDate(0, -24, 0).Format(dateLayout) // exactly 24 months ago
+	limit := time.Now().In(app.s.Cfg.Location).AddDate(0, -24, 0).Format(httpx.DateLayout) // exactly 24 months ago
 	ana.do("POST", path, rec(limit, 100), 201, &created)
 
 	// a recurrence that already started long ago (stored before this rule) can still be edited while its start stays
-	old := time.Now().In(app.s.cfg.Location).AddDate(-3, 0, 0).Format(dateLayout)
-	if _, err := app.s.db.Exec(`UPDATE recurrences SET start_date = ? WHERE id = ?`, old, created.ID); err != nil {
+	old := time.Now().In(app.s.Cfg.Location).AddDate(-3, 0, 0).Format(httpx.DateLayout)
+	if _, err := app.s.DB.Exec(`UPDATE recurrences SET start_date = ? WHERE id = ?`, old, created.ID); err != nil {
 		t.Fatal(err)
 	}
 	ana.do("PUT", path+"/"+itoa(created.ID), rec(old, 200), 200, nil)

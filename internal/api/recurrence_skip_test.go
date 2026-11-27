@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"testing"
+
+	"gastos/internal/api/httpx"
 )
 
 // The owner's report: a recurring expense's occurrence deleted this month came back after logging in again,
@@ -25,7 +27,7 @@ func TestDeletedOccurrenceStaysDeleted(t *testing.T) {
 
 	// what logging in again does: the screens load, which materializes; also the background loop
 	ana.do("GET", ana.wpath("/recurrences"), nil, 200, nil)
-	if err := app.s.mat.Run(context.Background(), 0); err != nil {
+	if err := app.s.Mat.Run(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	after := listRange(ana, start)
@@ -48,14 +50,14 @@ func TestDeletedSettlementOccurrenceStaysDeleted(t *testing.T) {
 	start := monthsAgoFirst(t, app, 1)
 	ana.do("POST", ana.wpath("/recurrences"), map[string]any{"kind": "settlement", "amountCents": 30000,
 		"paidByUserId": bia.user.ID, "toUserId": ana.user.ID, "dayOfMonth": 1, "startDate": start}, 201, nil)
-	to := mustDate(start).AddDate(0, 0, 365).Format(dateLayout)
+	to := mustDate(start).AddDate(0, 0, 365).Format(httpx.DateLayout)
 	var list []settlementDTO
 	ana.do("GET", ana.wpath("/settlements?from=%s&to=%s", start, to), nil, 200, &list)
 	if len(list) != 2 {
 		t.Fatalf("%d settlements, want 2", len(list))
 	}
 	ana.do("DELETE", ana.wpath("/settlements/%d", list[0].ID), nil, 204, nil)
-	if err := app.s.mat.Run(context.Background(), 0); err != nil {
+	if err := app.s.Mat.Run(context.Background(), 0); err != nil {
 		t.Fatal(err)
 	}
 	ana.do("GET", ana.wpath("/settlements?from=%s&to=%s", start, to), nil, 200, &list)
@@ -75,11 +77,12 @@ func TestDeletingAnOccurrenceKeepsTheRecurrenceGoing(t *testing.T) {
 	list := listRange(ana, start)
 	ana.do("DELETE", ana.wpath("/transactions/%d", list[1].ID), nil, 204, nil) // a month in the middle
 	// a manual delete of the newest occurrence must not block it either
-	if _, err := app.s.db.Exec(`DELETE FROM transactions WHERE id = ?`, list[0].ID); err != nil {
+	if _, err := app.s.DB.Exec(`DELETE FROM transactions WHERE id = ?`, list[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	var skips int
-	app.s.db.QueryRow(`SELECT COUNT(*) FROM recurrence_skips`).Scan(&skips)
+	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	app.s.DB.QueryRow(`SELECT COUNT(*) FROM recurrence_skips`).Scan(&skips)
 	if skips != 2 {
 		t.Fatalf("%d skipped occurrences recorded, want 2", skips)
 	}
@@ -113,8 +116,10 @@ func TestDeletingAWalletWithRecurringOccurrences(t *testing.T) {
 	}, 201, nil)
 	ana.do("DELETE", "/api/wallets/"+itoa(w.ID), nil, 204, nil)
 	var skips, txs int
-	app.s.db.QueryRow(`SELECT COUNT(*) FROM recurrence_skips`).Scan(&skips)
-	app.s.db.QueryRow(`SELECT COUNT(*) FROM transactions WHERE wallet_id = ?`, w.ID).Scan(&txs)
+	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	app.s.DB.QueryRow(`SELECT COUNT(*) FROM recurrence_skips`).Scan(&skips)
+	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	app.s.DB.QueryRow(`SELECT COUNT(*) FROM transactions WHERE wallet_id = ?`, w.ID).Scan(&txs)
 	if skips != 0 || txs != 0 {
 		t.Fatalf("after deleting the wallet: %d skips, %d transactions, want 0 and 0", skips, txs)
 	}

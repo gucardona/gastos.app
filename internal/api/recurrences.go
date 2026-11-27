@@ -6,16 +6,17 @@ import (
 	"net/http"
 	"strings"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/recurrence"
 )
 
 // recurrenceRoutes registers the recurrence routes of a wallet.
-func (s *Server) recurrenceRoutes(mux *http.ServeMux, wallet routeWrap) {
+func (s *Server) recurrenceRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
 	const base = "/api/wallets/{walletID}/recurrences"
-	mux.Handle("GET "+base, wallet(roleReader, s.listRecurrences))
-	mux.Handle("POST "+base, wallet(roleEditor, s.createRecurrence))
-	mux.Handle("PUT "+base+"/{id}", wallet(roleEditor, s.updateRecurrence))
-	mux.Handle("DELETE "+base+"/{id}", wallet(roleEditor, s.deleteRecurrence))
+	mux.Handle("GET "+base, wallet(httpx.RoleReader, s.listRecurrences))
+	mux.Handle("POST "+base, wallet(httpx.RoleEditor, s.createRecurrence))
+	mux.Handle("PUT "+base+"/{id}", wallet(httpx.RoleEditor, s.updateRecurrence))
+	mux.Handle("DELETE "+base+"/{id}", wallet(httpx.RoleEditor, s.deleteRecurrence))
 }
 
 // recurrenceDTO is a recurring entry as the API returns it.
@@ -57,31 +58,31 @@ const maxBackfillMonths = 24
 
 // earliestStart is the oldest start date a recurrence may be given now.
 func (s *Server) earliestStart() string {
-	return s.now().In(s.cfg.Location).AddDate(0, -maxBackfillMonths, 0).Format(dateLayout)
+	return s.Now().In(s.Cfg.Location).AddDate(0, -maxBackfillMonths, 0).Format(httpx.DateLayout)
 }
 
 // validate checks the input; currentCategoryID allows keeping an archived category that is already in use (0 on create).
 // earliestStart ("" = no limit) is the oldest start date accepted.
-func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64, earliestStart string) error {
+func (in *recurrenceInput) validate(ctx context.Context, q httpx.Querier, walletID, userID, currentCategoryID int64, earliestStart string) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.EndDate != nil && strings.TrimSpace(*in.EndDate) == "" {
 		in.EndDate = nil
 	}
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if in.DayOfMonth < 1 || in.DayOfMonth > 31 {
-		fe.add("dayOfMonth", "deve estar entre 1 e 31")
+		fe.Add("dayOfMonth", "deve estar entre 1 e 31")
 	}
 	if msg := dateProblem(in.StartDate); msg != "" {
-		fe.add("startDate", msg)
+		fe.Add("startDate", msg)
 	} else if in.StartDate < earliestStart {
-		fe.add("startDate", "o início pode ser no máximo 24 meses atrás")
+		fe.Add("startDate", "o início pode ser no máximo 24 meses atrás")
 	}
 	if in.EndDate != nil {
 		switch msg := dateProblem(*in.EndDate); {
 		case msg != "":
-			fe.add("endDate", msg)
-		case validDate(in.StartDate) && *in.EndDate < in.StartDate:
-			fe.add("endDate", "deve ser igual ou posterior ao início")
+			fe.Add("endDate", msg)
+		case httpx.ValidDate(in.StartDate) && *in.EndDate < in.StartDate:
+			fe.Add("endDate", "deve ser igual ou posterior ao início")
 		}
 	}
 	if in.PaidByUserID == 0 {
@@ -91,45 +92,45 @@ func (in *recurrenceInput) validate(ctx context.Context, q querier, walletID, us
 	switch in.Kind {
 	case "expense", "income":
 		if in.CategoryID == nil || in.ToUserID != nil {
-			return errValidation(map[string]string{"categoryId": "obrigatória para gastos e entradas"})
+			return httpx.ValidationError(map[string]string{"categoryId": "obrigatória para gastos e entradas"})
 		}
 		ti := transactionInput{Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description, CategoryID: *in.CategoryID,
 			PaymentMethodID: in.PaymentMethodID, Date: in.StartDate, PaidByUserID: in.PaidByUserID, Splits: in.Splits}
 		if err := ti.validate(ctx, q, walletID, userID, currentCategoryID); err != nil {
-			var ae *apiError
-			if asAPIError(err, &ae) && ae.Fields != nil {
+			var ae *httpx.APIError
+			if httpx.AsAPIError(err, &ae) && ae.Fields != nil {
 				for k, v := range ae.Fields {
 					if k != "date" {
-						fe.add(k, v)
+						fe.Add(k, v)
 					}
 				}
-				return fe.err()
+				return fe.Err()
 			}
 			return err
 		}
 		in.Splits = ti.Splits
 	case "settlement":
 		if in.CategoryID != nil || in.PaymentMethodID != nil || len(in.Splits) > 0 {
-			fe.add("kind", "acertos não têm categoria, forma de pagamento nem divisão")
+			fe.Add("kind", "acertos não têm categoria, forma de pagamento nem divisão")
 		}
 		if in.ToUserID == nil || *in.ToUserID == in.PaidByUserID {
-			fe.add("toUserId", "obrigatório e diferente de quem envia")
+			fe.Add("toUserId", "obrigatório e diferente de quem envia")
 		} else if err := checkSettlementMembers(ctx, q, walletID, in.PaidByUserID, *in.ToUserID); err != nil {
 			return err
 		}
 		in.Splits = nil
 	default:
-		fe.add("kind", "deve ser expense, income ou settlement")
+		fe.Add("kind", "deve ser expense, income ou settlement")
 	}
 	if msg := amountProblem(in.AmountCents); msg != "" {
-		fe.add("amountCents", msg)
+		fe.Add("amountCents", msg)
 	}
-	return fe.err()
+	return fe.Err()
 }
 
 // loadRecurrences returns every recurrence of walletID with its splits.
 func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurrenceDTO, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT id, kind, amount_cents, description, category_id, payment_method_id, paid_by_user_id, to_user_id,
 		       day_of_month, start_date, end_date, enabled
 		FROM recurrences WHERE wallet_id = ? ORDER BY enabled DESC, day_of_month, id`, walletID)
@@ -154,7 +155,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 	}
 	rows.Close()
 
-	srows, err := s.db.QueryContext(ctx, `
+	srows, err := s.DB.QueryContext(ctx, `
 		SELECT recurrence_id, user_id, share_bp FROM recurrence_splits
 		WHERE recurrence_id IN (SELECT id FROM recurrences WHERE wallet_id = ?) ORDER BY recurrence_id, user_id`, walletID)
 	if err != nil {
@@ -184,16 +185,16 @@ func (s *Server) nextDate(d recurrenceDTO) *string {
 	if !d.Enabled {
 		return nil
 	}
-	tomorrow := s.now().In(s.cfg.Location).AddDate(0, 0, 1)
+	tomorrow := s.Now().In(s.Cfg.Location).AddDate(0, 0, 1)
 	start := d.StartDate
-	if t := tomorrow.Format(dateLayout); t > start {
+	if t := tomorrow.Format(httpx.DateLayout); t > start {
 		start = t
 	}
 	end := ""
 	if d.EndDate != nil {
 		end = *d.EndDate
 	}
-	until := tomorrow.AddDate(0, 14, 0).Format(dateLayout)
+	until := tomorrow.AddDate(0, 14, 0).Format(httpx.DateLayout)
 	occ, err := recurrence.Occurrences(d.DayOfMonth, start, end, until)
 	if err != nil || len(occ) == 0 {
 		return nil
@@ -217,16 +218,16 @@ func (s *Server) recurrenceByID(ctx context.Context, walletID, id int64) (recurr
 
 // listRecurrences handles GET /recurrences.
 func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) error {
-	list, err := s.loadRecurrences(r.Context(), walletIDFrom(r.Context()))
+	list, err := s.loadRecurrences(r.Context(), httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, list)
+	httpx.WriteJSON(w, http.StatusOK, list)
 	return nil
 }
 
 // replaceRecurrenceSplits replaces the member shares of recurrence id with splits.
-func replaceRecurrenceSplits(ctx context.Context, q querier, id int64, splits []split) error {
+func replaceRecurrenceSplits(ctx context.Context, q httpx.Querier, id int64, splits []split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM recurrence_splits WHERE recurrence_id = ?`, id); err != nil {
 		return err
 	}
@@ -241,14 +242,14 @@ func replaceRecurrenceSplits(ctx context.Context, q querier, id int64, splits []
 
 // createRecurrence handles POST /recurrences.
 func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	var in recurrenceInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	enabled := in.Enabled == nil || *in.Enabled
 	var id int64
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
+	err := s.InTx(ctx, func(tx *sql.Tx) error {
 		if err := in.validate(ctx, tx, walletID, userID, 0, s.earliestStart()); err != nil {
 			return err
 		}
@@ -271,24 +272,24 @@ func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, d)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, d)
 	return nil
 }
 
 // updateRecurrence handles PUT /recurrences/{id}.
 func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
 	var in recurrenceInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	enabled := in.Enabled == nil || *in.Enabled
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		var currentCat sql.NullInt64
 		var currentStart string
 		if err := tx.QueryRowContext(ctx, `SELECT category_id, start_date FROM recurrences WHERE id = ? AND wallet_id = ?`, id, walletID).
@@ -320,32 +321,32 @@ func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, d)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, d)
 	return nil
 }
 
 // deleteRecurrence handles DELETE /recurrences/{id}.
 func (s *Server) deleteRecurrence(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(r.Context(), `DELETE FROM recurrences WHERE id = ? AND wallet_id = ?`, id, walletIDFrom(r.Context()))
+	res, err := s.DB.ExecContext(r.Context(), `DELETE FROM recurrences WHERE id = ? AND wallet_id = ?`, id, httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errNotFound
+		return httpx.ErrNotFound
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 
 // materialize generates what is already due right away; failures are only logged (the hourly job retries).
 func (s *Server) materialize(ctx context.Context, walletID int64) {
-	if err := s.mat.Run(ctx, walletID); err != nil {
-		s.log.ErrorContext(ctx, "materialize recurrences", "wallet", walletID, "err", err)
+	if err := s.Mat.Run(ctx, walletID); err != nil {
+		s.Log.ErrorContext(ctx, "materialize recurrences", "wallet", walletID, "err", err)
 	}
 }

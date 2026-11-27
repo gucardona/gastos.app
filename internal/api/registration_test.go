@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/config"
 )
 
@@ -33,10 +34,10 @@ func TestRegistrationMode(t *testing.T) {
 }
 
 // signUp posts a registration and returns the status; it does not keep the session.
-func signUp(app *testApp, email, code string) (int, apiError) {
+func signUp(app *testApp, email, code string) (int, httpx.APIError) {
 	app.t.Helper()
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	c := app.anon()
 	body := map[string]any{"name": "Pessoa", "email": email, "password": "senha-segura"}

@@ -45,7 +45,7 @@ func TestRefreshFXStoresAsk(t *testing.T) {
 	reply := &atomic.Value{}
 	reply.Store(awesomeBody("5.0631"))
 	app, _ := newFXApp(t, reply)
-	app.s.now = func() time.Time { return time.Date(2026, 10, 17, 9, 30, 0, 0, time.UTC) }
+	app.s.Now = func() time.Time { return time.Date(2026, 10, 17, 9, 30, 0, 0, time.UTC) }
 	if err := app.s.refreshFX(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestHousekeepingFetchesFXOnlyWhenStale(t *testing.T) {
 	// After 21 hours the rate is stale and is fetched again.
 	reply.Store(awesomeBody("5.5"))
 	later := time.Now().Add(21 * time.Hour)
-	app.s.now = func() time.Time { return later }
+	app.s.Now = func() time.Time { return later }
 	runHousekeeping(t, app, func() bool { micro, _ := storedFX(t, app); return micro == 5500000 })
 	if micro, at := storedFX(t, app); micro != 5500000 || hits.Load() != 2 || at != later.UTC().Format(tsLayout) {
 		t.Fatalf("stale: rate %d at %s, %d requests", micro, at, hits.Load())

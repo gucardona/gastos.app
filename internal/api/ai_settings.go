@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gastos/internal/anthropic"
+	"gastos/internal/api/httpx"
 	"gastos/internal/secret"
 )
 
@@ -34,7 +35,7 @@ type aiRow struct {
 // loadAI returns userID's assistant settings, or the defaults when the user has none.
 func (s *Server) loadAI(ctx context.Context, userID int64) (aiRow, error) {
 	r := aiRow{model: "claude-sonnet-5-5", retention: 7}
-	err := s.db.QueryRowContext(ctx,
+	err := s.DB.QueryRowContext(ctx,
 		`SELECT api_key_enc, key_hint, model, enabled, retention_days, COALESCE(daily_limit_cents, 0), COALESCE(monthly_limit_cents, 0)
 		 FROM ai_settings WHERE user_id = ?`, userID).
 		Scan(&r.enc, &r.hint, &r.model, &r.enabled, &r.retention, &r.daily, &r.monthly)
@@ -47,10 +48,10 @@ func (s *Server) loadAI(ctx context.Context, userID int64) (aiRow, error) {
 // openKey decrypts a stored API key; it reports false when there is no key, no server secret
 // or the key does not decrypt.
 func (s *Server) openKey(enc []byte) (string, bool) {
-	if len(enc) == 0 || s.cfg.SecretKey == nil {
+	if len(enc) == 0 || s.Cfg.SecretKey == nil {
 		return "", false
 	}
-	k, err := secret.Open(s.cfg.SecretKey, enc)
+	k, err := secret.Open(s.Cfg.SecretKey, enc)
 	return string(k), err == nil
 }
 
@@ -92,7 +93,7 @@ type aiDTO struct {
 // aiDTO builds the response for userID from the stored settings r.
 func (s *Server) aiDTO(ctx context.Context, userID int64, r aiRow) (aiDTO, error) {
 	_, readable := s.openKey(r.enc)
-	d := aiDTO{Available: s.cfg.SecretKey != nil, Configured: readable, Model: r.model, Enabled: r.enabled && readable, RetentionDays: r.retention,
+	d := aiDTO{Available: s.Cfg.SecretKey != nil, Configured: readable, Model: r.model, Enabled: r.enabled && readable, RetentionDays: r.retention,
 		DailyLimitCents: r.daily, MonthlyLimitCents: r.monthly}
 	if readable {
 		d.KeyHint = r.hint
@@ -111,8 +112,8 @@ func (s *Server) aiDTO(ctx context.Context, userID int64, r aiRow) (aiDTO, error
 
 // aiSpend returns the user's estimated assistant spend today and this calendar month (in cfg.Location), in micro-reais.
 func (s *Server) aiSpend(ctx context.Context, userID int64) (today, month int64, err error) {
-	day := s.now().In(s.cfg.Location).Format(dateLayout)
-	err = s.db.QueryRowContext(ctx, `
+	day := s.Now().In(s.Cfg.Location).Format(httpx.DateLayout)
+	err = s.DB.QueryRowContext(ctx, `
 		SELECT COALESCE(SUM(CASE WHEN day = ? THEN cost_micro_brl END), 0), COALESCE(SUM(cost_micro_brl), 0)
 		FROM ai_usage WHERE user_id = ? AND day >= ? AND day <= ?`, day, userID, day[:8]+"01", day).Scan(&today, &month)
 	return today, month, err
@@ -134,10 +135,10 @@ func (s *Server) checkAILimit(ctx context.Context, userID int64) error {
 	case err != nil:
 		return err
 	case r.daily > 0 && today >= r.daily*10_000:
-		return &apiError{Status: http.StatusTooManyRequests, Code: "limit",
+		return &httpx.APIError{Status: http.StatusTooManyRequests, Code: "limit",
 			Message: "Limite diário do assistente atingido (" + formatBRL(r.daily) + "). Volta amanhã ou aumente o limite em Ajustes."}
 	case r.monthly > 0 && month >= r.monthly*10_000:
-		return &apiError{Status: http.StatusTooManyRequests, Code: "limit",
+		return &httpx.APIError{Status: http.StatusTooManyRequests, Code: "limit",
 			Message: "Limite mensal do assistente atingido (" + formatBRL(r.monthly) + "). Volta no mês que vem ou aumente o limite em Ajustes."}
 	}
 	return nil
@@ -155,18 +156,18 @@ func (s *Server) recordUsage(ctx context.Context, userID int64, model string, in
 	if rate, _, ok := s.fxRate(ctx); ok {
 		cost = costMicroBRL(model, inTok, outTok, rate)
 	}
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := s.DB.ExecContext(ctx, `
 		INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, day) DO UPDATE SET cost_micro_brl = cost_micro_brl + excluded.cost_micro_brl,
 		  input_tokens = input_tokens + excluded.input_tokens, output_tokens = output_tokens + excluded.output_tokens`,
-		userID, s.now().In(s.cfg.Location).Format(dateLayout), cost, inTok, outTok); err != nil {
-		s.log.ErrorContext(ctx, "chat: record usage", "err", err)
+		userID, s.Now().In(s.Cfg.Location).Format(httpx.DateLayout), cost, inTok, outTok); err != nil {
+		s.Log.ErrorContext(ctx, "chat: record usage", "err", err)
 	}
 }
 
 // getAI handles GET /api/me/ai.
 func (s *Server) getAI(w http.ResponseWriter, r *http.Request) error {
-	uid := userIDFrom(r.Context())
+	uid := httpx.UserIDFrom(r.Context())
 	row, err := s.loadAI(r.Context(), uid)
 	if err != nil {
 		return err
@@ -175,7 +176,7 @@ func (s *Server) getAI(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, d)
+	httpx.WriteJSON(w, http.StatusOK, d)
 	return nil
 }
 
@@ -190,34 +191,35 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 		DailyLimitCents   *int64 `json:"dailyLimitCents"`
 		MonthlyLimitCents *int64 `json:"monthlyLimitCents"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	uid := userIDFrom(r.Context())
+	uid := httpx.UserIDFrom(r.Context())
 	cur, err := s.loadAI(r.Context(), uid)
 	if err != nil {
 		return err
 	}
 	newKey := ""
 	if in.APIKey != nil {
-		if s.cfg.SecretKey == nil {
-			return errBadRequest("assistente indisponível neste servidor")
+		if s.Cfg.SecretKey == nil {
+			return httpx.ErrBadRequest("assistente indisponível neste servidor")
 		}
 		if newKey = strings.TrimSpace(*in.APIKey); newKey == "" {
-			return errValidation(map[string]string{"apiKey": "obrigatório"})
+			//nolint:gosec // moved unchanged, see docs/security.md
+			return httpx.ValidationError(map[string]string{"apiKey": "obrigatório"})
 		}
 	}
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if in.Model != nil {
 		if !slices.Contains(_aiModels, *in.Model) {
-			fe.add("model", "modelo inválido")
+			fe.Add("model", "modelo inválido")
 		} else {
 			cur.model = *in.Model
 		}
 	}
 	if in.RetentionDays != nil {
 		if *in.RetentionDays < 1 || *in.RetentionDays > 30 {
-			fe.add("retentionDays", "use de 1 a 30 dias")
+			fe.Add("retentionDays", "use de 1 a 30 dias")
 		} else {
 			cur.retention = *in.RetentionDays
 		}
@@ -228,7 +230,7 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 		switch {
 		case lim.in == nil:
 		case *lim.in < 0 || *lim.in > 100_000_00: // 0 removes the limit; at most R$ 100.000,00
-			fe.add(field, "use um valor entre R$ 0,01 e R$ 100.000,00")
+			fe.Add(field, "use um valor entre R$ 0,01 e R$ 100.000,00")
 		default:
 			*lim.cur = *lim.in
 		}
@@ -236,11 +238,11 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 	_, hadKey := s.openKey(cur.enc)
 	if in.Enabled != nil {
 		if *in.Enabled && newKey == "" && !hadKey {
-			fe.add("enabled", "configure uma chave antes de ativar")
+			fe.Add("enabled", "configure uma chave antes de ativar")
 		}
 		cur.enabled = *in.Enabled
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
 
@@ -252,12 +254,13 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 		var ae *anthropic.APIError
 		switch {
 		case errors.As(err, &ae) && ae.Status == http.StatusUnauthorized:
-			return errValidation(map[string]string{"apiKey": "chave recusada pela Anthropic"})
+			//nolint:gosec // moved unchanged, see docs/security.md
+			return httpx.ValidationError(map[string]string{"apiKey": "chave recusada pela Anthropic"})
 		case err != nil:
 			w := "Não foi possível validar a chave agora; ela foi salva mesmo assim."
 			warning = &w
 		}
-		if cur.enc, err = secret.Seal(s.cfg.SecretKey, []byte(newKey)); err != nil {
+		if cur.enc, err = secret.Seal(s.Cfg.SecretKey, []byte(newKey)); err != nil {
 			return err
 		}
 		cur.hint = newKey[max(0, len(newKey)-4):]
@@ -266,7 +269,7 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 	if cur.enc == nil {
 		cur.enc = []byte{} // a nil slice binds as NULL, which the NOT NULL column refuses
 	}
-	if _, err := s.db.ExecContext(r.Context(),
+	if _, err := s.DB.ExecContext(r.Context(),
 		`INSERT INTO ai_settings (user_id, api_key_enc, key_hint, model, enabled, retention_days, daily_limit_cents, monthly_limit_cents)
 		 VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, 0), NULLIF(?, 0))
 		 ON CONFLICT(user_id) DO UPDATE SET api_key_enc = excluded.api_key_enc, key_hint = excluded.key_hint, model = excluded.model,
@@ -280,19 +283,19 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	d.Warning = warning
-	s.notifyUsers(uid) // the user's other tabs see whether the assistant is on
-	writeJSON(w, http.StatusOK, d)
+	s.NotifyUsers(uid) // the user's other tabs see whether the assistant is on
+	httpx.WriteJSON(w, http.StatusOK, d)
 	return nil
 }
 
 // deleteAIKey handles DELETE /api/me/ai/key: erases the key and turns the assistant off.
 func (s *Server) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
-	uid := userIDFrom(r.Context())
-	if _, err := s.db.ExecContext(r.Context(),
+	uid := httpx.UserIDFrom(r.Context())
+	if _, err := s.DB.ExecContext(r.Context(),
 		`UPDATE ai_settings SET api_key_enc = x'', key_hint = '', enabled = 0 WHERE user_id = ?`, uid); err != nil {
 		return err
 	}
-	s.notifyUsers(uid)
+	s.NotifyUsers(uid)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"gastos/internal/api/httpx"
 )
 
 func TestAuthFlow(t *testing.T) {
@@ -24,7 +26,7 @@ func TestRegisterValidation(t *testing.T) {
 	app := newTestApp(t)
 	c := app.anon()
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	c.do("POST", "/api/auth/register", map[string]string{"name": "", "email": "x", "password": "123"}, 400, &res)
 	for _, f := range []string{"name", "email", "password"} {
@@ -124,7 +126,7 @@ func TestFailedLoginsCannotLockOutTheRightPassword(t *testing.T) {
 func TestRegisterRejectsPasswordsOver72Bytes(t *testing.T) {
 	app := newTestApp(t)
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	app.anon().do("POST", "/api/auth/register", map[string]string{"name": "Ana", "email": "ana@example.com",
 		"password": strings.Repeat("a", 73), "inviteCode": testInvite}, 400, &res)

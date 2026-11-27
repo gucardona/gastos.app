@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"gastos/internal/api/httpx"
+)
 
 // ---- GET /members ----
 
@@ -67,7 +71,7 @@ func TestUpdateWallet(t *testing.T) {
 	}
 
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	ana.do("PATCH", ana.wpath(""), map[string]any{}, 400, nil)
 	ana.do("PATCH", ana.wpath(""), map[string]any{"name": "   "}, 400, &res)
@@ -101,7 +105,7 @@ func TestDeleteUnusedPaymentMethodAndEmptyIcon(t *testing.T) {
 	ana.do("PUT", ana.wpath("/payment-methods/%d", p.ID), map[string]any{"name": "x", "icon": "x"}, 404, nil)
 
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	ana.do("POST", ana.wpath("/payment-methods"), map[string]any{"name": "Vale", "icon": ""}, 400, &res)
 	if res.Error.Fields["icon"] == "" {

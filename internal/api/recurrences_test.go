@@ -3,19 +3,21 @@ package api
 import (
 	"testing"
 	"time"
+
+	"gastos/internal/api/httpx"
 )
 
 // monthsAgoFirst returns the 1st of the month n months ago, in the app's time zone.
 func monthsAgoFirst(t *testing.T, app *testApp, n int) string {
 	t.Helper()
-	now := time.Now().In(app.s.cfg.Location)
-	return time.Date(now.Year(), now.Month()-time.Month(n), 1, 0, 0, 0, 0, time.UTC).Format(dateLayout)
+	now := time.Now().In(app.s.Cfg.Location)
+	return time.Date(now.Year(), now.Month()-time.Month(n), 1, 0, 0, 0, 0, time.UTC).Format(httpx.DateLayout)
 }
 
 func listRange(c *client, from string) []transaction {
 	c.app.t.Helper()
 	var list []transaction
-	to := mustDate(from).AddDate(0, 0, 365).Format(dateLayout)
+	to := mustDate(from).AddDate(0, 0, 365).Format(httpx.DateLayout)
 	c.do("GET", c.wpath("/transactions?from=%s&to=%s", from, to), nil, 200, &list)
 	return list
 }
@@ -107,7 +109,7 @@ func TestRecurrenceSettlement(t *testing.T) {
 	ana.do("POST", ana.wpath("/recurrences"), body, 201, nil)
 
 	var list []settlementDTO
-	to := mustDate(start).AddDate(0, 0, 365).Format(dateLayout)
+	to := mustDate(start).AddDate(0, 0, 365).Format(httpx.DateLayout)
 	ana.do("GET", ana.wpath("/settlements?from=%s&to=%s", start, to), nil, 200, &list)
 	if len(list) != 2 || list[0].FromUserID != bia.user.ID || list[0].ToUserID != ana.user.ID {
 		t.Fatalf("settlements: %+v", list)
@@ -119,7 +121,7 @@ func TestRecurrenceValidation(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	cat := firstCategory(t, ana, "expense")
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	ana.do("POST", ana.wpath("/recurrences"), map[string]any{
 		"kind": "expense", "amountCents": 100, "categoryId": cat, "dayOfMonth": 32, "startDate": "2026-01-01", "endDate": "2025-01-01",

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"gastos/internal/anthropic"
+	"gastos/internal/api/httpx"
 )
 
 // chartPoint is one labeled value of a chart.
@@ -83,8 +84,8 @@ type period struct {
 
 // validate checks that both dates parse and that the range is valid.
 func (p period) validate() error {
-	from, err1 := time.Parse(dateLayout, p.De)
-	to, err2 := time.Parse(dateLayout, p.Ate)
+	from, err1 := time.Parse(httpx.DateLayout, p.De)
+	to, err2 := time.Parse(httpx.DateLayout, p.Ate)
 	switch {
 	case err1 != nil || err2 != nil:
 		return inputErr("'de' e 'ate' são obrigatórios no formato YYYY-MM-DD")
@@ -200,7 +201,7 @@ func chartFromInput(input json.RawMessage) (*chartDTO, error) {
 
 // wholeMonths says the period runs from a month's first day to a month's last day.
 func (p period) wholeMonths() bool {
-	to, err := time.Parse(dateLayout, p.Ate)
+	to, err := time.Parse(httpx.DateLayout, p.Ate)
 	return err == nil && strings.HasSuffix(p.De, "-01") && to.AddDate(0, 0, 1).Day() == 1
 }
 
@@ -230,7 +231,8 @@ func (s *Server) toolCategorySummary(ctx context.Context, walletIDs []int64, inp
 		return nil, err
 	}
 	where, args := walletFilter(walletIDs, in, in.wholeMonths())
-	rows, err := s.db.QueryContext(ctx, `
+	//nolint:gosec // moved unchanged, see docs/security.md
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT w.name, c.name, SUM(t.amount_cents) AS cents
 		FROM transactions t JOIN categories c ON c.id = t.category_id AND c.wallet_id = t.wallet_id JOIN wallets w ON w.id = t.wallet_id
 		WHERE t.kind = 'expense' AND `+where+`
@@ -296,7 +298,8 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 		return nil, inputErr("'agrupar' deve ser dia, semana ou mes")
 	}
 	where, args := walletFilter(walletIDs, in.period, bucket == "t.month")
-	rows, err := s.db.QueryContext(ctx, `
+	//nolint:gosec // moved unchanged, see docs/security.md
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT `+bucket+` AS b,
 		  COALESCE(SUM(CASE WHEN t.kind = 'expense' THEN t.amount_cents END), 0),
 		  COALESCE(SUM(CASE WHEN t.kind = 'income' THEN t.amount_cents END), 0)
@@ -332,7 +335,8 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 // queryTx runs the shared transaction listing; extra is an additional WHERE clause (may be empty).
 func (s *Server) queryTx(ctx context.Context, walletIDs []int64, p period, extra string, extraArgs []any, order string, limit int) ([]txItem, error) {
 	where, args := walletFilter(walletIDs, p, p.wholeMonths())
-	rows, err := s.db.QueryContext(ctx, `
+	//nolint:gosec // moved unchanged, see docs/security.md
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT t.date, t.kind, t.description, c.name, t.amount_cents, w.name
 		FROM transactions t JOIN categories c ON c.id = t.category_id AND c.wallet_id = t.wallet_id JOIN wallets w ON w.id = t.wallet_id
 		WHERE `+where+extra+` ORDER BY `+order+` LIMIT ?`, append(append(args, extraArgs...), limit)...)

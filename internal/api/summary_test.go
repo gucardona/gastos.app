@@ -7,8 +7,8 @@ import (
 
 func TestSummaryScenario(t *testing.T) {
 	app := newTestApp(t)
-	loc := app.s.cfg.Location
-	app.s.now = func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, loc) }
+	loc := app.s.Cfg.Location
+	app.s.Now = func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, loc) }
 
 	ana := app.register("Ana", "ana@example.com")
 	bia := app.register("Bia", "bia@example.com")
@@ -99,8 +99,8 @@ func TestSummaryValidation(t *testing.T) {
 
 func TestSummaryDailyAverageForPastAndFutureMonths(t *testing.T) {
 	app := newTestApp(t)
-	loc := app.s.cfg.Location
-	app.s.now = func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, loc) }
+	loc := app.s.Cfg.Location
+	app.s.Now = func() time.Time { return time.Date(2026, 10, 15, 12, 0, 0, 0, loc) }
 	ana := app.register("Ana", "ana@example.com")
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 3100, "description": "x", "categoryId": firstCategory(t, ana, "expense"), "date": "2026-08-10",

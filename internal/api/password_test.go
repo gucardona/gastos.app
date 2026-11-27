@@ -3,6 +3,8 @@ package api
 import (
 	"strings"
 	"testing"
+
+	"gastos/internal/api/httpx"
 )
 
 const oldPassword = "senha-segura" // what testApp.register signs up with
@@ -43,7 +45,7 @@ func TestChangePasswordIsValidated(t *testing.T) {
 	}
 	for name, c := range cases {
 		var res struct {
-			Error apiError `json:"error"`
+			Error httpx.APIError `json:"error"`
 		}
 		status := ana.doRaw("PUT", "/api/me/password", pwBody{"currentPassword": c.current, "newPassword": c.next}, &res)
 		if status != 400 || res.Error.Fields[c.field] == "" {

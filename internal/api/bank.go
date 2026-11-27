@@ -9,27 +9,28 @@ import (
 	"strings"
 	"time"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/bankimport"
 )
 
 // bankRoutes registers the bank account, statement import, inbox and categorization rule routes of a wallet.
-func (s *Server) bankRoutes(mux *http.ServeMux, wallet routeWrap) {
+func (s *Server) bankRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
 	const base = "/api/wallets/{walletID}"
-	mux.Handle("GET "+base+"/bank-accounts", wallet(roleReader, s.listBankAccounts))
-	mux.Handle("POST "+base+"/bank-accounts", wallet(roleEditor, s.createBankAccount))
-	mux.Handle("PUT "+base+"/bank-accounts/{id}", wallet(roleEditor, s.updateBankAccount))
-	mux.Handle("DELETE "+base+"/bank-accounts/{id}", wallet(roleEditor, s.deleteBankAccount))
-	mux.Handle("POST "+base+"/bank-accounts/{id}/import", wallet(roleEditor, s.importStatement))
+	mux.Handle("GET "+base+"/bank-accounts", wallet(httpx.RoleReader, s.listBankAccounts))
+	mux.Handle("POST "+base+"/bank-accounts", wallet(httpx.RoleEditor, s.createBankAccount))
+	mux.Handle("PUT "+base+"/bank-accounts/{id}", wallet(httpx.RoleEditor, s.updateBankAccount))
+	mux.Handle("DELETE "+base+"/bank-accounts/{id}", wallet(httpx.RoleEditor, s.deleteBankAccount))
+	mux.Handle("POST "+base+"/bank-accounts/{id}/import", wallet(httpx.RoleEditor, s.importStatement))
 
-	mux.Handle("GET "+base+"/inbox", wallet(roleReader, s.listInbox))
-	mux.Handle("POST "+base+"/inbox/accept-suggested", wallet(roleEditor, s.acceptSuggested))
-	mux.Handle("POST "+base+"/inbox/{id}/accept", wallet(roleEditor, s.acceptInboxItem))
-	mux.Handle("POST "+base+"/inbox/{id}/ignore", wallet(roleEditor, s.ignoreInboxItem))
-	mux.Handle("POST "+base+"/inbox/{id}/match", wallet(roleEditor, s.matchInboxItem))
+	mux.Handle("GET "+base+"/inbox", wallet(httpx.RoleReader, s.listInbox))
+	mux.Handle("POST "+base+"/inbox/accept-suggested", wallet(httpx.RoleEditor, s.acceptSuggested))
+	mux.Handle("POST "+base+"/inbox/{id}/accept", wallet(httpx.RoleEditor, s.acceptInboxItem))
+	mux.Handle("POST "+base+"/inbox/{id}/ignore", wallet(httpx.RoleEditor, s.ignoreInboxItem))
+	mux.Handle("POST "+base+"/inbox/{id}/match", wallet(httpx.RoleEditor, s.matchInboxItem))
 
-	mux.Handle("GET "+base+"/rules", wallet(roleReader, s.listRules))
-	mux.Handle("POST "+base+"/rules", wallet(roleEditor, s.createRule))
-	mux.Handle("DELETE "+base+"/rules/{id}", wallet(roleEditor, s.deleteRule))
+	mux.Handle("GET "+base+"/rules", wallet(httpx.RoleReader, s.listRules))
+	mux.Handle("POST "+base+"/rules", wallet(httpx.RoleEditor, s.createRule))
+	mux.Handle("DELETE "+base+"/rules/{id}", wallet(httpx.RoleEditor, s.deleteRule))
 }
 
 // ---- bank accounts ----
@@ -63,17 +64,17 @@ func scanBankAccount(row interface{ Scan(...any) error }) (bankAccountDTO, error
 }
 
 // bankAccountByID returns bank account id of walletID.
-func (s *Server) bankAccountByID(ctx context.Context, q querier, walletID, id int64) (bankAccountDTO, error) {
+func (s *Server) bankAccountByID(ctx context.Context, q httpx.Querier, walletID, id int64) (bankAccountDTO, error) {
 	return scanBankAccount(q.QueryRowContext(ctx,
 		`SELECT `+bankAccountCols+` FROM bank_accounts ba WHERE ba.id = ? AND ba.wallet_id = ?`, id, walletID))
 }
 
 // validate trims the name and checks every field against walletID, returning the field errors.
-func (in *bankAccountInput) validate(ctx context.Context, q querier, walletID int64) error {
+func (in *bankAccountInput) validate(ctx context.Context, q httpx.Querier, walletID int64) error {
 	in.Name = strings.TrimSpace(in.Name)
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if in.Name == "" || len([]rune(in.Name)) > 60 {
-		fe.add("name", "obrigatório, até 60 caracteres")
+		fe.Add("name", "obrigatório, até 60 caracteres")
 	}
 	if in.PaymentMethodID != nil {
 		var ok bool
@@ -82,7 +83,7 @@ func (in *bankAccountInput) validate(ctx context.Context, q querier, walletID in
 			return err
 		}
 		if !ok {
-			fe.add("paymentMethodId", "forma de pagamento não encontrada")
+			fe.Add("paymentMethodId", "forma de pagamento não encontrada")
 		}
 	}
 	if in.PaidByUserID != 0 {
@@ -92,16 +93,16 @@ func (in *bankAccountInput) validate(ctx context.Context, q querier, walletID in
 			return err
 		}
 		if !ok {
-			fe.add("paidByUserId", "não é membro da carteira")
+			fe.Add("paidByUserId", "não é membro da carteira")
 		}
 	}
-	return fe.err()
+	return fe.Err()
 }
 
 // listBankAccounts handles GET /bank-accounts.
 func (s *Server) listBankAccounts(w http.ResponseWriter, r *http.Request) error {
-	rows, err := s.db.QueryContext(r.Context(),
-		`SELECT `+bankAccountCols+` FROM bank_accounts ba WHERE ba.wallet_id = ? ORDER BY ba.name, ba.id`, walletIDFrom(r.Context()))
+	rows, err := s.DB.QueryContext(r.Context(),
+		`SELECT `+bankAccountCols+` FROM bank_accounts ba WHERE ba.wallet_id = ? ORDER BY ba.name, ba.id`, httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
@@ -117,54 +118,54 @@ func (s *Server) listBankAccounts(w http.ResponseWriter, r *http.Request) error 
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
 // createBankAccount handles POST /bank-accounts.
 func (s *Server) createBankAccount(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	var in bankAccountInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	if err := in.validate(ctx, s.db, walletID); err != nil {
+	if err := in.validate(ctx, s.DB, walletID); err != nil {
 		return err
 	}
 	if in.PaidByUserID == 0 {
 		in.PaidByUserID = userID
 	}
 	var id int64
-	if err := s.db.QueryRowContext(ctx,
+	if err := s.DB.QueryRowContext(ctx,
 		`INSERT INTO bank_accounts (wallet_id, name, payment_method_id, paid_by_user_id) VALUES (?, ?, ?, ?) RETURNING id`,
 		walletID, in.Name, in.PaymentMethodID, in.PaidByUserID).Scan(&id); err != nil {
 		return err
 	}
-	a, err := s.bankAccountByID(ctx, s.db, walletID, id)
+	a, err := s.bankAccountByID(ctx, s.DB, walletID, id)
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, a)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, a)
 	return nil
 }
 
 // updateBankAccount replaces the name and payment method; paidByUserId and enabled are kept when omitted.
 func (s *Server) updateBankAccount(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
 	var in bankAccountInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	cur, err := s.bankAccountByID(ctx, s.db, walletID, id)
+	cur, err := s.bankAccountByID(ctx, s.DB, walletID, id)
 	if err != nil {
 		return err
 	}
-	if err := in.validate(ctx, s.db, walletID); err != nil {
+	if err := in.validate(ctx, s.DB, walletID); err != nil {
 		return err
 	}
 	if in.PaidByUserID == 0 {
@@ -174,34 +175,34 @@ func (s *Server) updateBankAccount(w http.ResponseWriter, r *http.Request) error
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := s.DB.ExecContext(ctx,
 		`UPDATE bank_accounts SET name = ?, payment_method_id = ?, paid_by_user_id = ?, enabled = ? WHERE id = ? AND wallet_id = ?`,
 		in.Name, in.PaymentMethodID, in.PaidByUserID, enabled, id, walletID); err != nil {
 		return err
 	}
-	a, err := s.bankAccountByID(ctx, s.db, walletID, id)
+	a, err := s.bankAccountByID(ctx, s.DB, walletID, id)
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, a)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, a)
 	return nil
 }
 
 // deleteBankAccount handles DELETE /bank-accounts/{id}.
 func (s *Server) deleteBankAccount(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(r.Context(), `DELETE FROM bank_accounts WHERE id = ? AND wallet_id = ?`, id, walletIDFrom(r.Context()))
+	res, err := s.DB.ExecContext(r.Context(), `DELETE FROM bank_accounts WHERE id = ? AND wallet_id = ?`, id, httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errNotFound
+		return httpx.ErrNotFound
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -219,7 +220,7 @@ type ruleDTO struct {
 
 // loadRules returns the wallet's rules by the kind of their category, so an expense rule never classifies a credit.
 // Rules pointing at archived categories are left out: accepting them would be refused anyway.
-func loadRules(ctx context.Context, q querier, walletID int64) (map[string][]bankimport.Rule, error) {
+func loadRules(ctx context.Context, q httpx.Querier, walletID int64) (map[string][]bankimport.Rule, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT r.id, r.pattern, r.category_id, COALESCE(r.rename_to, ''), r.priority, c.kind
 		FROM categorization_rules r JOIN categories c ON c.id = r.category_id
@@ -299,9 +300,9 @@ func reclassify(ctx context.Context, tx *sql.Tx, walletID int64) (int, error) {
 
 // listRules handles GET /rules, highest priority first.
 func (s *Server) listRules(w http.ResponseWriter, r *http.Request) error {
-	rows, err := s.db.QueryContext(r.Context(),
+	rows, err := s.DB.QueryContext(r.Context(),
 		`SELECT id, pattern, category_id, rename_to, priority FROM categorization_rules WHERE wallet_id = ? ORDER BY priority DESC, id`,
-		walletIDFrom(r.Context()))
+		httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
@@ -317,20 +318,20 @@ func (s *Server) listRules(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
 // createRule handles POST /rules.
 func (s *Server) createRule(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
 	var in struct {
 		Pattern    string  `json:"pattern"`
 		CategoryID int64   `json:"categoryId"`
 		RenameTo   *string `json:"renameTo"`
 		Priority   int     `json:"priority"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	in.Pattern = bankimport.Normalize(in.Pattern)
@@ -338,27 +339,27 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request) error {
 	if in.RenameTo != nil {
 		rename = strings.TrimSpace(*in.RenameTo)
 	}
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if n := len([]rune(in.Pattern)); n < 2 || n > 60 {
-		fe.add("pattern", "de 2 a 60 caracteres")
+		fe.Add("pattern", "de 2 a 60 caracteres")
 	}
 	if len([]rune(rename)) > 200 {
-		fe.add("renameTo", "até 200 caracteres")
+		fe.Add("renameTo", "até 200 caracteres")
 	}
 	var out struct {
 		Rule    ruleDTO `json:"rule"`
 		Updated int     `json:"updated"`
 	}
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
+	err := s.InTx(ctx, func(tx *sql.Tx) error {
 		var ok bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM categories WHERE id = ? AND wallet_id = ? AND archived_at IS NULL)`,
 			in.CategoryID, walletID).Scan(&ok); err != nil {
 			return err
 		}
 		if !ok {
-			fe.add("categoryId", "categoria não encontrada")
+			fe.Add("categoryId", "categoria não encontrada")
 		}
-		if err := fe.err(); err != nil {
+		if err := fe.Err(); err != nil {
 			return err
 		}
 		err := tx.QueryRowContext(ctx, `
@@ -366,8 +367,8 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request) error {
 			VALUES (?, ?, ?, NULLIF(?, ''), ?) RETURNING id, pattern, category_id, rename_to, priority`,
 			walletID, in.Pattern, in.CategoryID, rename, in.Priority,
 		).Scan(&out.Rule.ID, &out.Rule.Pattern, &out.Rule.CategoryID, &out.Rule.RenameTo, &out.Rule.Priority)
-		if isUnique(err) {
-			return errConflict("Já existe uma regra com esse texto")
+		if httpx.IsUnique(err) {
+			return httpx.ErrConflict("Já existe uma regra com esse texto")
 		}
 		if err != nil {
 			return err
@@ -378,25 +379,25 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, out)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 	return nil
 }
 
 // deleteRule handles DELETE /rules/{id}.
 func (s *Server) deleteRule(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `DELETE FROM categorization_rules WHERE id = ? AND wallet_id = ?`, id, walletID)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
-			return errNotFound
+			return httpx.ErrNotFound
 		}
 		_, err = reclassify(ctx, tx, walletID)
 		return err
@@ -404,7 +405,7 @@ func (s *Server) deleteRule(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -423,17 +424,17 @@ const importSlack = 1 << 20
 // importStatement handles POST /bank-accounts/{id}/import: an OFX or CSV statement whose new lines go
 // to the inbox.
 func (s *Server) importStatement(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	acc, err := s.bankAccountByID(ctx, s.db, walletID, id)
+	acc, err := s.bankAccountByID(ctx, s.DB, walletID, id)
 	if err != nil {
 		return err
 	}
 	if !acc.Enabled {
-		return errConflict("Esta conta está desativada")
+		return httpx.ErrConflict("Esta conta está desativada")
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, bankimport.MaxFileBytes+importSlack)
@@ -442,11 +443,11 @@ func (s *Server) importStatement(w http.ResponseWriter, r *http.Request) error {
 		if errors.As(err, &tooBig) {
 			return errTooLarge
 		}
-		return errBadRequest("Envie o arquivo do extrato")
+		return httpx.ErrBadRequest("Envie o arquivo do extrato")
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		return errBadRequest("Envie o arquivo do extrato")
+		return httpx.ErrBadRequest("Envie o arquivo do extrato")
 	}
 	defer file.Close()
 
@@ -461,21 +462,21 @@ func (s *Server) importStatement(w http.ResponseWriter, r *http.Request) error {
 		}
 		entries, err = bankimport.ParseCSV(file, m)
 	default:
-		return errValidation(map[string]string{"format": "deve ser ofx ou csv"})
+		return httpx.ValidationError(map[string]string{"format": "deve ser ofx ou csv"})
 	}
 	switch {
 	case errors.Is(err, bankimport.ErrNotOFX):
-		return errBadRequest("Este arquivo não parece ser um OFX.")
+		return httpx.ErrBadRequest("Este arquivo não parece ser um OFX.")
 	case errors.Is(err, bankimport.ErrNoTransactions):
-		return errBadRequest("Nenhuma transação encontrada no arquivo.")
+		return httpx.ErrBadRequest("Nenhuma transação encontrada no arquivo.")
 	case errors.Is(err, bankimport.ErrTooLarge):
 		return errTooLarge
 	case err != nil:
-		return errBadRequest("Arquivo inválido: " + err.Error())
+		return httpx.ErrBadRequest("Arquivo inválido: " + err.Error())
 	}
 
 	var res importResult
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.InTx(ctx, func(tx *sql.Tx) (err error) {
 		res, err = storeEntries(ctx, tx, walletID, id, entries)
 		return err
 	})
@@ -483,21 +484,21 @@ func (s *Server) importStatement(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if res.Imported > 0 {
-		s.mutated(r)
+		s.Mutated(r)
 	}
-	writeJSON(w, http.StatusOK, res)
+	httpx.WriteJSON(w, http.StatusOK, res)
 	return nil
 }
 
-var errTooLarge = &apiError{Status: http.StatusRequestEntityTooLarge, Code: "too_large", Message: "Arquivo grande demais (máximo de 5 MB)."}
+var errTooLarge = &httpx.APIError{Status: http.StatusRequestEntityTooLarge, Code: "too_large", Message: "Arquivo grande demais (máximo de 5 MB)."}
 
 // csvMapping reads from the form which CSV columns hold the date, the amount and the description.
 func csvMapping(r *http.Request) (bankimport.CSVMapping, error) {
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	col := func(field string) int {
 		n, err := strconv.Atoi(strings.TrimSpace(r.FormValue(field)))
 		if err != nil || n < 1 {
-			fe.add(field, "informe o número da coluna (a partir de 1)")
+			fe.Add(field, "informe o número da coluna (a partir de 1)")
 		}
 		return n
 	}
@@ -505,11 +506,11 @@ func csvMapping(r *http.Request) (bankimport.CSVMapping, error) {
 		Date: col("dateColumn"), Description: col("descriptionColumn"), Amount: col("amountColumn"),
 		HasHeader: r.FormValue("hasHeader") == "true", InvertSign: r.FormValue("invertSign") == "true",
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return m, err
 	}
 	if m.Date == m.Description || m.Date == m.Amount || m.Description == m.Amount {
-		return m, errBadRequest("Use três colunas diferentes para data, descrição e valor")
+		return m, httpx.ErrBadRequest("Use três colunas diferentes para data, descrição e valor")
 	}
 	return m, nil
 }
@@ -563,13 +564,13 @@ func storeEntries(ctx context.Context, tx *sql.Tx, walletID, accountID int64, en
 }
 
 // loadCandidates returns the wallet's transactions near the dates in the file that no statement line is tied to yet.
-func loadCandidates(ctx context.Context, q querier, walletID int64, entries []bankimport.Entry) ([]bankimport.Candidate, error) {
+func loadCandidates(ctx context.Context, q httpx.Querier, walletID int64, entries []bankimport.Entry) ([]bankimport.Candidate, error) {
 	lo, hi := entries[0].Date, entries[0].Date
 	for _, e := range entries {
 		lo, hi = min(lo, e.Date), max(hi, e.Date)
 	}
-	from, err1 := time.Parse(dateLayout, lo)
-	to, err2 := time.Parse(dateLayout, hi)
+	from, err1 := time.Parse(httpx.DateLayout, lo)
+	to, err2 := time.Parse(httpx.DateLayout, hi)
 	if err1 != nil || err2 != nil {
 		return nil, nil
 	}
@@ -577,7 +578,7 @@ func loadCandidates(ctx context.Context, q querier, walletID int64, entries []ba
 		SELECT t.id, t.kind, t.amount_cents, t.date FROM transactions t
 		WHERE t.wallet_id = ? AND t.date BETWEEN ? AND ?
 		  AND NOT EXISTS (SELECT 1 FROM bank_transactions b WHERE b.transaction_id = t.id OR b.suggested_match_id = t.id)`,
-		walletID, from.AddDate(0, 0, -3).Format(dateLayout), to.AddDate(0, 0, 3).Format(dateLayout))
+		walletID, from.AddDate(0, 0, -3).Format(httpx.DateLayout), to.AddDate(0, 0, 3).Format(httpx.DateLayout))
 	if err != nil {
 		return nil, err
 	}
@@ -624,16 +625,16 @@ func (s *Server) listInbox(w http.ResponseWriter, r *http.Request) error {
 		status = "pending"
 	case "pending", "accepted", "matched", "ignored":
 	default:
-		return errValidation(map[string]string{"status": "deve ser pending, accepted, matched ou ignored"})
+		return httpx.ValidationError(map[string]string{"status": "deve ser pending, accepted, matched ou ignored"})
 	}
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.DB.QueryContext(r.Context(), `
 		SELECT bt.id, bt.bank_account_id, ba.name, bt.date, bt.amount_cents, bt.description, bt.status,
 		       bt.suggested_category_id, bt.suggested_description, m.id, m.description, m.date
 		FROM bank_transactions bt
 		JOIN bank_accounts ba ON ba.id = bt.bank_account_id
 		LEFT JOIN transactions m ON m.id = bt.suggested_match_id
 		WHERE ba.wallet_id = ? AND bt.status = ?
-		ORDER BY bt.date DESC, bt.id DESC`, walletIDFrom(r.Context()), status)
+		ORDER BY bt.date DESC, bt.id DESC`, httpx.WalletIDFrom(r.Context()), status)
 	if err != nil {
 		return err
 	}
@@ -655,7 +656,7 @@ func (s *Server) listInbox(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
@@ -683,7 +684,7 @@ func lockPendingLine(ctx context.Context, tx *sql.Tx, walletID, id int64) (pendi
 		return l, err
 	}
 	if status != "pending" {
-		return l, errConflict("Esta linha já foi tratada")
+		return l, httpx.ErrConflict("Esta linha já foi tratada")
 	}
 	return l, nil
 }
@@ -720,8 +721,8 @@ func acceptLine(ctx context.Context, tx *sql.Tx, walletID, userID int64, l pendi
 
 // acceptInboxItem handles POST /inbox/{id}/accept: the line becomes a transaction.
 func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
@@ -729,11 +730,11 @@ func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {
 		CategoryID  int64  `json:"categoryId"`
 		Description string `json:"description"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	var out transaction
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		l, err := lockPendingLine(ctx, tx, walletID, id)
 		if err != nil {
 			return err
@@ -744,19 +745,19 @@ func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, out)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 	return nil
 }
 
 // ignoreInboxItem handles POST /inbox/{id}/ignore.
 func (s *Server) ignoreInboxItem(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		if _, err := lockPendingLine(ctx, tx, walletID, id); err != nil {
 			return err
 		}
@@ -766,25 +767,25 @@ func (s *Server) ignoreInboxItem(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 
 // matchInboxItem says "this line is that transaction I already typed in", so nothing is duplicated.
 func (s *Server) matchInboxItem(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
 	var in struct {
 		TransactionID int64 `json:"transactionId"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		if _, err := lockPendingLine(ctx, tx, walletID, id); err != nil {
 			return err
 		}
@@ -796,10 +797,10 @@ func (s *Server) matchInboxItem(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		if !exists {
-			return errNotFoundMsg("Transação não encontrada")
+			return httpx.ErrNotFoundMsg("Transação não encontrada")
 		}
 		if linked {
-			return errConflict("Esta transação já está ligada a outra linha do extrato")
+			return httpx.ErrConflict("Esta transação já está ligada a outra linha do extrato")
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE bank_transactions SET status = 'matched', transaction_id = ? WHERE id = ?`, in.TransactionID, id)
 		return err
@@ -807,7 +808,7 @@ func (s *Server) matchInboxItem(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -815,9 +816,9 @@ func (s *Server) matchInboxItem(w http.ResponseWriter, r *http.Request) error {
 // acceptSuggested accepts every pending line that has a suggested category and no look-alike transaction
 // (those need a person to choose between linking and creating). Lines that fail validation stay pending.
 func (s *Server) acceptSuggested(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	accepted := 0
-	err := s.inTx(ctx, func(tx *sql.Tx) error {
+	err := s.InTx(ctx, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `
 			SELECT bt.id, bt.amount_cents, bt.date, bt.description, bt.suggested_category_id, bt.suggested_description,
 			       ba.paid_by_user_id, ba.payment_method_id
@@ -842,8 +843,8 @@ func (s *Server) acceptSuggested(w http.ResponseWriter, r *http.Request) error {
 		}
 		for _, l := range lines {
 			if _, err := acceptLine(ctx, tx, walletID, userID, l, l.suggestedCategoryID.Int64, ""); err != nil {
-				var ae *apiError
-				if asAPIError(err, &ae) && ae.Status == http.StatusBadRequest {
+				var ae *httpx.APIError
+				if httpx.AsAPIError(err, &ae) && ae.Status == http.StatusBadRequest {
 					continue // validation happens before any write, so skipping leaves nothing behind
 				}
 				return err
@@ -856,8 +857,8 @@ func (s *Server) acceptSuggested(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if accepted > 0 {
-		s.mutated(r)
+		s.Mutated(r)
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"accepted": accepted})
+	httpx.WriteJSON(w, http.StatusOK, map[string]int{"accepted": accepted})
 	return nil
 }

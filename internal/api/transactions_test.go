@@ -3,6 +3,8 @@ package api
 import (
 	"strings"
 	"testing"
+
+	"gastos/internal/api/httpx"
 )
 
 func TestTransactionCRUD(t *testing.T) {
@@ -76,7 +78,7 @@ func TestTransactionValidation(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	incomeCat := firstCategory(t, ana, "income")
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 0, "description": "", "categoryId": incomeCat, "date": "2026-02-30",

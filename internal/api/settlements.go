@@ -6,15 +6,17 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"gastos/internal/api/httpx"
 )
 
 // settlementRoutes registers the settlement routes of a wallet.
-func (s *Server) settlementRoutes(mux *http.ServeMux, wallet routeWrap) {
+func (s *Server) settlementRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
 	const base = "/api/wallets/{walletID}/settlements"
-	mux.Handle("GET "+base, wallet(roleReader, s.listSettlements))
-	mux.Handle("POST "+base, wallet(roleEditor, s.createSettlement))
-	mux.Handle("PUT "+base+"/{id}", wallet(roleEditor, s.updateSettlement))
-	mux.Handle("DELETE "+base+"/{id}", wallet(roleEditor, s.deleteSettlement))
+	mux.Handle("GET "+base, wallet(httpx.RoleReader, s.listSettlements))
+	mux.Handle("POST "+base, wallet(httpx.RoleEditor, s.createSettlement))
+	mux.Handle("PUT "+base+"/{id}", wallet(httpx.RoleEditor, s.updateSettlement))
+	mux.Handle("DELETE "+base+"/{id}", wallet(httpx.RoleEditor, s.deleteSettlement))
 }
 
 // settlementDTO is a recorded payment between two members, as the API returns it.
@@ -39,13 +41,13 @@ type settlementInput struct {
 }
 
 // checkSettlementMembers requires splitting enabled on the wallet and both users to be members.
-func checkSettlementMembers(ctx context.Context, q querier, walletID, from, to int64) error {
+func checkSettlementMembers(ctx context.Context, q httpx.Querier, walletID, from, to int64) error {
 	var splitting bool
 	if err := q.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
 		return err
 	}
 	if !splitting {
-		return errBadRequest("Acertos exigem a divisão de gastos ativa na carteira")
+		return httpx.ErrBadRequest("Acertos exigem a divisão de gastos ativa na carteira")
 	}
 	var n int
 	if err := q.QueryRowContext(ctx,
@@ -53,28 +55,28 @@ func checkSettlementMembers(ctx context.Context, q querier, walletID, from, to i
 		return err
 	}
 	if n != 2 {
-		return errValidation(map[string]string{"toUserId": "ambos precisam ser membros da carteira"})
+		return httpx.ValidationError(map[string]string{"toUserId": "ambos precisam ser membros da carteira"})
 	}
 	return nil
 }
 
 // validate checks every field against walletID, returning the field errors.
-func (in *settlementInput) validate(ctx context.Context, q querier, walletID int64) error {
+func (in *settlementInput) validate(ctx context.Context, q httpx.Querier, walletID int64) error {
 	in.Note = strings.TrimSpace(in.Note)
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if msg := amountProblem(in.AmountCents); msg != "" {
-		fe.add("amountCents", msg)
+		fe.Add("amountCents", msg)
 	}
 	if msg := dateProblem(in.Date); msg != "" {
-		fe.add("date", msg)
+		fe.Add("date", msg)
 	}
 	if len([]rune(in.Note)) > 200 {
-		fe.add("note", "até 200 caracteres")
+		fe.Add("note", "até 200 caracteres")
 	}
 	if in.FromUserID <= 0 || in.ToUserID <= 0 || in.FromUserID == in.ToUserID {
-		fe.add("toUserId", "quem envia e quem recebe devem ser diferentes")
+		fe.Add("toUserId", "quem envia e quem recebe devem ser diferentes")
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
 	return checkSettlementMembers(ctx, q, walletID, in.FromUserID, in.ToUserID)
@@ -83,16 +85,16 @@ func (in *settlementInput) validate(ctx context.Context, q querier, walletID int
 // listSettlements handles GET /settlements, optionally between the from and to dates.
 func (s *Server) listSettlements(w http.ResponseWriter, r *http.Request) error {
 	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
-	if !validDate(from) || !validDate(to) {
-		return errValidation(map[string]string{"from": "obrigatório (YYYY-MM-DD)", "to": "obrigatório (YYYY-MM-DD)"})
+	if !httpx.ValidDate(from) || !httpx.ValidDate(to) {
+		return httpx.ValidationError(map[string]string{"from": "obrigatório (YYYY-MM-DD)", "to": "obrigatório (YYYY-MM-DD)"})
 	}
-	if f, _ := time.Parse(dateLayout, from); f.AddDate(0, 0, 366).Before(mustDate(to)) {
-		return errValidation(map[string]string{"to": "intervalo máximo de 366 dias"})
+	if f, _ := time.Parse(httpx.DateLayout, from); f.AddDate(0, 0, 366).Before(mustDate(to)) {
+		return httpx.ValidationError(map[string]string{"to": "intervalo máximo de 366 dias"})
 	}
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.DB.QueryContext(r.Context(), `
 		SELECT id, from_user_id, to_user_id, amount_cents, date, note, recurrence_id, created_by
 		FROM settlements WHERE wallet_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, id DESC`,
-		walletIDFrom(r.Context()), from, to)
+		httpx.WalletIDFrom(r.Context()), from, to)
 	if err != nil {
 		return err
 	}
@@ -108,17 +110,17 @@ func (s *Server) listSettlements(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
 // mustDate parses a date already validated as YYYY-MM-DD.
-func mustDate(s string) time.Time { t, _ := time.Parse(dateLayout, s); return t }
+func mustDate(s string) time.Time { t, _ := time.Parse(httpx.DateLayout, s); return t }
 
 // settlementByID returns settlement id of walletID.
 func (s *Server) settlementByID(ctx context.Context, walletID, id int64) (settlementDTO, error) {
 	var d settlementDTO
-	err := s.db.QueryRowContext(ctx, `
+	err := s.DB.QueryRowContext(ctx, `
 		SELECT id, from_user_id, to_user_id, amount_cents, date, note, recurrence_id, created_by
 		FROM settlements WHERE id = ? AND wallet_id = ?`, id, walletID).
 		Scan(&d.ID, &d.FromUserID, &d.ToUserID, &d.AmountCents, &d.Date, &d.Note, &d.RecurrenceID, &d.CreatedBy)
@@ -127,16 +129,16 @@ func (s *Server) settlementByID(ctx context.Context, walletID, id int64) (settle
 
 // createSettlement handles POST /settlements.
 func (s *Server) createSettlement(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	var in settlementInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	if err := in.validate(ctx, s.db, walletID); err != nil {
+	if err := in.validate(ctx, s.DB, walletID); err != nil {
 		return err
 	}
 	var id int64
-	if err := s.db.QueryRowContext(ctx, `
+	if err := s.DB.QueryRowContext(ctx, `
 		INSERT INTO settlements (wallet_id, from_user_id, to_user_id, amount_cents, date, note, created_by)
 		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		walletID, in.FromUserID, in.ToUserID, in.AmountCents, in.Date, in.Note, userID).Scan(&id); err != nil {
@@ -146,29 +148,29 @@ func (s *Server) createSettlement(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, d)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, d)
 	return nil
 }
 
 // updateSettlement handles PUT /settlements/{id}.
 func (s *Server) updateSettlement(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
 	var in settlementInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	if _, err := s.settlementByID(ctx, walletID, id); err != nil {
 		return err
 	}
-	if err := in.validate(ctx, s.db, walletID); err != nil {
+	if err := in.validate(ctx, s.DB, walletID); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := s.DB.ExecContext(ctx, `
 		UPDATE settlements SET from_user_id = ?, to_user_id = ?, amount_cents = ?, date = ?, note = ?
 		WHERE id = ? AND wallet_id = ?`, in.FromUserID, in.ToUserID, in.AmountCents, in.Date, in.Note, id, walletID); err != nil {
 		return err
@@ -177,25 +179,25 @@ func (s *Server) updateSettlement(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, d)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, d)
 	return nil
 }
 
 // deleteSettlement handles DELETE /settlements/{id}.
 func (s *Server) deleteSettlement(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(r.Context(), `DELETE FROM settlements WHERE id = ? AND wallet_id = ?`, id, walletIDFrom(r.Context()))
+	res, err := s.DB.ExecContext(r.Context(), `DELETE FROM settlements WHERE id = ? AND wallet_id = ?`, id, httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errNotFound
+		return httpx.ErrNotFound
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

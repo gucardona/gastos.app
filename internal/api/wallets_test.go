@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"gastos/internal/api/httpx"
+)
 
 // shareWallet adds other to owner's wallet with the given role and points other.walletID at it.
 func shareWallet(owner, other *client, role string) {
@@ -101,7 +105,7 @@ func TestRemovingAMemberNeedsTheirRecurrencesAndBankAccountsChangedFirst(t *test
 	remove := func(want int) string {
 		t.Helper()
 		var res struct {
-			Error apiError `json:"error"`
+			Error httpx.APIError `json:"error"`
 		}
 		ana.do("DELETE", ana.wpath("/members/%d", bia.user.ID), nil, want, &res)
 		return res.Error.Message

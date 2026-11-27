@@ -7,14 +7,15 @@ import (
 	"sort"
 	"time"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/billing"
 	"gastos/internal/money"
 	"gastos/internal/recurrence"
 )
 
 // summaryRoutes registers the monthly summary route of a wallet.
-func (s *Server) summaryRoutes(mux *http.ServeMux, wallet routeWrap) {
-	mux.Handle("GET /api/wallets/{walletID}/summary", wallet(roleReader, s.summary))
+func (s *Server) summaryRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
+	mux.Handle("GET /api/wallets/{walletID}/summary", wallet(httpx.RoleReader, s.summary))
 }
 
 // categoryTotal is what a category received or spent in the month.
@@ -74,14 +75,14 @@ func monthRange(month string) (first, last string, ok bool) {
 	if err != nil {
 		return "", "", false
 	}
-	return t.Format(dateLayout), t.AddDate(0, 1, -1).Format(dateLayout), true
+	return t.Format(httpx.DateLayout), t.AddDate(0, 1, -1).Format(httpx.DateLayout), true
 }
 
 // totals sums what the month (a card purchase counts in its invoice's month) realized up to today: a card purchase is
 // realized when its invoice is due, as a later-dated Pix is on its date.
 func (s *Server) totals(ctx context.Context, walletID int64, month, today string) (monthTotals, error) {
 	var m monthTotals
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.DB.QueryContext(ctx,
 		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND month = ? AND COALESCE(invoice_due, date) <= ? GROUP BY kind`,
 		walletID, month, today)
 	if err != nil {
@@ -105,16 +106,16 @@ func (s *Server) totals(ctx context.Context, walletID int64, month, today string
 
 // summary handles GET /summary?month=YYYY-MM.
 func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
 	month := r.URL.Query().Get("month")
 	first, last, ok := monthRange(month)
 	if !ok {
-		return errValidation(map[string]string{"month": "obrigatório (YYYY-MM)"})
+		return httpx.ValidationError(map[string]string{"month": "obrigatório (YYYY-MM)"})
 	}
 	prevMonth := mustDate(first).AddDate(0, -1, 0).Format("2006-01")
-	now := s.now().In(s.cfg.Location)
+	now := s.Now().In(s.Cfg.Location)
 	// realized money is what is dated up to today; later dates are still to come (see upcoming)
-	today := now.Format(dateLayout)
+	today := now.Format(httpx.DateLayout)
 
 	cur, err := s.totals(ctx, walletID, month, today)
 	if err != nil {
@@ -154,7 +155,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT c.id, c.kind, COALESCE(SUM(t.amount_cents), 0) AS cents, b.limit_cents
 		FROM categories c
 		LEFT JOIN transactions t ON t.category_id = c.id AND t.month = ? AND COALESCE(t.invoice_due, t.date) <= ?
@@ -179,7 +180,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	}
 	rows.Close()
 
-	ess, err := s.db.QueryContext(ctx, `
+	ess, err := s.DB.QueryContext(ctx, `
 		SELECT c.essentiality, SUM(t.amount_cents)
 		FROM transactions t JOIN categories c ON c.id = t.category_id
 		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.month = ? AND COALESCE(t.invoice_due, t.date) <= ?
@@ -202,7 +203,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	ess.Close()
 
 	var splitting bool
-	if err := s.db.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
+	if err := s.DB.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
 		return err
 	}
 	if splitting {
@@ -217,7 +218,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 		out.MemberBalances = balances
 		out.SuggestedSettlements = suggestSettlements(net)
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
@@ -230,7 +231,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 		return out, nil
 	}
 	month := first[:7]
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT r.id, r.kind, r.amount_cents, COALESCE(NULLIF(r.description, ''), c.name, ''), r.category_id, r.payment_method_id,
 		       r.day_of_month, r.start_date, COALESCE(r.end_date, ''), pm.closing_day, pm.due_day
 		FROM recurrences r LEFT JOIN categories c ON c.id = r.category_id LEFT JOIN payment_methods pm ON pm.id = r.payment_method_id
@@ -280,7 +281,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	rows.Close()
 	for _, c := range candidates {
 		var gone bool // already a transaction, or deleted by a person
-		if err := s.db.QueryRowContext(ctx, `
+		if err := s.DB.QueryRowContext(ctx, `
 			SELECT EXISTS (SELECT 1 FROM transactions WHERE recurrence_id = ? AND occurrence = ?)
 			    OR EXISTS (SELECT 1 FROM recurrence_skips WHERE recurrence_id = ? AND occurrence = ?)`,
 			c.u.RecurrenceID, c.occur, c.u.RecurrenceID, c.occur).Scan(&gone); err != nil {
@@ -292,7 +293,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	}
 
 	// transactions typed with a later date are still to come too (an occurrence is materialized only up to today)
-	trows, err := s.db.QueryContext(ctx, `
+	trows, err := s.DB.QueryContext(ctx, `
 		SELECT t.id, t.kind, t.amount_cents, COALESCE(NULLIF(t.description, ''), c.name, ''), t.category_id, t.payment_method_id, COALESCE(t.invoice_due, t.date)
 		FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
 		WHERE t.wallet_id = ? AND t.month = ? AND COALESCE(t.invoice_due, t.date) > ?`, walletID, month, today)
@@ -338,7 +339,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 	net := map[int64]int64{}
 	var order []int64
 
-	mrows, err := s.db.QueryContext(ctx, `SELECT user_id FROM wallet_members WHERE wallet_id = ? ORDER BY user_id`, walletID)
+	mrows, err := s.DB.QueryContext(ctx, `SELECT user_id FROM wallet_members WHERE wallet_id = ? ORDER BY user_id`, walletID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -356,7 +357,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 	}
 	mrows.Close()
 
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT t.id, t.amount_cents, t.paid_by_user_id, ts.user_id, ts.share_bp
 		FROM transactions t JOIN transaction_splits ts ON ts.transaction_id = t.id
 		WHERE t.wallet_id = ? AND t.kind = 'expense' AND t.date <= ? ORDER BY t.id, ts.user_id`, walletID, today)
@@ -394,7 +395,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 	flush()
 	rows.Close()
 
-	srows, err := s.db.QueryContext(ctx, `SELECT from_user_id, to_user_id, amount_cents FROM settlements WHERE wallet_id = ? AND date <= ?`, walletID, today)
+	srows, err := s.DB.QueryContext(ctx, `SELECT from_user_id, to_user_id, amount_cents FROM settlements WHERE wallet_id = ? AND date <= ?`, walletID, today)
 	if err != nil {
 		return nil, nil, err
 	}

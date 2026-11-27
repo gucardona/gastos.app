@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/config"
 )
 
@@ -98,7 +99,7 @@ func TestSaveKeyStoredEncrypted(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, 200, nil)
 	var enc []byte
-	if err := app.s.db.QueryRow(`SELECT api_key_enc FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&enc); err != nil {
+	if err := app.s.DB.QueryRow(`SELECT api_key_enc FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&enc); err != nil {
 		t.Fatal(err)
 	}
 	if len(enc) == 0 || bytes.Contains(enc, []byte(aiTestKey)) {
@@ -111,7 +112,7 @@ func TestRejectedKeyIsNotSaved(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	status.Store(401)
 	var e struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, &e); st != 400 {
 		t.Fatalf("status %d", st)
@@ -146,7 +147,7 @@ func TestRetentionAndModelValidation(t *testing.T) {
 		{"retentionDays": 0}, {"retentionDays": 31}, {"model": "gpt-4"},
 	} {
 		var e struct {
-			Error apiError `json:"error"`
+			Error httpx.APIError `json:"error"`
 		}
 		if st := ana.doRaw("PUT", "/api/me/ai", body, &e); st != 400 || len(e.Error.Fields) != 1 {
 			t.Fatalf("%v: status %d, %+v", body, st, e.Error)
@@ -167,7 +168,7 @@ func TestEnableNeedsKey(t *testing.T) {
 	app, _ := newAIApp(t, true)
 	ana := app.register("Ana", "ana@example.com")
 	var e struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{"enabled": true}, &e); st != 400 || e.Error.Fields["enabled"] == "" {
 		t.Fatalf("status %d, %+v", st, e.Error)
@@ -183,7 +184,7 @@ func TestUnavailableWithoutSecretKey(t *testing.T) {
 		t.Fatal("available without SecretKey")
 	}
 	var e struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, &e); st != 400 || e.Error.Message != "assistente indisponível neste servidor" {
 		t.Fatalf("status %d, %+v", st, e.Error)
@@ -206,7 +207,7 @@ func TestKeyMissingAfterSecretRotation(t *testing.T) {
 	app, _ := newAIApp(t, true)
 	ana := app.register("Ana", "ana@example.com")
 	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
-	app.s.cfg.SecretKey = bytes.Repeat([]byte{9}, 32)
+	app.s.Cfg.SecretKey = bytes.Repeat([]byte{9}, 32)
 	var got aiSettings
 	ana.do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Configured {
@@ -283,7 +284,8 @@ func TestAILimitsSetClearAndValidate(t *testing.T) {
 		t.Fatalf("clear daily: %+v", got)
 	}
 	var stored sql.NullInt64
-	app.s.db.QueryRow(`SELECT daily_limit_cents FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&stored)
+	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	app.s.DB.QueryRow(`SELECT daily_limit_cents FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&stored)
 	if stored.Valid {
 		t.Fatalf("a removed limit should be NULL, got %v", stored)
 	}
@@ -291,7 +293,7 @@ func TestAILimitsSetClearAndValidate(t *testing.T) {
 	for _, field := range []string{"dailyLimitCents", "monthlyLimitCents"} {
 		for _, bad := range []int64{-1, 10_000_001} {
 			var e struct {
-				Error apiError `json:"error"`
+				Error httpx.APIError `json:"error"`
 			}
 			if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{field: bad}, &e); st != 400 || e.Error.Fields[field] != "use um valor entre R$ 0,01 e R$ 100.000,00" {
 				t.Fatalf("%s=%d: status %d, %+v", field, bad, st, e.Error)
@@ -314,14 +316,14 @@ func TestAILimitsSetClearAndValidate(t *testing.T) {
 
 func seedFX(t *testing.T, app *testApp, micro int64, at string) {
 	t.Helper()
-	if _, err := app.s.db.Exec(`INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)`, micro, at); err != nil {
+	if _, err := app.s.DB.Exec(`INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)`, micro, at); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func seedUsage(t *testing.T, app *testApp, c *client, day string, micro int64) {
 	t.Helper()
-	if _, err := app.s.db.Exec(`INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (?, ?, ?, 777, 888)`,
+	if _, err := app.s.DB.Exec(`INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (?, ?, ?, 777, 888)`,
 		c.user.ID, day, micro); err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +332,7 @@ func seedUsage(t *testing.T, app *testApp, c *client, day string, micro int64) {
 func TestAISettingsReportUsageAndRate(t *testing.T) {
 	app, _ := newAIApp(t, true)
 	// 01:00 UTC on the 18th is still the 17th in São Paulo.
-	app.s.now = func() time.Time { return time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC) }
+	app.s.Now = func() time.Time { return time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC) }
 	ana := app.register("Ana", "ana@example.com")
 	bia := app.register("Bia", "bia@example.com")
 

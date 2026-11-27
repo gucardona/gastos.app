@@ -7,18 +7,17 @@ import (
 	"strings"
 	"time"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/money"
 )
 
-const dateLayout = "2006-01-02"
-
 // transactionRoutes registers the transaction routes of a wallet.
-func (s *Server) transactionRoutes(mux *http.ServeMux, wallet routeWrap) {
+func (s *Server) transactionRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
 	const base = "/api/wallets/{walletID}/transactions"
-	mux.Handle("GET "+base, wallet(roleReader, s.listTransactions))
-	mux.Handle("POST "+base, wallet(roleEditor, s.createTransaction))
-	mux.Handle("PUT "+base+"/{id}", wallet(roleEditor, s.updateTransaction))
-	mux.Handle("DELETE "+base+"/{id}", wallet(roleEditor, s.deleteTransaction))
+	mux.Handle("GET "+base, wallet(httpx.RoleReader, s.listTransactions))
+	mux.Handle("POST "+base, wallet(httpx.RoleEditor, s.createTransaction))
+	mux.Handle("PUT "+base+"/{id}", wallet(httpx.RoleEditor, s.updateTransaction))
+	mux.Handle("DELETE "+base+"/{id}", wallet(httpx.RoleEditor, s.deleteTransaction))
 }
 
 // split is one member's share of a transaction, in basis points and in cents.
@@ -59,16 +58,13 @@ type transactionInput struct {
 	invoiceDue      *string // set when it is saved: see stampInvoice
 }
 
-// validDate reports whether s is a valid YYYY-MM-DD date.
-func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
-
 // Stored dates must fall in this range; reads accept any valid date, so older data stays readable.
 const minDate, maxDate = "2000-01-01", "2100-12-31"
 
 // dateProblem returns the field error for a date about to be stored, or "" when it is fine.
 func dateProblem(s string) string {
 	switch {
-	case !validDate(s):
+	case !httpx.ValidDate(s):
 		return "data inválida"
 	case s < minDate || s > maxDate: // YYYY-MM-DD compares as text
 		return "data fora do intervalo aceito"
@@ -89,23 +85,23 @@ func amountProblem(cents int64) string {
 
 // validate normalizes the input and checks references within the wallet.
 // currentCategoryID allows keeping an archived category the transaction already had (0 on create).
-func (in *transactionInput) validate(ctx context.Context, q querier, walletID, userID, currentCategoryID int64) error {
+func (in *transactionInput) validate(ctx context.Context, q httpx.Querier, walletID, userID, currentCategoryID int64) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.PaidByUserID == 0 {
 		in.PaidByUserID = userID
 	}
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	if in.Kind != "expense" && in.Kind != "income" {
-		fe.add("kind", "deve ser expense ou income")
+		fe.Add("kind", "deve ser expense ou income")
 	}
 	if msg := amountProblem(in.AmountCents); msg != "" {
-		fe.add("amountCents", msg)
+		fe.Add("amountCents", msg)
 	}
 	if len([]rune(in.Description)) > 200 {
-		fe.add("description", "use até 200 caracteres")
+		fe.Add("description", "use até 200 caracteres")
 	}
 	if msg := dateProblem(in.Date); msg != "" {
-		fe.add("date", msg)
+		fe.Add("date", msg)
 	}
 
 	var catKind string
@@ -114,13 +110,13 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 		in.CategoryID, walletID).Scan(&catKind, &archived)
 	switch {
 	case err == sql.ErrNoRows:
-		fe.add("categoryId", "categoria não encontrada")
+		fe.Add("categoryId", "categoria não encontrada")
 	case err != nil:
 		return err
 	case catKind != in.Kind:
-		fe.add("categoryId", "categoria não é do tipo "+in.Kind)
+		fe.Add("categoryId", "categoria não é do tipo "+in.Kind)
 	case archived && in.CategoryID != currentCategoryID:
-		fe.add("categoryId", "categoria arquivada")
+		fe.Add("categoryId", "categoria arquivada")
 	}
 
 	if in.PaymentMethodID != nil {
@@ -130,7 +126,7 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 			return err
 		}
 		if !ok {
-			fe.add("paymentMethodId", "forma de pagamento não encontrada")
+			fe.Add("paymentMethodId", "forma de pagamento não encontrada")
 		}
 	}
 
@@ -140,10 +136,10 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 		return err
 	}
 	if !isMember {
-		fe.add("paidByUserId", "não é membro da carteira")
+		fe.Add("paidByUserId", "não é membro da carteira")
 	}
 
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
 	splits, err := resolveSplits(ctx, q, walletID, in.Kind, in.Splits)
@@ -155,14 +151,14 @@ func (in *transactionInput) validate(ctx context.Context, q querier, walletID, u
 }
 
 // resolveSplits applies the spec's split rules and returns the final splits (without amountCents).
-func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, requested []split) ([]split, error) {
+func resolveSplits(ctx context.Context, q httpx.Querier, walletID int64, kind string, requested []split) ([]split, error) {
 	var splitting bool
 	if err := q.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
 		return nil, err
 	}
 	if !splitting || kind != "expense" {
 		if len(requested) > 0 {
-			return nil, errValidation(map[string]string{"splits": "divisão não se aplica"})
+			return nil, httpx.ValidationError(map[string]string{"splits": "divisão não se aplica"})
 		}
 		return nil, nil
 	}
@@ -215,17 +211,17 @@ func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, 
 	for _, sp := range requested {
 		switch {
 		case !members[sp.UserID]:
-			return nil, errValidation(map[string]string{"splits": "participante não é membro da carteira"})
+			return nil, httpx.ValidationError(map[string]string{"splits": "participante não é membro da carteira"})
 		case seen[sp.UserID]:
-			return nil, errValidation(map[string]string{"splits": "participante repetido"})
+			return nil, httpx.ValidationError(map[string]string{"splits": "participante repetido"})
 		case sp.ShareBP < 1 || sp.ShareBP > money.FullShare:
-			return nil, errValidation(map[string]string{"splits": "parte deve estar entre 0,01% e 100%"})
+			return nil, httpx.ValidationError(map[string]string{"splits": "parte deve estar entre 0,01% e 100%"})
 		}
 		seen[sp.UserID] = true
 		total += sp.ShareBP
 	}
 	if total != money.FullShare {
-		return nil, errValidation(map[string]string{"splits": "as partes devem somar 100%"})
+		return nil, httpx.ValidationError(map[string]string{"splits": "as partes devem somar 100%"})
 	}
 	out := make([]split, len(requested))
 	for i, sp := range requested {
@@ -249,7 +245,7 @@ func withAmounts(total int64, splits []split) []split {
 }
 
 // replaceTransactionSplits replaces the member shares of transaction txID with splits.
-func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits []split) error {
+func replaceTransactionSplits(ctx context.Context, q httpx.Querier, txID int64, splits []split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM transaction_splits WHERE transaction_id = ?`, txID); err != nil {
 		return err
 	}
@@ -264,31 +260,31 @@ func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits
 
 // listTransactions handles GET /transactions.
 func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID := r.Context(), walletIDFrom(r.Context())
+	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
 	qs := r.URL.Query()
 	from, to, month := qs.Get("from"), qs.Get("to"), qs.Get("month")
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	// either a month (a card purchase is listed in its invoice's month) or a date range
 	if month != "" {
 		if _, _, ok := monthRange(month); !ok || from != "" || to != "" {
-			fe.add("month", "use month (YYYY-MM) ou from e to")
+			fe.Add("month", "use month (YYYY-MM) ou from e to")
 		}
 	} else {
-		if !validDate(from) {
-			fe.add("from", "obrigatório (YYYY-MM-DD)")
+		if !httpx.ValidDate(from) {
+			fe.Add("from", "obrigatório (YYYY-MM-DD)")
 		}
-		if !validDate(to) {
-			fe.add("to", "obrigatório (YYYY-MM-DD)")
+		if !httpx.ValidDate(to) {
+			fe.Add("to", "obrigatório (YYYY-MM-DD)")
 		}
 		if len(fe) == 0 {
-			f, _ := time.Parse(dateLayout, from)
-			t, _ := time.Parse(dateLayout, to)
+			f, _ := time.Parse(httpx.DateLayout, from)
+			t, _ := time.Parse(httpx.DateLayout, to)
 			if t.Before(f) || t.Sub(f) > 366*24*time.Hour {
-				fe.add("to", "intervalo inválido (máx. 366 dias)")
+				fe.Add("to", "intervalo inválido (máx. 366 dias)")
 			}
 		}
 	}
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
 
@@ -313,7 +309,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	}
 	query += ` ORDER BY date DESC, id DESC`
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -337,7 +333,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 	if err := s.attachSplits(ctx, list, index); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, list)
+	httpx.WriteJSON(w, http.StatusOK, list)
 	return nil
 }
 
@@ -351,7 +347,7 @@ func (s *Server) attachSplits(ctx context.Context, list []transaction, index map
 	for i, t := range list {
 		args[i] = t.ID
 	}
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.DB.QueryContext(ctx,
 		`SELECT transaction_id, user_id, share_bp FROM transaction_splits
 		 WHERE transaction_id IN (`+placeholders[:len(placeholders)-1]+`) ORDER BY transaction_id, user_id`, args...)
 	if err != nil {
@@ -404,13 +400,13 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 
 // createTransaction handles POST /transactions.
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	var in transactionInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	var id int64
-	err := s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err := s.InTx(ctx, func(tx *sql.Tx) (err error) {
 		id, err = saveTransaction(ctx, tx, walletID, userID, &in, "manual")
 		return err
 	})
@@ -420,26 +416,26 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error
 	out := transaction{ID: id, Source: "manual", Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date,
 		PaidByUserID: in.PaidByUserID, CreatedBy: userID, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, out)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 	return nil
 }
 
 // updateTransaction handles PUT /transactions/{id}.
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error {
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
-	id, err := pathID(r, "id")
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
 	var in transactionInput
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	var createdBy int64
 	var recurrenceID *int64
 	var source string
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		var currentCat int64
 		var currentDate string
 		var currentMethod *int64
@@ -473,25 +469,25 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	out := transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID,
 		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, out)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
 // deleteTransaction handles DELETE /transactions/{id}.
 func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
+	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(r.Context(), `DELETE FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletIDFrom(r.Context()))
+	res, err := s.DB.ExecContext(r.Context(), `DELETE FROM transactions WHERE id = ? AND wallet_id = ?`, id, httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errNotFound
+		return httpx.ErrNotFound
 	}
-	s.mutated(r)
+	s.Mutated(r)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

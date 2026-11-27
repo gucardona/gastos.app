@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"gastos/internal/api/httpx"
+)
 
 func firstCategory(t *testing.T, c *client, kind string) int64 {
 	t.Helper()
@@ -44,7 +48,7 @@ func TestCategoryValidation(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	var res struct {
-		Error apiError `json:"error"`
+		Error httpx.APIError `json:"error"`
 	}
 	ana.do("POST", ana.wpath("/categories"), map[string]any{
 		"kind": "expense", "name": "Pets", "icon": "🐶", "color": "vermelho", "essentiality": "essential",

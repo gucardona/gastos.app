@@ -6,71 +6,36 @@ import (
 	"net/http"
 	"strings"
 
+	"gastos/internal/api/httpx"
 	"gastos/internal/money"
 )
 
 // _bcryptCost is a variable so tests can use a low cost.
 var _bcryptCost = 12
 
-// role is a member's permission level in a wallet; a higher role can do everything a lower one can.
-type role int
-
-const (
-	roleReader role = iota + 1
-	roleEditor
-	roleOwner
-)
-
-// String returns the role as stored and sent to the client.
-func (r role) String() string {
-	switch r {
-	case roleOwner:
-		return "owner"
-	case roleEditor:
-		return "editor"
-	case roleReader:
-		return "reader"
-	}
-	return ""
-}
-
-// parseRole converts a stored role name to a role.
-func parseRole(s string) (role, bool) {
-	switch s {
-	case "owner":
-		return roleOwner, true
-	case "editor":
-		return roleEditor, true
-	case "reader":
-		return roleReader, true
-	}
-	return 0, false
-}
-
 // requireWallet requires the user to be a member of the wallet in the path with role >= minRole.
 // Non-members get 404 so the wallet's existence is not revealed.
-func (s *Server) requireWallet(minRole role, next http.Handler) http.Handler {
+func (s *Server) requireWallet(minRole httpx.Role, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		walletID, err := pathID(r, "walletID")
+		walletID, err := httpx.PathID(r, "walletID")
 		if err != nil {
-			s.writeError(w, r, err)
+			s.WriteError(w, r, err)
 			return
 		}
 		var roleStr string
-		err = s.db.QueryRowContext(r.Context(),
+		err = s.DB.QueryRowContext(r.Context(),
 			`SELECT role FROM wallet_members WHERE wallet_id = ? AND user_id = ?`,
-			walletID, userIDFrom(r.Context())).Scan(&roleStr)
+			walletID, httpx.UserIDFrom(r.Context())).Scan(&roleStr)
 		if err != nil {
-			s.writeError(w, r, err) // ErrNoRows → 404
+			s.WriteError(w, r, err) // ErrNoRows → 404
 			return
 		}
-		have, _ := parseRole(roleStr)
+		have, _ := httpx.ParseRole(roleStr)
 		if have < minRole {
-			s.writeError(w, r, errForbidden)
+			s.WriteError(w, r, httpx.ErrForbidden)
 			return
 		}
-		ctx := context.WithValue(r.Context(), ctxWalletID, walletID)
-		ctx = context.WithValue(ctx, ctxRole, have)
+		ctx := httpx.WithWallet(r.Context(), walletID, have)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -86,7 +51,7 @@ type walletDTO struct {
 
 // walletsFor returns the wallets userID is a member of.
 func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.DB.QueryContext(ctx, `
 		SELECT w.id, w.name, me.role, w.splitting_enabled, u.name
 		FROM wallets w
 		JOIN wallet_members me ON me.wallet_id = w.id AND me.user_id = ?
@@ -111,7 +76,7 @@ func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, err
 // walletByID returns walletID as seen by userID.
 func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (walletDTO, error) {
 	var d walletDTO
-	err := s.db.QueryRowContext(ctx, `
+	err := s.DB.QueryRowContext(ctx, `
 		SELECT w.id, w.name, me.role, w.splitting_enabled, u.name
 		FROM wallets w
 		JOIN wallet_members me ON me.wallet_id = w.id AND me.user_id = ?
@@ -122,7 +87,7 @@ func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (wallet
 }
 
 // createWallet inserts the wallet, the owner and the defaults (categories and payment methods).
-func createWallet(ctx context.Context, q querier, name string, ownerID int64, splitting bool) (int64, error) {
+func createWallet(ctx context.Context, q httpx.Querier, name string, ownerID int64, splitting bool) (int64, error) {
 	var id int64
 	if err := q.QueryRowContext(ctx, `INSERT INTO wallets (name, splitting_enabled) VALUES (?, ?) RETURNING id`,
 		name, splitting).Scan(&id); err != nil {
@@ -136,7 +101,7 @@ func createWallet(ctx context.Context, q querier, name string, ownerID int64, sp
 }
 
 // seedWallet creates the default categories and payment methods of a new wallet.
-func seedWallet(ctx context.Context, q querier, walletID int64) error {
+func seedWallet(ctx context.Context, q httpx.Querier, walletID int64) error {
 	expense := []struct{ name, icon, color, essentiality string }{
 		{"Alimentação", "🍽", "#0f6579", "essential"},
 		{"Mercado", "🛒", "#1f7d8f", "essential"},
@@ -191,18 +156,18 @@ func seedWallet(ctx context.Context, q querier, walletID int64) error {
 
 // listWallets handles GET /api/wallets: the caller's wallets.
 func (s *Server) listWallets(w http.ResponseWriter, r *http.Request) error {
-	list, err := s.walletsFor(r.Context(), userIDFrom(r.Context()))
+	list, err := s.walletsFor(r.Context(), httpx.UserIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, list)
+	httpx.WriteJSON(w, http.StatusOK, list)
 	return nil
 }
 
 // validWalletName requires a name of 1 to 60 characters.
-func validWalletName(fe fieldErrors, name string) {
+func validWalletName(fe httpx.FieldErrors, name string) {
 	if name == "" || len([]rune(name)) > 60 {
-		fe.add("name", "obrigatório, até 60 caracteres")
+		fe.Add("name", "obrigatório, até 60 caracteres")
 	}
 }
 
@@ -212,18 +177,18 @@ func (s *Server) createWallet(w http.ResponseWriter, r *http.Request) error {
 		Name             string `json:"name"`
 		SplittingEnabled bool   `json:"splittingEnabled"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	in.Name = strings.TrimSpace(in.Name)
-	fe := fieldErrors{}
+	fe := httpx.FieldErrors{}
 	validWalletName(fe, in.Name)
-	if err := fe.err(); err != nil {
+	if err := fe.Err(); err != nil {
 		return err
 	}
-	userID := userIDFrom(r.Context())
+	userID := httpx.UserIDFrom(r.Context())
 	var id int64
-	err := s.inTx(r.Context(), func(tx *sql.Tx) (err error) {
+	err := s.InTx(r.Context(), func(tx *sql.Tx) (err error) {
 		id, err = createWallet(r.Context(), tx, in.Name, userID, in.SplittingEnabled)
 		return err
 	})
@@ -234,8 +199,8 @@ func (s *Server) createWallet(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.notifyUsers(userID) // the creator's other tabs list the new wallet
-	writeJSON(w, http.StatusCreated, d)
+	s.NotifyUsers(userID) // the creator's other tabs list the new wallet
+	httpx.WriteJSON(w, http.StatusCreated, d)
 	return nil
 }
 
@@ -245,50 +210,50 @@ func (s *Server) updateWallet(w http.ResponseWriter, r *http.Request) error {
 		Name             *string `json:"name"`
 		SplittingEnabled *bool   `json:"splittingEnabled"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	if in.Name == nil && in.SplittingEnabled == nil {
-		return errBadRequest("Nenhuma alteração informada")
+		return httpx.ErrBadRequest("Nenhuma alteração informada")
 	}
-	walletID := walletIDFrom(r.Context())
+	walletID := httpx.WalletIDFrom(r.Context())
 	if in.Name != nil {
 		name := strings.TrimSpace(*in.Name)
-		fe := fieldErrors{}
+		fe := httpx.FieldErrors{}
 		validWalletName(fe, name)
-		if err := fe.err(); err != nil {
+		if err := fe.Err(); err != nil {
 			return err
 		}
-		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallets SET name = ? WHERE id = ?`, name, walletID); err != nil {
+		if _, err := s.DB.ExecContext(r.Context(), `UPDATE wallets SET name = ? WHERE id = ?`, name, walletID); err != nil {
 			return err
 		}
 	}
 	if in.SplittingEnabled != nil {
-		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallets SET splitting_enabled = ? WHERE id = ?`,
+		if _, err := s.DB.ExecContext(r.Context(), `UPDATE wallets SET splitting_enabled = ? WHERE id = ?`,
 			*in.SplittingEnabled, walletID); err != nil {
 			return err
 		}
 	}
-	d, err := s.walletByID(r.Context(), userIDFrom(r.Context()), walletID)
+	d, err := s.walletByID(r.Context(), httpx.UserIDFrom(r.Context()), walletID)
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, d)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, d)
 	return nil
 }
 
 // deleteWallet handles DELETE /api/wallets/{walletID}, owner only, and notifies every member.
 func (s *Server) deleteWallet(w http.ResponseWriter, r *http.Request) error {
-	walletID := walletIDFrom(r.Context())
-	members, err := s.walletMembers(r.Context(), walletID) // read before the delete takes them away
+	walletID := httpx.WalletIDFrom(r.Context())
+	members, err := s.WalletMembers(r.Context(), walletID) // read before the delete takes them away
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM wallets WHERE id = ?`, walletID); err != nil {
+	if _, err := s.DB.ExecContext(r.Context(), `DELETE FROM wallets WHERE id = ?`, walletID); err != nil {
 		return err
 	}
-	s.notifyUsers(members...)
+	s.NotifyUsers(members...)
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -308,7 +273,7 @@ type memberDTO struct {
 // memberByID returns userID's membership in walletID.
 func (s *Server) memberByID(ctx context.Context, walletID, userID int64) (memberDTO, error) {
 	var m memberDTO
-	err := s.db.QueryRowContext(ctx, `
+	err := s.DB.QueryRowContext(ctx, `
 		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0), wm.default_payment_method_id
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ? AND wm.user_id = ?`, walletID, userID).
@@ -318,12 +283,12 @@ func (s *Server) memberByID(ctx context.Context, walletID, userID int64) (member
 
 // listMembers handles GET /members.
 func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
-	rows, err := s.db.QueryContext(r.Context(), `
+	rows, err := s.DB.QueryContext(r.Context(), `
 		SELECT u.id, u.name, u.email, wm.role, wm.splits_by_default, COALESCE(wm.default_share_bp, 0), wm.default_payment_method_id
 		FROM wallet_members wm JOIN users u ON u.id = wm.user_id
 		WHERE wm.wallet_id = ?
 		ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.name, u.id`,
-		walletIDFrom(r.Context()))
+		httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
@@ -339,7 +304,7 @@ func (s *Server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
@@ -349,25 +314,25 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) error {
 		Email string `json:"email"`
 		Role  string `json:"role"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
-	if rl, ok := parseRole(in.Role); !ok || rl == roleOwner {
-		return errValidation(map[string]string{"role": "deve ser editor ou reader"})
+	if rl, ok := httpx.ParseRole(in.Role); !ok || rl == httpx.RoleOwner {
+		return httpx.ValidationError(map[string]string{"role": "deve ser editor ou reader"})
 	}
 	var userID int64
-	if err := s.db.QueryRowContext(r.Context(), `SELECT id FROM users WHERE email = ?`, in.Email).Scan(&userID); err != nil {
+	if err := s.DB.QueryRowContext(r.Context(), `SELECT id FROM users WHERE email = ?`, in.Email).Scan(&userID); err != nil {
 		if err == sql.ErrNoRows {
-			return errNotFoundMsg("Usuário não encontrado")
+			return httpx.ErrNotFoundMsg("Usuário não encontrado")
 		}
 		return err
 	}
-	walletID := walletIDFrom(r.Context())
-	if _, err := s.db.ExecContext(r.Context(),
+	walletID := httpx.WalletIDFrom(r.Context())
+	if _, err := s.DB.ExecContext(r.Context(),
 		`INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (?, ?, ?)`, walletID, userID, in.Role); err != nil {
-		if isUnique(err) {
-			return errConflict("Usuário já faz parte da carteira")
+		if httpx.IsUnique(err) {
+			return httpx.ErrConflict("Usuário já faz parte da carteira")
 		}
 		return err
 	}
@@ -375,15 +340,15 @@ func (s *Server) addMember(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusCreated, m)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusCreated, m)
 	return nil
 }
 
 // updateMember handles PATCH /members/{userID}: role, splits by default and default share.
 // The owner's role cannot change.
 func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
-	target, err := pathID(r, "userID")
+	target, err := httpx.PathID(r, "userID")
 	if err != nil {
 		return err
 	}
@@ -392,37 +357,37 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 		SplitsByDefault *bool   `json:"splitsByDefault"`
 		DefaultShareBP  *int    `json:"defaultShareBp"` // 0 clears it
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	if in.DefaultShareBP != nil && (*in.DefaultShareBP < 0 || *in.DefaultShareBP > money.FullShare) {
-		return errValidation(map[string]string{"defaultShareBp": "use entre 0 e 100%"})
+		return httpx.ValidationError(map[string]string{"defaultShareBp": "use entre 0 e 100%"})
 	}
-	walletID := walletIDFrom(r.Context())
+	walletID := httpx.WalletIDFrom(r.Context())
 	cur, err := s.memberByID(r.Context(), walletID, target)
 	if err != nil {
 		return err
 	}
 	if in.Role != nil {
 		if cur.Role == "owner" {
-			return errBadRequest("O papel do owner não pode ser alterado")
+			return httpx.ErrBadRequest("O papel do owner não pode ser alterado")
 		}
-		if rl, ok := parseRole(*in.Role); !ok || rl == roleOwner {
-			return errValidation(map[string]string{"role": "deve ser editor ou reader"})
+		if rl, ok := httpx.ParseRole(*in.Role); !ok || rl == httpx.RoleOwner {
+			return httpx.ValidationError(map[string]string{"role": "deve ser editor ou reader"})
 		}
-		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallet_members SET role = ? WHERE wallet_id = ? AND user_id = ?`,
+		if _, err := s.DB.ExecContext(r.Context(), `UPDATE wallet_members SET role = ? WHERE wallet_id = ? AND user_id = ?`,
 			*in.Role, walletID, target); err != nil {
 			return err
 		}
 	}
 	if in.SplitsByDefault != nil {
-		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallet_members SET splits_by_default = ? WHERE wallet_id = ? AND user_id = ?`,
+		if _, err := s.DB.ExecContext(r.Context(), `UPDATE wallet_members SET splits_by_default = ? WHERE wallet_id = ? AND user_id = ?`,
 			*in.SplitsByDefault, walletID, target); err != nil {
 			return err
 		}
 	}
 	if in.DefaultShareBP != nil {
-		if _, err := s.db.ExecContext(r.Context(), `UPDATE wallet_members SET default_share_bp = NULLIF(?, 0) WHERE wallet_id = ? AND user_id = ?`,
+		if _, err := s.DB.ExecContext(r.Context(), `UPDATE wallet_members SET default_share_bp = NULLIF(?, 0) WHERE wallet_id = ? AND user_id = ?`,
 			*in.DefaultShareBP, walletID, target); err != nil {
 			return err
 		}
@@ -431,53 +396,53 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, m)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, m)
 	return nil
 }
 
 // removeMember handles DELETE /members/{userID}: the owner removes a member, or a member leaves.
 // The owner cannot leave, and a member still in a recurrence or a bank account must be edited out first.
 func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) error {
-	target, err := pathID(r, "userID")
+	target, err := httpx.PathID(r, "userID")
 	if err != nil {
 		return err
 	}
-	me := userIDFrom(r.Context())
-	if roleFrom(r.Context()) != roleOwner && target != me {
-		return errForbidden
+	me := httpx.UserIDFrom(r.Context())
+	if httpx.RoleFrom(r.Context()) != httpx.RoleOwner && target != me {
+		return httpx.ErrForbidden
 	}
-	walletID := walletIDFrom(r.Context())
+	walletID := httpx.WalletIDFrom(r.Context())
 	cur, err := s.memberByID(r.Context(), walletID, target)
 	if err != nil {
 		return err
 	}
 	if cur.Role == "owner" {
-		return errBadRequest("O owner não pode ser removido nem sair da carteira")
+		return httpx.ErrBadRequest("O owner não pode ser removido nem sair da carteira")
 	}
 	// The materializer and imports would keep creating entries in the name of someone no longer in the wallet.
 	var inRecurrence, inBankAccount bool
-	if err := s.db.QueryRowContext(r.Context(), `
+	if err := s.DB.QueryRowContext(r.Context(), `
 		SELECT EXISTS(SELECT 1 FROM recurrences rc
 		              WHERE rc.wallet_id = ?1 AND rc.enabled = 1 AND (rc.end_date IS NULL OR rc.end_date >= ?3)
 		                AND (rc.paid_by_user_id = ?2 OR rc.to_user_id = ?2
 		                     OR EXISTS(SELECT 1 FROM recurrence_splits rs WHERE rs.recurrence_id = rc.id AND rs.user_id = ?2))),
 		       EXISTS(SELECT 1 FROM bank_accounts WHERE wallet_id = ?1 AND paid_by_user_id = ?2)`,
-		walletID, target, s.now().In(s.cfg.Location).Format(dateLayout)).Scan(&inRecurrence, &inBankAccount); err != nil {
+		walletID, target, s.Now().In(s.Cfg.Location).Format(httpx.DateLayout)).Scan(&inRecurrence, &inBankAccount); err != nil {
 		return err
 	}
 	if inRecurrence {
-		return errBadRequest("Antes, edite ou exclua as recorrências que envolvem essa pessoa")
+		return httpx.ErrBadRequest("Antes, edite ou exclua as recorrências que envolvem essa pessoa")
 	}
 	if inBankAccount {
-		return errBadRequest("Antes, edite ou exclua as contas bancárias que usam essa pessoa como pagadora")
+		return httpx.ErrBadRequest("Antes, edite ou exclua as contas bancárias que usam essa pessoa como pagadora")
 	}
-	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM wallet_members WHERE wallet_id = ? AND user_id = ?`,
+	if _, err := s.DB.ExecContext(r.Context(), `DELETE FROM wallet_members WHERE wallet_id = ? AND user_id = ?`,
 		walletID, target); err != nil {
 		return err
 	}
-	s.mutated(r)
-	s.notifyUsers(target) // no longer a member, so mutated does not reach them
+	s.Mutated(r)
+	s.NotifyUsers(target) // no longer a member, so mutated does not reach them
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -487,21 +452,21 @@ func (s *Server) setDefaultPaymentMethod(w http.ResponseWriter, r *http.Request)
 	var in struct {
 		PaymentMethodID *int64 `json:"paymentMethodId"`
 	}
-	if err := decode(w, r, &in); err != nil {
+	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
+	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	if in.PaymentMethodID != nil {
 		var ok bool
-		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM payment_methods WHERE id = ? AND wallet_id = ?)`,
+		if err := s.DB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM payment_methods WHERE id = ? AND wallet_id = ?)`,
 			*in.PaymentMethodID, walletID).Scan(&ok); err != nil {
 			return err
 		}
 		if !ok {
-			return errValidation(map[string]string{"paymentMethodId": "forma de pagamento inexistente"})
+			return httpx.ValidationError(map[string]string{"paymentMethodId": "forma de pagamento inexistente"})
 		}
 	}
-	if _, err := s.db.ExecContext(ctx, `UPDATE wallet_members SET default_payment_method_id = ? WHERE wallet_id = ? AND user_id = ?`,
+	if _, err := s.DB.ExecContext(ctx, `UPDATE wallet_members SET default_payment_method_id = ? WHERE wallet_id = ? AND user_id = ?`,
 		in.PaymentMethodID, walletID, userID); err != nil {
 		return err
 	}
@@ -509,7 +474,7 @@ func (s *Server) setDefaultPaymentMethod(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return err
 	}
-	s.mutated(r)
-	writeJSON(w, http.StatusOK, m)
+	s.Mutated(r)
+	httpx.WriteJSON(w, http.StatusOK, m)
 	return nil
 }

@@ -40,7 +40,7 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 	}
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &other)
 	var otherCat int64
-	if err := app.s.db.QueryRow(`SELECT id FROM categories WHERE wallet_id = ? AND kind = 'expense' ORDER BY id LIMIT 1`, other.ID).Scan(&otherCat); err != nil {
+	if err := app.s.DB.QueryRow(`SELECT id FROM categories WHERE wallet_id = ? AND kind = 'expense' ORDER BY id LIMIT 1`, other.ID).Scan(&otherCat); err != nil {
 		t.Fatal(err)
 	}
 	ana.do("POST", "/api/wallets/"+itoa(other.ID)+"/transactions", map[string]any{
@@ -110,7 +110,7 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 	}
 
 	// once the day comes, everything counts
-	app.s.now = func() time.Time { return time.Date(2026, 11, 30, 12, 0, 0, 0, app.s.cfg.Location) }
+	app.s.Now = func() time.Time { return time.Date(2026, 11, 30, 12, 0, 0, 0, app.s.Cfg.Location) }
 	nov = getSummary(ana, "2026-11")
 	if nov.ExpenseCents != 8000 || nov.IncomeCents != 80000 || len(nov.Upcoming) != 0 {
 		t.Errorf("November on its last day: %+v", nov)
