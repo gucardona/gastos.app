@@ -183,7 +183,9 @@ After each step: `go build ./...`, `go vet ./...`, `go test -race ./...`.
   - without a session: 401 (the session check runs before the wallet check);
   - as a non-member of the wallet: 404 with the `not_found` body, as today (`requireWallet` hides wallets from non-members);
   - as a reader: 403 on editor and owner routes, not 403 on reader routes; as an editor: 403 on owner routes;
-  - as the owner, with real ids in the path: neither 404 nor 401. This catches a path wildcard renamed without its `PathValue`, which would make `pathID` return 404.
+  - as the owner: the status and error code today's code returns, pinned in the table (golden values).
+
+  Only `{walletID}` gets a real id; other wildcards get a missing id, because a real row per route would make the probe a second test suite. A wildcard renamed without its `PathValue` is caught instead by the moved-code check (pattern strings move verbatim) and by the existing tests, which call routes with real ids.
 
   It also pins the middleware: the security headers and CSP on a response, and a cross-site POST rejected. It is written first, against today's code, and must pass unchanged at the end.
 - **Test names.** The sorted list of test names after the branch equals the baseline from step 1. Tests that moved package show up under the same name.
