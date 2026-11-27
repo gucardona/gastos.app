@@ -19,7 +19,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"gastos/internal/api/httpx"
+	"gastos/internal/api/wallet"
 )
+
+// BcryptCost is a variable so tests can use a low cost.
+var BcryptCost = 12
 
 const (
 	sessionCookie = "gastos_session"
@@ -188,7 +192,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 		}
-		_, err = CreateWallet(r.Context(), tx, "Pessoal", userID, false)
+		_, err = wallet.CreateWallet(r.Context(), tx, "Pessoal", userID, false)
 		return err
 	})
 	if err != nil {
@@ -272,7 +276,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 		httpx.UserIDFrom(r.Context())).Scan(&u.ID, &u.Name, &u.Email); err != nil {
 		return err
 	}
-	wallets, err := s.WalletsFor(r.Context(), u.ID)
+	wallets, err := s.wallet.WalletsFor(r.Context(), u.ID)
 	if err != nil {
 		return err
 	}
@@ -313,7 +317,7 @@ func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
 	s.NotifyUsers(uid) // their other tabs, even with no wallet left
 	ctx, cancel := httpx.NotifyCtx(r.Context())
 	defer cancel()
-	wallets, err := s.WalletsFor(ctx, uid)
+	wallets, err := s.wallet.WalletsFor(ctx, uid)
 	if err != nil {
 		s.Log.ErrorContext(ctx, "notify co-members", "user", uid, "err", err) // the new name is saved: only the notice is lost
 	}

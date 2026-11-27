@@ -17,6 +17,7 @@ import (
 
 	"gastos/internal/anthropic"
 	"gastos/internal/api/httpx"
+	"gastos/internal/api/wallet"
 	"gastos/internal/config"
 )
 
@@ -687,7 +688,7 @@ func TestChatHistoryIsPerUserAndWallet(t *testing.T) {
 	bia := app.register("Bia", "bia@example.com")
 	enableAI(ana)
 	enableAI(bia)
-	var casa WalletDTO
+	var casa wallet.WalletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &casa)
 	ana.do("POST", "/api/wallets/"+itoa(ana.walletID)+"/members", map[string]any{"email": "bia@example.com", "role": "reader"}, 201, nil)
 
@@ -719,7 +720,7 @@ func TestChatDeleteClearsOnlyThatConversation(t *testing.T) {
 	app, _ := newChatApp(t, replyText("ok"))
 	ana := app.register("Ana", "ana@example.com")
 	enableAI(ana)
-	var casa WalletDTO
+	var casa wallet.WalletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &casa)
 	ana.ask("na pessoal")
 	ana.chat(map[string]any{"wallet": casa.ID, "wallets": []int64{casa.ID}, "text": "na casa"})

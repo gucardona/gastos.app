@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gastos/internal/api/httpx"
+	"gastos/internal/api/wallet"
 	"gastos/internal/config"
 	"gastos/internal/events"
 	"gastos/internal/recurrence"
@@ -20,6 +21,7 @@ import (
 // Server holds what the HTTP handlers share: the database, the settings and the background services.
 type Server struct {
 	*httpx.Env
+	wallet  *wallet.Handler
 	limiter *httpx.RateLimiter
 
 	anthropicURL string
@@ -36,7 +38,7 @@ func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materia
 		aiURL = config.DefaultAnthropicURL
 	}
 	env := &httpx.Env{DB: db, Cfg: cfg, Bus: bus, Mat: mat, Log: log, Now: time.Now}
-	return &Server{Env: env, limiter: httpx.NewRateLimiter(10, 15*time.Minute), anthropicURL: aiURL,
+	return &Server{Env: env, wallet: &wallet.Handler{Env: env}, limiter: httpx.NewRateLimiter(10, 15*time.Minute), anthropicURL: aiURL,
 		chatLimiter: httpx.NewRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
 }
 
@@ -47,7 +49,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	public := s.Handle
 	user := func(h httpx.HandlerFunc) http.Handler { return s.RequireUser(s.Handle(h)) }
 	inWallet := func(minRole httpx.Role, h httpx.HandlerFunc) http.Handler {
-		return s.RequireUser(s.RequireWallet(minRole, s.Handle(h)))
+		return s.RequireUser(s.wallet.RequireWallet(minRole, s.Handle(h)))
 	}
 
 	mux.Handle("GET /api/auth/registration", public(s.registrationInfo))
@@ -65,15 +67,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("GET /api/chat", user(s.getChat))
 	mux.Handle("DELETE /api/chat", user(s.deleteChat))
 
-	mux.Handle("GET /api/wallets", user(s.listWallets))
-	mux.Handle("POST /api/wallets", user(s.createWallet))
-	mux.Handle("PATCH /api/wallets/{walletID}", inWallet(httpx.RoleOwner, s.updateWallet))
-	mux.Handle("DELETE /api/wallets/{walletID}", inWallet(httpx.RoleOwner, s.deleteWallet))
-	mux.Handle("GET /api/wallets/{walletID}/members", inWallet(httpx.RoleReader, s.listMembers))
-	mux.Handle("POST /api/wallets/{walletID}/members", inWallet(httpx.RoleOwner, s.addMember))
-	mux.Handle("PATCH /api/wallets/{walletID}/members/{userID}", inWallet(httpx.RoleOwner, s.updateMember))
-	mux.Handle("PUT /api/wallets/{walletID}/default-payment-method", inWallet(httpx.RoleEditor, s.setDefaultPaymentMethod))
-	mux.Handle("DELETE /api/wallets/{walletID}/members/{userID}", inWallet(httpx.RoleReader, s.removeMember)) // owner or the member themselves: checked in the handler
+	s.wallet.Routes(mux, user, inWallet)
 
 	s.catalogRoutes(mux, inWallet)
 	s.transactionRoutes(mux, inWallet)

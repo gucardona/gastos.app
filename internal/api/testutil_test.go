@@ -195,3 +195,10 @@ func (c *client) status(method, path string, body any) int {
 	res.Body.Close()
 	return res.StatusCode
 }
+
+// shareWallet adds other to owner's wallet with the given role and points other.walletID at it.
+func shareWallet(owner, other *client, role string) {
+	owner.app.t.Helper()
+	owner.do("POST", owner.wpath("/members"), map[string]string{"email": other.user.Email, "role": role}, 201, nil)
+	other.walletID = owner.walletID
+}
