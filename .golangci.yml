@@ -32,6 +32,6 @@ formatters:
 issues:
   # Report only what a branch adds on top of master: existing code is not rewritten to satisfy
   # the linter, since that could change behavior of code already in production.
-  new-from-merge-base: master
+  new-from-merge-base: origin/master
   max-issues-per-linter: 0
   max-same-issues: 0

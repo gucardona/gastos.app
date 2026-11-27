@@ -10,10 +10,14 @@ import (
 	"time"
 )
 
+// Errors the statement parsers return for a file they cannot import.
 var (
-	ErrNotOFX         = errors.New("this does not look like an OFX file")
+	// ErrNotOFX means the file has neither an <OFX> tag nor an OFXHEADER line.
+	ErrNotOFX = errors.New("this does not look like an OFX file")
+	// ErrNoTransactions means the file parsed but held no transaction lines.
 	ErrNoTransactions = errors.New("no transactions found in the file")
-	ErrTooLarge       = errors.New("file is too large")
+	// ErrTooLarge means the file is over the import size limit.
+	ErrTooLarge = errors.New("file is too large")
 )
 
 const stmtTrn = "<STMTTRN>"
