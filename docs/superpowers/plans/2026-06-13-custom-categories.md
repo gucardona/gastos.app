@@ -938,7 +938,7 @@
 
 - [ ] **Step 1: Add 4 route pairs**
 
-  In `src/main.go`, after the `split-payments` route pair and before `// Arquivos estáticos`, add:
+  In `src/main.go`, after the `split-payments` route pair and before `// Arquivos estáticos` (Static files), add:
 
   ```go
   mux.HandleFunc("/api/categories", cors(middleware.Auth(middleware.Account(handlers.Categories))))
@@ -1396,7 +1396,7 @@ This task has many small edits. Apply them one at a time.
 
 - [ ] **Step 3: Add the categories settings card HTML**
 
-  In `src/web/index.html`, inside the settings page `.settings-stack` div, after the "Preferências do app" card and before any closing tags, add this new card:
+  In `src/web/index.html`, inside the settings page `.settings-stack` div, after the "Preferências do app" (App preferences) card and before any closing tags, add this new card:
 
   ```html
   <div class="card" x-show="hasActiveAccount">
@@ -1620,13 +1620,13 @@ This task has many small edits. Apply them one at a time.
   ```
 
   Open `http://localhost:8000`. Log in and go to Settings. Verify:
-  - "Categorias" card shows all 15 default categories
-  - "Editar" opens inline form with current values and emoji picker
+  - "Categorias" (Categories) card shows all 15 default categories
+  - "Editar" (Edit) opens inline form with current values and emoji picker
   - Emoji picker appears near button, clicking an emoji updates the icon field
   - Saving an edit updates the row immediately
-  - "Remover" shows replacement dropdown; confirming deletes the category and reassigns expenses
-  - "+ Adicionar categoria" opens a form; creating a new category adds it to the list
-  - "Métodos de pagamento" card behaves the same for payment methods
+  - "Remover" (Remove) shows replacement dropdown; confirming deletes the category and reassigns expenses
+  - "+ Adicionar categoria" (Add category) opens a form; creating a new category adds it to the list
+  - "Métodos de pagamento" (Payment methods) card behaves the same for payment methods
   - Expense form still works: category and payment selects populate correctly
 
   ```bash

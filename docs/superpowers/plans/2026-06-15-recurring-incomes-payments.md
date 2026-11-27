@@ -4,7 +4,7 @@
 
 **Goal:** Add recurring templates for incomes and split payments, mirroring the existing recurring expenses pattern exactly — same toggle UX in the form, materialization on GET, template cards below the list.
 
-**Architecture:** Two new DB tables (`recurring_incomes`, `recurring_payments`) with two named migrations adding FK columns to `incomes` and `split_payments`. Each GET handler materializes due rows before querying. Two new CRUD handler files. Frontend adds a "Recorrente?" toggle to income and payment forms with conditional field sets, template card grids below each list, and `↻ recorrente` badges on materialized rows.
+**Architecture:** Two new DB tables (`recurring_incomes`, `recurring_payments`) with two named migrations adding FK columns to `incomes` and `split_payments`. Each GET handler materializes due rows before querying. Two new CRUD handler files. Frontend adds a "Recorrente?" (Recurring?) toggle to income and payment forms with conditional field sets, template card grids below each list, and `↻ recorrente` (recurring) badges on materialized rows.
 
 **Tech Stack:** Go 1.26, `modernc.org/sqlite`, Alpine.js frontend in a single `src/web/index.html`.
 
@@ -1013,7 +1013,7 @@ git commit -m "feat: materialize recurring incomes/payments on GET, expose FK fi
 
 - [ ] **Step 1: Register the four new route pairs**
 
-Find the block of account-scoped routes in `newMux()` and add before the `// Eventos em tempo real` comment:
+Find the block of account-scoped routes in `newMux()` and add before the `// Eventos em tempo real` (Real-time events) comment:
 
 ```go
 mux.HandleFunc("/api/recurring-incomes",    cors(middleware.Auth(middleware.Account(handlers.RecurringIncomes))))
@@ -1610,7 +1610,7 @@ go build ./src/... && go run ./src/main.go &
 ```
 
 Check:
-1. Pagamentos page — "Recorrente?" toggle appears in the payment form
+1. Pagamentos (Payments) page — "Recorrente?" toggle appears in the payment form
 2. Toggle switches date field to dayOfMonth+startDate+endDate
 3. Creating a recurring payment saves and shows template card
 4. Template card shows payer → receiver, amount, dates, status badge

@@ -1,42 +1,42 @@
-# Frontend — reescrita em React
+# Frontend — React rewrite
 
-**Data:** 2026-10-09
-**Status:** Draft — a direção visual precisa de aprovação por mockup antes da implementação
+**Date:** 2026-10-09
+**Status:** Draft — the visual direction needs mockup approval before implementation
 **Roadmap:** [2026-10-09-roadmap.md](2026-10-09-roadmap.md)
 
-## Objetivo
+## Goal
 
-Substituir o `src/web/index.html` (165 KB, Alpine + Chart.js + flatpickr via CDN) por um app React tipado, minimalista e robusto, consumindo a API v2 da [spec de backend](2026-10-09-backend-foundation-design.md).
+Replace `src/web/index.html` (165 KB, Alpine + Chart.js + flatpickr via CDN) with a typed, minimalist and robust React app that consumes the v2 API from the [backend spec](2026-10-09-backend-foundation-design.md).
 
-Robusto aqui quer dizer:
-- tipos de ponta a ponta;
-- estados de loading, erro e vazio em toda tela;
-- sem perder dados de formulário;
-- funciona bem no celular.
+Robust here means:
+- end-to-end types;
+- loading, error and empty states on every screen;
+- no lost form data;
+- works well on a phone.
 
-Minimalista quer dizer:
-- menos telas e menos cliques para o caso comum, que é lançar um gasto;
-- hierarquia tipográfica no lugar de cards coloridos;
-- uma cor de destaque só.
+Minimalist means:
+- fewer screens and fewer clicks for the common case, which is logging an expense;
+- typographic hierarchy instead of colored cards;
+- a single accent color.
 
 ## Stack
 
-| Camada | Escolha | Motivo |
+| Layer | Choice | Reason |
 |---|---|---|
-| Build | Vite + TypeScript (strict) | rápido, padrão |
+| Build | Vite + TypeScript (strict) | fast, standard |
 | UI | React 19 | |
-| Estilo | Tailwind CSS v4 + componentes no estilo shadcn/ui (Radix por baixo) | acessibilidade pronta (dialog, popover, select), código dos componentes fica no repo |
-| Rotas | TanStack Router | search params tipados: `?m=2026-10&cat=3` vira estado validado na URL |
-| Dados | TanStack Query | cache, invalidação por SSE, updates otimistas |
-| Formulários | react-hook-form + zod | validação igual ao backend, erros de campo vindos da API mapeados |
-| Gráficos | Recharts | poucos gráficos, todos simples |
-| Datas | date-fns (locale `pt-BR`) | |
-| Ícones | lucide-react | as categorias continuam aceitando emoji como ícone |
-| Testes | Vitest + Testing Library; Playwright para smoke e2e | |
+| Style | Tailwind CSS v4 + shadcn/ui-style components (Radix underneath) | accessibility out of the box (dialog, popover, select), component code lives in the repo |
+| Routing | TanStack Router | typed search params: `?m=2026-10&cat=3` becomes validated state in the URL |
+| Data | TanStack Query | cache, SSE invalidation, optimistic updates |
+| Forms | react-hook-form + zod | same validation as the backend, field errors from the API are mapped |
+| Charts | Recharts | few charts, all simple |
+| Dates | date-fns (`pt-BR` locale) | |
+| Icons | lucide-react | categories still accept an emoji as the icon |
+| Tests | Vitest + Testing Library; Playwright for e2e smoke | |
 
-Sem gerenciador de estado global: o estado do servidor fica no TanStack Query, o da URL no router e o resto em `useState`.
+No global state manager: server state lives in TanStack Query, URL state in the router and the rest in `useState`.
 
-## Estrutura
+## Structure
 
 ```
 web/
@@ -44,124 +44,124 @@ web/
   embed.go                 # package web; //go:embed all:dist
   src/
     main.tsx, router.tsx
-    api/                   # client fetch (credentials:'include'), tipos, hooks de query por recurso
-    lib/money.ts           # centavos ↔ string pt-BR, parse de input "12,90"
+    api/                   # fetch client (credentials:'include'), types, query hooks per resource
+    lib/money.ts           # cents ↔ pt-BR string, input parsing "12,90"
     lib/dates.ts
     components/ui/         # primitives (button, input, dialog, sheet, select, combobox, toast...)
     components/            # MoneyInput, CategoryPicker, MonthSwitcher, TransactionRow, EmptyState...
     features/
-      auth/  overview/  transactions/  recurring/  budgets/  split/  settings/  inbox/ (fase 4)
+      auth/  overview/  transactions/  recurring/  budgets/  split/  settings/  inbox/ (phase 4)
     styles.css             # tokens (CSS vars) + tailwind
 ```
 
-## Arquitetura de informação
+## Information architecture
 
-Antes eram 7 abas: dashboard, expenses, income, payments, goals, charts e settings. Agora são **5 destinos**:
+There used to be 7 tabs: dashboard, expenses, income, payments, goals, charts and settings. Now there are **5 destinations**:
 
-| Rota | Conteúdo | Substitui |
+| Route | Content | Replaces |
 |---|---|---|
-| `/` **Visão geral** | resumo do mês: saldo, entradas, saídas, média diária, comparativo com o mês anterior; gastos por categoria com barra de orçamento; últimos lançamentos; "acertos" se a divisão estiver ativa | dashboard + charts + goals (visualização) |
-| `/lancamentos` | lista única de gastos e entradas do mês, agrupada por dia; filtros (tipo, categoria, forma de pagamento, busca); totais no topo | expenses + income |
-| `/recorrentes` | modelos recorrentes (gasto, entrada, acerto) com toggle on/off e próxima data | os três blocos "recorrentes" espalhados |
-| `/divisao` | saldos entre membros, acertos sugeridos (com botão "registrar acerto"), histórico de acertos; só aparece com `splittingEnabled` | payments |
-| `/ajustes` | carteira (nome, divisão), membros, categorias, formas de pagamento, orçamentos, conta (logout), tema | settings + goals (edição) |
+| `/` **Visão geral** (Overview) | month summary: balance, income, expenses, daily average, comparison with the previous month; expenses by category with a budget bar; latest transactions; "acertos" (settlements) if splitting is enabled | dashboard + charts + goals (viewing) |
+| `/lancamentos` | single list of the month's expenses and income, grouped by day; filters (type, category, payment method, search); totals at the top | expenses + income |
+| `/recorrentes` | recurring templates (expense, income, settlement) with an on/off toggle and next date | the three "recurring" blocks scattered around |
+| `/divisao` | balances between members, suggested settlements (with a "registrar acerto" button), settlement history; only shown with `splittingEnabled` | payments |
+| `/ajustes` | wallet (name, splitting), members, categories, payment methods, budgets, account (logout), theme | settings + goals (editing) |
 
-Na fase 4 entra a **`/caixa`** (caixa de entrada de transações importadas), com um badge de pendências.
+Phase 4 adds **`/caixa`** (inbox of imported transactions), with a pending-items badge.
 
-O mês selecionado fica na URL (`?m=2026-10`) e é compartilhado entre Visão geral e Lançamentos. O seletor de carteira fica no topo do layout; a carteira ativa fica em `localStorage`, com fallback para a primeira carteira de `/api/me`.
+The selected month lives in the URL (`?m=2026-10`) and is shared between Visão geral and Lançamentos (Transactions). The wallet selector sits at the top of the layout. The active wallet is stored in `localStorage`, with a fallback to the first wallet from `/api/me`.
 
-## Lançamento rápido
+## Quick transaction entry
 
-É o fluxo mais importante do app.
+This is the most important flow in the app.
 
-- O botão "+" (FAB no mobile, botão no header no desktop) e o atalho `N` abrem um **sheet** (de baixo no mobile, lateral no desktop).
-- A ordem dos campos é pensada para o polegar:
-  - toggle **Gasto / Entrada**;
-  - **valor** com teclado numérico (`inputmode="decimal"`), já focado;
-  - **descrição**;
-  - **categoria** em grade de chips com as mais usadas primeiro;
-  - forma de pagamento;
-  - data (padrão hoje, com atalhos "ontem" e "hoje");
-  - "quem pagou" e split, só se a divisão estiver ativa, recolhidos em "Dividir: igual entre 2 ▾".
-- O toggle "Repetir todo mês" transforma o lançamento em recorrência sem trocar de tela.
-- `Enter` salva; "Salvar e lançar outro" mantém o sheet aberto com tipo, categoria e data preservados.
-- O update é otimista: o item aparece na lista na hora e reverte com um toast de erro se a API falhar.
-- O rascunho fica em `sessionStorage` enquanto o sheet está aberto. Fechar sem querer não perde o que foi digitado.
+- The "+" button (FAB on mobile, header button on desktop) and the `N` shortcut open a **sheet** (from the bottom on mobile, from the side on desktop).
+- The field order is designed for the thumb:
+  - **Gasto / Entrada** (Expense / Income) toggle;
+  - **amount** with a numeric keyboard (`inputmode="decimal"`), already focused;
+  - **description**;
+  - **category** as a grid of chips with the most used first;
+  - payment method;
+  - date (default today, with "ontem" (yesterday) and "hoje" (today) shortcuts);
+  - "quem pagou" (who paid) and split, only if splitting is enabled, collapsed into "Dividir: igual entre 2 ▾" (Split: equal between 2).
+- The "Repetir todo mês" (Repeat every month) toggle turns the transaction into a recurrence without changing screens.
+- `Enter` saves; "Salvar e lançar outro" (Save and add another) keeps the sheet open with type, category and date preserved.
+- The update is optimistic: the item shows up in the list right away and is reverted with an error toast if the API fails.
+- The draft is kept in `sessionStorage` while the sheet is open. Closing it by accident does not lose what was typed.
 
-Editar usa o mesmo sheet. Excluir tem um "Desfazer" no toast (5 segundos) antes de chamar a API.
+Editing uses the same sheet. Deleting shows an "Desfazer" (Undo) action in the toast (5 seconds) before calling the API.
 
-## Tempo real
+## Real time
 
-`EventSource('/api/wallets/{id}/events')` com o cookie, sem token. A cada `changed`, chama `queryClient.invalidateQueries({ queryKey: ['wallet', id] })`. O hook reconecta sozinho e fecha ao trocar de carteira.
+`EventSource('/api/wallets/{id}/events')` with the cookie, no token. On every `changed` event, it calls `queryClient.invalidateQueries({ queryKey: ['wallet', id] })`. The hook reconnects on its own and closes when the wallet changes.
 
-## Direção visual (proposta, a aprovar)
+## Visual direction (proposal, to be approved)
 
-- **Tom:** calmo e editorial, como um extrato bem diagramado, não um painel de banco.
-- **Base neutra:** off-white no claro (`#FAFAF9`), grafite no escuro (`#0C0C0D`).
-- **Uma cor de destaque:** verde-petróleo, herdando o `#0f6579` atual, mais saturado no escuro.
-- **Semântica:** saída em neutro e entrada em verde. Vermelho só para estouro de orçamento e erros, para não pintar a tela de vermelho num mês normal.
-- **Tipografia:** Inter (UI) com `font-variant-numeric: tabular-nums` em todo valor. Valores grandes do resumo em peso 600, tamanho 32–40px. Sem fonte decorativa.
-- **Densidade:** listas com linhas de 52–56px:
-  - ícone da categoria;
-  - descrição e subtítulo (categoria · forma de pagamento);
-  - valor alinhado à direita.
-  Sem cards dentro de cards.
-- **Gráficos:**
-  - barras horizontais de categoria × orçamento, que substituem a pizza;
-  - uma linha de gasto acumulado no mês contra o mês anterior.
-  Só esses dois.
+- **Tone:** calm and editorial, like a well laid out bank statement, not a bank dashboard.
+- **Neutral base:** off-white in light (`#FAFAF9`), graphite in dark (`#0C0C0D`).
+- **One accent color:** teal green, inheriting the current `#0f6579`, more saturated in dark.
+- **Semantics:** expenses in neutral and income in green. Red only for budget overruns and errors, so the screen is not painted red in a normal month.
+- **Typography:** Inter (UI) with `font-variant-numeric: tabular-nums` on every amount. Large summary amounts at weight 600, size 32–40px. No decorative font.
+- **Density:** lists with 52–56px rows:
+  - category icon;
+  - description and subtitle (category · payment method);
+  - amount aligned to the right.
+  No cards inside cards.
+- **Charts:**
+  - horizontal bars of category × budget, replacing the pie chart;
+  - one line of cumulative spending in the month against the previous month.
+  Only these two.
 - **Layout:**
   - mobile-first;
-  - bottom nav com 4 itens + FAB (Ajustes fica no menu do avatar);
-  - no desktop, sidebar estreita e conteúdo com largura máxima de 960px.
-- **Tema:** claro, escuro ou sistema, em CSS vars com `data-theme`.
-- **Movimento:** transições de 150ms em sheet, dialog e toast; respeita `prefers-reduced-motion`.
+  - bottom nav with 4 items + FAB (Ajustes (Settings) lives in the avatar menu);
+  - on desktop, a narrow sidebar and content with a 960px max width.
+- **Theme:** light, dark or system, in CSS vars with `data-theme`.
+- **Motion:** 150ms transitions on sheet, dialog and toast; respects `prefers-reduced-motion`.
 
-**Antes de implementar:** produzir um mockup estático (HTML) de Visão geral, Lançamentos e do sheet de lançamento rápido, em claro e escuro e em 375px e 1280px, para aprovação.
+**Before implementing:** produce a static mockup (HTML) of Visão geral, Lançamentos and the quick transaction sheet, in light and dark and at 375px and 1280px, for approval.
 
-## Contrato com a API
+## API contract
 
 - `api/client.ts`:
-  - `fetch` com `credentials: 'include'`;
-  - um `401` em qualquer chamada leva para `/login?next=...`;
-  - erros viram `ApiError {code, message, fields}`.
-- Os tipos ficam em `api/types.ts`, escritos à mão espelhando a spec do backend. Se o volume crescer, migrar para OpenAPI gerado.
-- Dinheiro é sempre `number` em centavos. Só o `MoneyInput` e o `formatMoney` lidam com reais.
+  - `fetch` with `credentials: 'include'`;
+  - a `401` on any call redirects to `/login?next=...`;
+  - errors become `ApiError {code, message, fields}`.
+- Types live in `api/types.ts`, handwritten to mirror the backend spec. If the volume grows, migrate to generated OpenAPI.
+- Money is always a `number` in cents. Only `MoneyInput` and `formatMoney` deal with reais.
 
-## Acessibilidade e qualidade
+## Accessibility and quality
 
-- Navegação completa por teclado. Foco visível. Contraste AA nos dois temas.
-- Todo dialog e sheet com focus trap (Radix).
-- `EmptyState` em toda lista: primeira carteira, mês sem lançamentos, sem recorrências.
-- Error boundary por rota, com "tentar novamente".
-- PWA mínimo: manifest e ícones, para "adicionar à tela inicial" no celular, reaproveitando os ícones atuais. Sem service worker offline por ora.
+- Full keyboard navigation. Visible focus. AA contrast in both themes.
+- Every dialog and sheet has a focus trap (Radix).
+- `EmptyState` on every list: first wallet, month with no transactions, no recurrences.
+- Error boundary per route, with "tentar novamente" (try again).
+- Minimal PWA: manifest and icons, for "add to home screen" on the phone, reusing the current icons. No offline service worker for now.
 
-## Testes
+## Tests
 
 - **Vitest:**
-  - `lib/money` (parse e format, incluindo "1.234,56", "12,9" e "0,05");
-  - mapeamento de erros de campo;
-  - lógica de split no formulário.
-- **Testing Library:** sheet de lançamento rápido (validação, salvar e lançar outro, rascunho).
-- **Playwright (smoke contra o binário real com DB temporário):**
-  - registrar;
-  - lançar gasto e entrada;
-  - ver o resumo;
-  - criar recorrência;
-  - convidar um membro e dividir um gasto.
+  - `lib/money` (parse and format, including "1.234,56", "12,9" and "0,05");
+  - field error mapping;
+  - split logic in the form.
+- **Testing Library:** quick transaction sheet (validation, save and add another, draft).
+- **Playwright (smoke against the real binary with a temporary DB):**
+  - sign up;
+  - log an expense and an income;
+  - see the summary;
+  - create a recurrence;
+  - invite a member and split an expense.
 
-## Critérios de aceite
+## Acceptance criteria
 
-- Paridade funcional com o `index.html` atual. Checklist derivado das features:
+- Functional parity with the current `index.html`. Checklist derived from the features:
   - auth;
-  - carteiras e membros com papéis;
-  - categorias e formas de pagamento customizáveis;
-  - gastos e entradas;
-  - recorrências dos 3 tipos;
-  - divisão e acertos;
-  - orçamentos;
-  - gráficos;
-  - tempo real.
-- Lighthouse mobile ≥ 90 em Performance e Accessibility na Visão geral.
-- Bundle inicial ≤ 250 KB gzip. Recharts carregado sob demanda na Visão geral.
-- O `src/web/` antigo é removido no mesmo PR que liga o embed do `web/dist`.
+  - wallets and members with roles;
+  - customizable categories and payment methods;
+  - expenses and income;
+  - recurrences of the 3 types;
+  - splitting and settlements;
+  - budgets;
+  - charts;
+  - real time.
+- Lighthouse mobile ≥ 90 in Performance and Accessibility on the Overview.
+- Initial bundle ≤ 250 KB gzip. Recharts loaded on demand on the Overview.
+- The old `src/web/` is removed in the same PR that turns on the `web/dist` embed.

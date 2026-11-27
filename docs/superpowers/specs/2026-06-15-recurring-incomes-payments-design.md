@@ -48,7 +48,7 @@ CREATE TABLE recurring_payments (
 
 The FK columns on `incomes` and `split_payments` serve two purposes:
 1. Idempotency check — before materializing a month, query `COUNT(*) WHERE recurring_income_id = ? AND date LIKE 'YYYY-MM-%'`
-2. Frontend badge — materialized rows show `↻ recorrente`
+2. Frontend badge — materialized rows show `↻ recorrente` (recurring)
 
 ## Backend
 
@@ -152,7 +152,7 @@ Add "Recorrente?" toggle (same button style as expense form). When on:
 - Show `day_of_month` (number input 1–31), `start_date` (flatpickr), `end_date` (flatpickr, clearable), `enabled` toggle button
 - Submit button text: "Configurar" (create) / "Salvar" (edit)
 
-Below the income list: "Recorrências de entradas" card with `recurring-grid` layout, same `.recurring-card` style as expenses. Each card shows description, amount (green), type label, day + start/end, enabled toggle, edit/delete buttons.
+Below the income list: "Recorrências de entradas" (Recurring incomes) card with `recurring-grid` layout, same `.recurring-card` style as expenses. Each card shows description, amount (green), type label, day + start/end, enabled toggle, edit/delete buttons.
 
 Materialized incomes show `↻ recorrente` badge (same style as expenses) when `recurringIncomeId` is set.
 

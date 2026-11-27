@@ -416,7 +416,7 @@ func TestRollbackByDroppingTheColumnThenMigratesAgain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// undo 0009, 0008, 0007, 0006 and then 0005, newest first, as docs/assistente.md says
+	// undo 0009, 0008, 0007, 0006 and then 0005, newest first, as docs/assistant.md says
 	mustExec(t, raw, `ALTER TABLE wallet_members DROP COLUMN default_payment_method_id; PRAGMA user_version=8;`)
 	mustExec(t, raw, `DROP INDEX transactions_wallet_month; ALTER TABLE transactions DROP COLUMN month; ALTER TABLE transactions DROP COLUMN invoice_due;
 		ALTER TABLE payment_methods DROP COLUMN closing_day; ALTER TABLE payment_methods DROP COLUMN due_day; ALTER TABLE payment_methods DROP COLUMN issuer;
@@ -462,7 +462,7 @@ func TestCardColumnsCheck(t *testing.T) {
 	}
 }
 
-// TestRollbackFrom8 runs the rollbacks (9 to 8, then 8 to 7) documented in docs/assistente.md, so it is known to work on a real database.
+// TestRollbackFrom8 runs the rollbacks (9 to 8, then 8 to 7) documented in docs/assistant.md, so it is known to work on a real database.
 func TestRollbackFrom8(t *testing.T) {
 	path := filepath.Join(testutil.TempDir(t), "t.db")
 	seedV4(t, path)

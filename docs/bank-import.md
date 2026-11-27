@@ -1,42 +1,42 @@
-# Importar o extrato do banco
+# Importing the bank statement
 
-Você baixa o extrato no banco, envia para o gastos e decide, linha por linha, o que vira lançamento. Nada é lançado sem a sua confirmação.
+You download the statement from your bank, upload it to gastos and decide, line by line, what becomes a transaction. Nothing is recorded without your confirmation.
 
-## Passo a passo
+## Step by step
 
-1. **Baixe o extrato** no app ou no internet banking. Procure por "exportar extrato" ou "baixar extrato" e escolha **OFX** (também chamado de "Money" ou "Quicken"). Se o seu banco só oferece CSV, serve também. Cada banco chama e organiza isso de um jeito, então não há um caminho único.
-2. Em **Ajustes, Contas bancárias**, crie uma conta (por exemplo "Nubank cartão") e, se quiser, escolha a forma de pagamento que os lançamentos dela vão usar.
-3. Clique em **Importar extrato**, escolha o formato e o arquivo.
-4. Abra a **Caixa de entrada** e, para cada linha, escolha a categoria e clique em **Aceitar**, ou **Ignorar** o que não interessa.
+1. **Download the statement** in the bank's app or internet banking. Look for "exportar extrato" (export statement) or "baixar extrato" (download statement) and choose **OFX** (also called "Money" or "Quicken"). If your bank only offers CSV, that works too. Each bank names and organizes this differently, so there is no single path.
+2. In **Ajustes, Contas bancárias** (Settings, Bank accounts), create an account (for example "Nubank cartão") and, if you want, choose the payment method its transactions will use.
+3. Click **Importar extrato** (Import statement), then choose the format and the file.
+4. Open the **Caixa de entrada** (Inbox) and, for each line, choose the category and click **Aceitar** (Accept), or **Ignorar** (Ignore) what you do not care about.
 
-Os lançamentos aceitos entram com a data e o valor do extrato, e quem paga é quem está definido na conta bancária.
+Accepted transactions are created with the statement's date and amount, and the payer is whoever is set on the bank account.
 
-## Formatos aceitos
+## Supported formats
 
-- **OFX** (recomendado): traz data, valor e um identificador único por linha. Arquivos de até 5 MB.
-- **CSV**: separadores `;`, `,` ou tabulação são detectados sozinhos. Valores como `1.234,56` e `1,234.56` são entendidos. Datas em `dd/mm/aaaa` ou `aaaa-mm-dd`. Você informa o número da coluna (a partir de 1) de data, descrição e valor, e se a primeira linha é cabeçalho.
-  - Em fatura de cartão, as compras costumam aparecer como valores **positivos**. Marque "Compras aparecem como valores positivos" para o gastos tratá-las como gastos.
+- **OFX** (recommended): includes date, amount and a unique identifier per line. Files up to 5 MB.
+- **CSV**: the separators `;`, `,` or tab are detected automatically. Values such as `1.234,56` and `1,234.56` are understood. Dates in `dd/mm/aaaa` or `aaaa-mm-dd` (day/month/year or year-month-day). You give the column number (starting at 1) for date, description and amount, and whether the first line is a header.
+  - In a credit card bill, purchases usually appear as **positive** values. Check "Compras aparecem como valores positivos" (Purchases appear as positive values) so gastos treats them as expenses.
 
-Valor negativo vira gasto e valor positivo vira entrada. Linhas de valor zero são puladas.
+A negative value becomes an expense and a positive value becomes an income. Lines with a zero value are skipped.
 
-## Importar de novo é seguro
+## Importing again is safe
 
-- Reenviar o mesmo arquivo, ou um extrato que se sobrepõe a outro, não duplica nada: linhas já vistas são contadas como "já importadas".
-- Uma linha que você ignorou, ou cujo lançamento você apagou, não volta para a caixa.
-- No CSV não há identificador por linha, então duas compras idênticas no mesmo dia continuam distintas, mas editar o arquivo à mão e reenviar pode trazer linhas de volta.
+- Uploading the same file again, or a statement that overlaps another one, does not duplicate anything: lines already seen are counted as "já importadas" (already imported).
+- A line you ignored, or whose transaction you deleted, does not come back to the inbox.
+- CSV has no identifier per line, so two identical purchases on the same day stay distinct, but editing the file by hand and uploading it again can bring lines back.
 
-## Regras de categoria
+## Category rules
 
-Ao aceitar uma linha sem categoria sugerida, marque "Usar esta categoria nas próximas importações" e confirme o texto (por exemplo `uber`). Nas próximas importações, linhas cuja descrição contenha esse texto (sem diferenciar maiúsculas nem acentos) já chegam com a categoria escolhida. As regras ficam em Ajustes, Contas bancárias, e podem ser excluídas.
+When you accept a line without a suggested category, check "Usar esta categoria nas próximas importações" (Use this category in future imports) and confirm the text (for example `uber`). In later imports, lines whose description contains that text (case and accent insensitive) arrive with the chosen category already set. The rules are in Ajustes, Contas bancárias, and can be deleted.
 
-Uma regra de gasto nunca é aplicada a uma entrada, e vice-versa.
+An expense rule is never applied to an income, and vice versa.
 
-## Lançamentos que você já fez à mão
+## Transactions you already entered by hand
 
-Se existe um lançamento do mesmo tipo e valor, com data até dois dias de diferença, a linha mostra "Parece o lançamento que você já fez". Use **É este lançamento** para ligar os dois sem criar um segundo. Esses casos ficam de fora de "Aceitar sugeridas", justamente para você decidir.
+If there is a transaction of the same type and amount, with a date up to two days apart, the line shows "Parece o lançamento que você já fez" (Looks like the transaction you already entered). Use **É este lançamento** (This is the transaction) to link the two without creating a second one. These cases are left out of "Aceitar sugeridas" (Accept suggested), precisely so you can decide.
 
-## Limitações
+## Limitations
 
-- Arquivos OFX variam entre bancos. O parser é tolerante, mas só foi testado com o formato padrão; se um arquivo for recusado, abra uma issue com um trecho anonimizado.
-- Não há conexão automática com o banco (Open Finance). A importação é sempre manual.
-- Só quem edita a carteira pode importar; leitores veem a caixa de entrada, mas não decidem.
+- OFX files vary between banks. The parser is tolerant, but it was only tested with the standard format; if a file is rejected, open an issue with an anonymized excerpt.
+- There is no automatic connection to the bank (Open Finance). Importing is always manual.
+- Only people who can edit the wallet can import; readers see the inbox but do not decide.
