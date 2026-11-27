@@ -1,60 +1,60 @@
-# Trava de cadastro — plano
+# Registration lock — plan
 
-**Data:** 2026-10-11
-**Status:** a implementar
+**Date:** 2026-10-11
+**Status:** to implement
 
-## Problema
+## Problem
 
-`gastos.gupa.dev` é público e `POST /api/auth/register` aceita qualquer pessoa. Cada conta nova cria uma carteira e grava no banco. Para um app pessoal isso é só superfície de ataque (abuso, lixo, custo de bcrypt na CPU da VDI).
+`gastos.gupa.dev` is public and `POST /api/auth/register` accepts anyone. Each new account creates a wallet and writes to the database. For a personal app this is only attack surface (abuse, junk, bcrypt cost on the VDI CPU).
 
-## Decisão
+## Decision
 
-Cadastro **fechado por padrão**, com duas exceções controladas:
+Registration **closed by default**, with two controlled exceptions:
 
-| Situação | Cadastro |
+| Situation | Registration |
 |---|---|
-| Banco sem nenhum usuário | aberto, para criar a primeira conta |
-| `GASTOS_INVITE_CODE` definido | exige o código no cadastro (para convidar a Bia, por exemplo) |
-| Banco com usuários e sem código | **fechado** (`403`) |
+| Database with no users | open, to create the first account |
+| `GASTOS_INVITE_CODE` set | requires the code at sign-up (to invite Bia, for example) |
+| Database with users and no code | **closed** (`403`) |
 
-Por que um código e não convite por e-mail: o app não tem como enviar e-mail, e o código é um segredo que você passa à pessoa por onde preferir. Para encerrar convites, basta remover a variável e reiniciar.
+Why a code and not an email invite: the app has no way to send email, and the code is a secret you pass to the person however you prefer. To end invites, just remove the variable and restart.
 
 ## Backend
 
-- `config.Config` ganha `InviteCode string` (env `GASTOS_INVITE_CODE`, vazio por padrão). Mínimo de 8 caracteres quando definido; `Load` falha cedo se for mais curto.
-- `GET /api/auth/registration` (público) devolve `{"mode":"open"|"code"|"closed"}`: `open` se não há usuários, `code` se há código configurado, `closed` caso contrário. O frontend usa para montar a tela.
+- `config.Config` gets `InviteCode string` (env `GASTOS_INVITE_CODE`, empty by default). Minimum of 8 characters when set; `Load` fails early if it is shorter.
+- `GET /api/auth/registration` (public) returns `{"mode":"open"|"code"|"closed"}`: `open` if there are no users, `code` if a code is configured, `closed` otherwise. The frontend uses it to build the screen.
 - `POST /api/auth/register`:
-  - `closed` → `403` com `code: "forbidden"` e mensagem "O cadastro está fechado. Peça um convite.".
-  - `code` → campo `inviteCode` obrigatório; comparação em tempo constante (`subtle.ConstantTimeCompare`); código errado → `403` com a mesma mensagem genérica (não revela se o cadastro existe).
-  - `open` → como hoje. A primeira conta continua sendo criada em transação, e o modo é recalculado dentro da transação para duas requisições simultâneas não criarem duas "primeiras" contas.
-  - Passa pelo mesmo rate limit do login (10 por 15 minutos, por IP).
-- `register` ignora `inviteCode` quando o modo é `open`.
+  - `closed` → `403` with `code: "forbidden"` and the message "O cadastro está fechado. Peça um convite." (Registration is closed. Ask for an invite.).
+  - `code` → `inviteCode` field required; constant-time comparison (`subtle.ConstantTimeCompare`); wrong code → `403` with the same generic message (does not reveal whether the sign-up exists).
+  - `open` → as today. The first account is still created in a transaction, and the mode is recomputed inside the transaction so two simultaneous requests do not create two "first" accounts.
+  - Goes through the same rate limit as login (10 per 15 minutes, per IP).
+- `register` ignores `inviteCode` when the mode is `open`.
 
 ## Frontend
 
-- `Login` consulta `/api/auth/registration` ao montar.
-  - `closed`: esconde "Criar uma conta".
-  - `code`: mostra o campo "Código de convite" no cadastro.
-  - `open`: como hoje (só acontece na primeira conta).
-- Erro `403` do cadastro aparece como mensagem geral.
+- `Login` queries `/api/auth/registration` on mount.
+  - `closed`: hides "Criar uma conta" (Create an account).
+  - `code`: shows the "Código de convite" (Invite code) field in the sign-up form.
+  - `open`: as today (only happens for the first account).
+- A `403` error on sign-up appears as a general message.
 
-## Tarefas
+## Tasks
 
-- [ ] **1. Config** (teste primeiro): `GASTOS_INVITE_CODE` vazio e válido passam; menos de 8 caracteres falha.
-- [ ] **2. Modo de cadastro** (teste primeiro): função pura `registrationMode(userCount, code)`; testes de tabela para as três situações.
-- [ ] **3. Endpoint `/api/auth/registration`** e a trava em `register`, com testes de integração:
-  - primeira conta passa sem código;
-  - segunda conta sem código → `403`;
-  - com código certo → `201`; com código errado ou ausente → `403`;
-  - duas contas simultâneas sem usuários: só uma é criada (`t.Parallel` + goroutines);
-  - o rate limit também vale para o cadastro.
-- [ ] **4. Frontend**: `Login` por modo (testes de componente para os três modos); e2e: cadastro com código e fechado sem.
-- [ ] **5. Docs**: `docs/ops/vdi-setup.md` (variável no `production.env`, como convidar e como fechar) e README.
+- [ ] **1. Config** (test first): empty and valid `GASTOS_INVITE_CODE` pass; fewer than 8 characters fails.
+- [ ] **2. Registration mode** (test first): pure function `registrationMode(userCount, code)`; table tests for the three situations.
+- [ ] **3. `/api/auth/registration` endpoint** and the lock in `register`, with integration tests:
+  - first account passes without a code;
+  - second account without a code → `403`;
+  - with the right code → `201`; with a wrong or missing code → `403`;
+  - two simultaneous accounts with no users: only one is created (`t.Parallel` + goroutines);
+  - the rate limit also applies to sign-up.
+- [ ] **4. Frontend**: `Login` per mode (component tests for the three modes); e2e: sign-up with a code and closed without one.
+- [ ] **5. Docs**: `docs/ops/vdi-setup.md` (variable in `production.env`, how to invite and how to close) and README.
 
-## Fora de escopo
+## Out of scope
 
-Convite por e-mail, links de convite de uso único, aprovação manual de contas.
+Email invites, single-use invite links, manual account approval.
 
-## Risco
+## Risk
 
-Quem já tem conta não é afetado. Quem esquecer de definir o código depois de criar a primeira conta fica com o cadastro fechado, que é o comportamento seguro.
+Anyone who already has an account is not affected. Anyone who forgets to set the code after creating the first account ends up with registration closed, which is the safe behavior.

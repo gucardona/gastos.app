@@ -1,4 +1,4 @@
-# Cartões de crédito (compra no mês da fatura) Implementation Plan
+# Credit cards (purchase in the invoice month) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go (net/http, modernc SQLite 1.61), React 19 + Vite + TS, TanStack Query, Vitest, Playwright.
 
-**Spec:** `docs/superpowers/specs/2026-11-25-cartao-de-credito-design.md`
+**Spec:** `docs/superpowers/specs/2026-11-25-credit-cards-design.md`
 
 ## Global Constraints
 
@@ -23,7 +23,7 @@
 ## Review Focus
 
 1. A card purchase whose amount or description is edited stays in its invoice month, even after the card's closing day changed: pinned in Task 4 (`TestEditKeepsInvoiceWhenDateAndMethodUnchanged`).
-2. A card recurrence whose occurrence is dated in the previous month (22/12, closing day 20) is projected in January's Próximos and not in December's: pinned in Task 5 (`TestUpcomingCardRecurrenceLandsInInvoiceMonth`).
+2. A card recurrence whose occurrence is dated in the previous month (22/12, closing day 20) is projected in January's "Próximos" (Upcoming) and not in December's: pinned in Task 5 (`TestUpcomingCardRecurrenceLandsInInvoiceMonth`).
 3. Turning the card switch off, or archiving the card: new purchases or occurrences on an archived card still use its days, and a method that is no longer a card stamps nothing. Pinned in Task 4 (`TestArchivedCardStillStamps`, `TestPlainMethodStampsNothing`).
 4. Day 31 and February, including a leap year: pinned in Task 1's table (rows for 2027-02 and 2028-02).
 5. last4 junk (`"12345"`, `"12a4"`, `" 1234 "` trimmed to valid) and only one of the two days filled: pinned in Task 3 (`TestCardFieldsValidation`).
@@ -64,7 +64,7 @@ The rule, from the spec:
 3. Clamp every day to the last day of its month, the same way as `recurrence.Occurrences`.
 
 - [ ] **Step 4: Run `go test ./internal/billing/`.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(billing): vencimento da fatura de uma compra no cartão`
+- [ ] **Step 5: Commit** `feat(billing): invoice due date of a card purchase`
 
 ### Task 2: Migration 0008
 
@@ -89,7 +89,7 @@ The rule, from the spec:
   - drop the five `payment_methods` columns;
   - `PRAGMA user_version=7;`
 - [ ] **Step 4: Run `go test -race ./internal/db/`.** Expected: PASS, including `TestUpgradeMakesPreMigrationCopy`.
-- [ ] **Step 5: Commit** `feat(db): migração 0008, cartões e mês da fatura (no lugar, sem mexer em dados)`
+- [ ] **Step 5: Commit** `feat(db): migration 0008, cards and invoice month (in place, no data changes)`
 
 ### Task 3: Card fields on payment methods (API)
 
@@ -114,7 +114,7 @@ The rule, from the spec:
 - [ ] **Step 2: Run `go test ./internal/api/ -run 'Card'`.** Expected: FAIL.
 - [ ] **Step 3: Implement.** Extend `paymentMethodCols`/`scanPaymentMethod`, the INSERT and the UPDATE. Validate in `paymentMethodInput.validate`.
 - [ ] **Step 4: Run `go test -race ./internal/api/`.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): forma de pagamento pode ser cartão de crédito`
+- [ ] **Step 5: Commit** `feat(api): a payment method can be a credit card`
 
 ### Task 4: Stamp `invoice_due` on every write
 
@@ -146,7 +146,7 @@ The rule, from the spec:
 - [ ] **Step 2: Run `go test ./internal/api/ ./internal/recurrence/`.** Expected: FAIL.
 - [ ] **Step 3: Implement.** In `updateTransaction`, read the current `date, payment_method_id` together with the existing SELECT, and recompute only if one of them changed. Otherwise keep the stored value (`invoice_due = invoice_due`).
 - [ ] **Step 4: Run `go test -race ./...`.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat: compra no cartão guarda o vencimento da fatura`
+- [ ] **Step 5: Commit** `feat: card purchase stores the invoice due date`
 
 ### Task 5: Every month read uses `month`
 
@@ -170,7 +170,7 @@ The rule, from the spec:
 - [ ] **Step 2: Run `go test ./internal/api/ -run 'Card|ListByMonth|OldTransactions'`.** Expected: FAIL.
 - [ ] **Step 3: Implement the changes listed under Files.**
 - [ ] **Step 4: Run `go test -race ./...`.** Expected: PASS, including `summary_future_test.go` unchanged.
-- [ ] **Step 5: Commit** `feat: Visão, limites e lista contam a compra no mês da fatura`
+- [ ] **Step 5: Commit** `feat: Overview, limits and list count the purchase in the invoice month`
 
 ### Task 6: Assistant
 
@@ -183,7 +183,7 @@ The rule, from the spec:
 - [ ] **Step 2: Run it.** Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run `go test -race ./internal/api/`.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(assistente): totais por mês seguem o mês da fatura`
+- [ ] **Step 5: Commit** `feat(assistant): monthly totals follow the invoice month`
 
 ### Task 7: Web, card registration
 
@@ -192,15 +192,15 @@ The rule, from the spec:
   - `PaymentMethod` gets `closingDay: number | null; dueDay: number | null; issuer: string; cardForm: "" | "physical" | "virtual"; last4: string; bestPurchaseDay: number | null`.
   - `Transaction` gets `invoiceDue: string | null`.
 - Modify: `web/src/api/queries.ts:38-44`. `useTransactions` fetches `?month=${month}`.
-- Modify: `web/src/components/PaymentSheet.tsx`. Add a `Switch` "Cartão de crédito". When it is on, show, in order:
-  - Banco / bandeira;
-  - Tipo, a `Segmented` with Físico and Virtual;
-  - Final (`inputMode="numeric"`, maxLength 4);
-  - Compras até o dia;
-  - Vence no dia (`inputMode="numeric"`, 1–31);
-  - the line "Melhor dia de compra: N", computed locally with the same wrap as `BestPurchaseDay`.
+- Modify: `web/src/components/PaymentSheet.tsx`. Add a `Switch` "Cartão de crédito" (Credit card). When it is on, show, in order:
+  - Banco / bandeira (Bank / card network);
+  - Tipo (Type), a `Segmented` with Físico (Physical) and Virtual;
+  - Final (Last digits) (`inputMode="numeric"`, maxLength 4);
+  - Compras até o dia (Purchases up to day);
+  - Vence no dia (Due on day) (`inputMode="numeric"`, 1–31);
+  - the line "Melhor dia de compra: N" (Best purchase day), computed locally with the same wrap as `BestPurchaseDay`.
   When it is off, send both days as null. Field errors come from `useAction`.
-- Modify: `web/src/pages/settings/PaymentsSection.tsx`. A card's row subtitle: `fecha 20 · vence 27 · final 1234` (omit the empty parts).
+- Modify: `web/src/pages/settings/PaymentsSection.tsx`. A card's row subtitle: `fecha 20 · vence 27 · final 1234` (closes 20 · due 27 · last digits 1234) (omit the empty parts).
 - Test: `web/src/components/PaymentSheet.test.tsx` (create, following AddSheet.test.tsx's mocking)
 
 - [ ] **Step 1: Write the failing tests.**
@@ -212,15 +212,15 @@ The rule, from the spec:
 - [ ] **Step 2: Run `cd web && npx vitest run src/components/PaymentSheet.test.tsx`.** Expected: FAIL.
 - [ ] **Step 3: Implement.** Reuse the house `Switch`, `Segmented` and `.list-row` rows. The style guard tests in `web/src/styles/*.test.ts` must stay green.
 - [ ] **Step 4: Run `cd web && npx vitest run && npx tsc -b`.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): cadastro de cartão de crédito nas formas de pagamento`
+- [ ] **Step 5: Commit** `feat(web): credit card registration in payment methods`
 
 ### Task 8: Web, purchase in another month
 
 **Files:**
 - Modify: `web/src/hooks/useAction.ts`. `run<T>(fn: () => Promise<T>, done?: string | ((result: T) => string))`.
-- Modify: `web/src/components/AddSheet.tsx`. For a one-off purchase saved with a card, if `res.invoiceDue` falls in a month other than `res.date`'s, the toast is `Lançado na fatura de ${monthName}`, with the month name in full and lowercase via `Intl` pt-BR (e.g. "dezembro"). Otherwise the toast keeps its current text.
-- Modify: `web/src/components/TransactionList.tsx`. In the meta line, when `invoiceDue` is set and its month differs from `date`'s, add `fatura de dez`: the short month without the dot, from the same `Intl` helper. Add that helper to `web/src/lib/dates.ts` as `monthShort(iso: string): string` and `monthLong(iso: string): string`.
-- Modify: `web/e2e/app.spec.ts`. In one test, create a card (20/27), add a purchase dated the 22nd of the current month, and check that it appears with "fatura de" in the next month's Lançamentos and not in the current month's.
+- Modify: `web/src/components/AddSheet.tsx`. For a one-off purchase saved with a card, if `res.invoiceDue` falls in a month other than `res.date`'s, the toast is `Lançado na fatura de ${monthName}` (Posted to the ... bill), with the month name in full and lowercase via `Intl` pt-BR (e.g. "dezembro"). Otherwise the toast keeps its current text.
+- Modify: `web/src/components/TransactionList.tsx`. In the meta line, when `invoiceDue` is set and its month differs from `date`'s, add `fatura de dez` (December bill): the short month without the dot, from the same `Intl` helper. Add that helper to `web/src/lib/dates.ts` as `monthShort(iso: string): string` and `monthLong(iso: string): string`.
+- Modify: `web/e2e/app.spec.ts`. In one test, create a card (20/27), add a purchase dated the 22nd of the current month, and check that it appears with "fatura de" in the next month's Lançamentos (Transactions) and not in the current month's.
 - Test: `web/src/components/TransactionList.test.tsx`, `web/src/components/AddSheet.test.tsx`
 
 - [ ] **Step 1: Write the failing tests.**
@@ -229,7 +229,7 @@ The rule, from the spec:
 - [ ] **Step 2: Run `cd web && npx vitest run src/components/TransactionList.test.tsx src/components/AddSheet.test.tsx`.** Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run `cd web && npx vitest run`, then `npm run build && npx playwright test`, then restore `web/dist/.gitkeep`.** Expected: PASS on desktop and Pixel 5.
-- [ ] **Step 5: Commit** `feat(web): compra no cartão mostra a fatura em que caiu`
+- [ ] **Step 5: Commit** `feat(web): card purchase shows the invoice it landed in`
 
 ---
 

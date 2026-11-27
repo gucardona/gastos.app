@@ -1,75 +1,75 @@
-# Backend foundation — schema novo e API v2
+# Backend foundation: new schema and API v2
 
-**Data:** 2026-10-09
-**Status:** Draft — aguardando revisão
+**Date:** 2026-10-09
+**Status:** Draft, awaiting review
 **Roadmap:** [2026-10-09-roadmap.md](2026-10-09-roadmap.md)
 
-## Objetivo
+## Goal
 
-Reescrever a base do backend Go aproveitando que não há dados a preservar:
+Rewrite the Go backend foundation, taking advantage of the fact that there is no data to preserve:
 
-1. Um schema único e correto, sem histórico de migrations.
-2. Dinheiro em centavos e splits em basis points.
-3. API organizada por carteira (`/api/wallets/{walletID}/...`) com o roteador do Go 1.22+.
-4. Corrigir os bugs levantados na revisão (FK por conexão, corrida de recorrência, PATCH reatribuindo dono, backup, SSE).
-5. Mover cálculos do dashboard para o servidor (`/summary`), deixando o frontend novo fino.
+1. A single, correct schema, with no migration history.
+2. Money in cents and splits in basis points.
+3. API organized by wallet (`/api/wallets/{walletID}/...`) with the Go 1.22+ router.
+4. Fix the bugs found in the review (per-connection FK, recurrence race, PATCH reassigning the owner, backup, SSE).
+5. Move dashboard calculations to the server (`/summary`), keeping the new frontend thin.
 
-Fora de escopo: frontend (fase 3), CI/deploy (fase 2), Open Finance (fase 4). As tabelas da fase 4 entram depois, via `user_version` 2.
+Out of scope: frontend (phase 3), CI/deploy (phase 2), Open Finance (phase 4). The phase 4 tables come later, via `user_version` 2.
 
-## Estrutura de pastas
+## Folder structure
 
 ```
-cmd/gastos/main.go          # lê config, abre DB, sobe servidor, jobs de fundo
-internal/config/            # env vars → struct Config (falha cedo se inválido)
-internal/db/                # Open (pragmas), schema.sql embutido, migrate (user_version), backup
-internal/money/             # Allocate (rateio em centavos), helpers de basis points
-internal/recurrence/        # Occurrences (puro) + Materializer (job)
-internal/auth/              # hash de senha, sessões, middleware RequireUser
-internal/api/               # handlers por recurso, middleware RequireWallet, helpers JSON/erros
-internal/events/            # bus SSE (o atual, com heartbeat)
-web/                        # app React (fase 3); web/embed.go expõe dist/ via go:embed
+cmd/gastos/main.go          # reads config, opens DB, starts server, background jobs
+internal/config/            # env vars → Config struct (fails early if invalid)
+internal/db/                # Open (pragmas), embedded schema.sql, migrate (user_version), backup
+internal/money/             # Allocate (apportioning in cents), basis point helpers
+internal/recurrence/        # Occurrences (pure) + Materializer (job)
+internal/auth/              # password hash, sessions, RequireUser middleware
+internal/api/               # handlers per resource, RequireWallet middleware, JSON/error helpers
+internal/events/            # SSE bus (the current one, with heartbeat)
+web/                        # React app (phase 3); web/embed.go exposes dist/ via go:embed
 ```
 
-Removidos: `src/` inteiro, `vendor/` (o CI baixa módulos), o binário `gastos-app` commitado, `deploy.sh` (substituído na fase 2).
+Removed: all of `src/`, `vendor/` (CI downloads modules), the committed `gastos-app` binary, `deploy.sh` (replaced in phase 2).
 
-## Configuração (env)
+## Configuration (env)
 
-| Var | Default | Nota |
+| Var | Default | Note |
 |---|---|---|
 | `GASTOS_ADDR` | `:8000` | |
-| `GASTOS_DB_PATH` | `./data/gastos.db` | diretório criado se não existir |
+| `GASTOS_DB_PATH` | `./data/gastos.db` | directory is created if it does not exist |
 | `GASTOS_BACKUP_DIR` | `./data/backups` | |
-| `GASTOS_BACKUP_KEEP` | `14` | quantos backups diários manter |
-| `GASTOS_TZ` | `America/Sao_Paulo` | define "hoje" para recorrências e para o mês corrente |
-| `GASTOS_COOKIE_SECURE` | `true` | `false` só em dev local (http) |
-| `GASTOS_DEV` | `false` | habilita CORS para `localhost:5173` e o seed de demo |
+| `GASTOS_BACKUP_KEEP` | `14` | how many daily backups to keep |
+| `GASTOS_TZ` | `America/Sao_Paulo` | defines "today" for recurrences and for the current month |
+| `GASTOS_COOKIE_SECURE` | `true` | `false` only in local dev (http) |
+| `GASTOS_DEV` | `false` | enables CORS for `localhost:5173` and the demo seed |
 
-Sem `JWT_SECRET`: a sessão passa a ser um token opaco guardado com hash no banco.
+No `JWT_SECRET`: the session becomes an opaque token stored hashed in the database.
 
-## Banco
+## Database
 
-### Conexão
+### Connection
 
-`db.Open(path)` usa o DSN com pragmas aplicados **em toda conexão**:
+`db.Open(path)` uses the DSN with pragmas applied **on every connection**:
 
 ```
 file:<path>?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)
 ```
 
-`db.SetMaxOpenConns(1)` para escrita não é necessário com WAL + `busy_timeout`, mas as transações de escrita usam `BEGIN IMMEDIATE` (via `_txlock=immediate` no DSN) para evitar `SQLITE_BUSY` em upgrade de lock.
+`db.SetMaxOpenConns(1)` for writes is not needed with WAL + `busy_timeout`, but write transactions use `BEGIN IMMEDIATE` (via `_txlock=immediate` in the DSN) to avoid `SQLITE_BUSY` on lock upgrade.
 
-### Versionamento
+### Versioning
 
-`schema.sql` cria tudo (versão 1). `migrate.go` lê `PRAGMA user_version`:
+`schema.sql` creates everything (version 1). `migrate.go` reads `PRAGMA user_version`:
 
-- `0` → executa `schema.sql` numa transação, seta `user_version = 1`.
-- `N` → aplica `migrations[N:]`, um slice de strings SQL, cada uma numa transação, incrementando `user_version`.
+- `0` → runs `schema.sql` in a transaction, sets `user_version = 1`.
+- `N` → applies `migrations[N:]`, a slice of SQL strings, each in its own transaction, incrementing `user_version`.
 
-Hoje o slice é vazio. São cerca de 30 linhas, sem tabela de controle e sem "ignorar coluna duplicada".
+Today the slice is empty. It is about 30 lines, with no control table and no "ignore duplicate column".
 
-### Schema (versão 1)
+### Schema (version 1)
 
-Convenções: `id INTEGER PRIMARY KEY`, datas civis como `TEXT 'YYYY-MM-DD'`, timestamps como `TEXT` ISO-8601 UTC, booleanos `INTEGER CHECK (x IN (0,1))`, dinheiro `*_cents INTEGER`.
+Conventions: `id INTEGER PRIMARY KEY`, calendar dates as `TEXT 'YYYY-MM-DD'`, timestamps as ISO-8601 UTC `TEXT`, booleans as `INTEGER CHECK (x IN (0,1))`, money as `*_cents INTEGER`.
 
 ```sql
 CREATE TABLE users (
@@ -81,7 +81,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE sessions (
-  token_hash BLOB PRIMARY KEY,                       -- sha256 do token enviado no cookie
+  token_hash BLOB PRIMARY KEY,                       -- sha256 of the token sent in the cookie
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
@@ -138,8 +138,8 @@ CREATE TABLE recurrences (
   description       TEXT NOT NULL DEFAULT '',
   category_id       INTEGER REFERENCES categories(id),
   payment_method_id INTEGER REFERENCES payment_methods(id),
-  paid_by_user_id   INTEGER NOT NULL REFERENCES users(id),   -- expense: quem paga; income: quem recebe; settlement: quem envia
-  to_user_id        INTEGER REFERENCES users(id),            -- só settlement
+  paid_by_user_id   INTEGER NOT NULL REFERENCES users(id),   -- expense: who pays; income: who receives; settlement: who sends
+  to_user_id        INTEGER REFERENCES users(id),            -- settlement only
   day_of_month      INTEGER NOT NULL CHECK (day_of_month BETWEEN 1 AND 31),
   start_date        TEXT NOT NULL,
   end_date          TEXT,
@@ -171,7 +171,7 @@ CREATE TABLE transactions (
   paid_by_user_id   INTEGER NOT NULL REFERENCES users(id),
   created_by        INTEGER NOT NULL REFERENCES users(id),
   recurrence_id     INTEGER REFERENCES recurrences(id) ON DELETE SET NULL,
-  occurrence        TEXT,                                    -- 'YYYY-MM' quando gerada por recorrência
+  occurrence        TEXT,                                    -- 'YYYY-MM' when generated by a recurrence
   created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
@@ -213,109 +213,109 @@ CREATE TABLE budgets (
 ) WITHOUT ROWID;
 ```
 
-**O que mudou em relação ao schema atual:**
+**What changed from the current schema:**
 
-| Antes | Agora | Por quê |
+| Before | Now | Why |
 |---|---|---|
-| `expenses` + `incomes` | `transactions.kind` | uma lista, um formulário, um modelo para import bancário |
-| `incomes.type` (texto livre) | `categories` com `kind='income'` | entradas ganham categorias editáveis como os gastos |
-| `category`/`payment` como chave texto | `category_id`/`payment_method_id` FK | integridade; renomear não quebra nada |
-| apagar categoria com "substituição" | `archived_at` (soft delete) quando em uso | some do formulário, histórico intacto |
-| `recurring_expenses`/`_incomes`/`_payments` | `recurrences.kind` | uma tabela, um materializador |
-| `percentage REAL` | `share_bp INTEGER` | soma exata 10000 |
-| `user_id` ambíguo (dono? pagador?) | `paid_by_user_id` editável + `created_by` imutável | corrige o bug de PATCH reatribuindo dono |
-| `account_split_participants` | `wallet_members.splits_by_default` | 1 coluna em vez de 1 tabela |
-| `goals` | `budgets` | nome reflete o uso (limite mensal por categoria) |
+| `expenses` + `incomes` | `transactions.kind` | one list, one form, one model for bank import |
+| `incomes.type` (free text) | `categories` with `kind='income'` | income gets editable categories like expenses |
+| `category`/`payment` as text key | `category_id`/`payment_method_id` FK | integrity; renaming breaks nothing |
+| deleting a category with "replacement" | `archived_at` (soft delete) when in use | disappears from the form, history intact |
+| `recurring_expenses`/`_incomes`/`_payments` | `recurrences.kind` | one table, one materializer |
+| `percentage REAL` | `share_bp INTEGER` | sum is exactly 10000 |
+| ambiguous `user_id` (owner? payer?) | editable `paid_by_user_id` + immutable `created_by` | fixes the bug of PATCH reassigning the owner |
+| `account_split_participants` | `wallet_members.splits_by_default` | 1 column instead of 1 table |
+| `goals` | `budgets` | name reflects the use (monthly limit per category) |
 | `schema_migrations` | `PRAGMA user_version` | |
 
-### Seed por carteira
+### Per-wallet seed
 
-Ao criar carteira, `seedWallet(tx, walletID)` insere as 15 categorias de gasto atuais, 5 de entrada (Salário, Freelance, Investimentos, Reembolso, Outros) e as 8 formas de pagamento atuais. Os dados ficam numa tabela Go, como hoje.
+When a wallet is created, `seedWallet(tx, walletID)` inserts the 15 current expense categories, 5 income categories (Salário (Salary), Freelance, Investimentos (Investments), Reembolso (Reimbursement), Outros (Other)) and the 8 current payment methods. The data lives in a Go table, as it does today.
 
 ### Backup
 
-Job diário (e no boot, se o último backup tiver mais de 24h): `VACUUM INTO '<dir>/gastos-YYYYMMDD-HHMMSS.db'`, depois remove os mais antigos além de `GASTOS_BACKUP_KEEP`. Nunca sobrescreve um backup existente. `VACUUM INTO` gera uma cópia consistente mesmo com WAL.
+Daily job (and at boot, if the last backup is more than 24h old): `VACUUM INTO '<dir>/gastos-YYYYMMDD-HHMMSS.db'`, then removes the oldest ones beyond `GASTOS_BACKUP_KEEP`. It never overwrites an existing backup. `VACUUM INTO` produces a consistent copy even with WAL.
 
-## Dinheiro e splits
+## Money and splits
 
-`money.Allocate(totalCents int64, sharesBP []int64) []int64`: distribui centavos pelo método do maior resto. A soma do resultado é sempre igual a `totalCents`, e o desempate vai para o menor índice, de forma determinística.
+`money.Allocate(totalCents int64, sharesBP []int64) []int64`: distributes cents using the largest remainder method. The sum of the result always equals `totalCents`, and ties go to the lowest index, so the result is deterministic.
 
-Regras de split (só quando `wallets.splitting_enabled = 1`):
-- Sem `splits` no request: divide igualmente entre membros com `splits_by_default = 1`, em bp, com o resto indo para o primeiro.
-- Com `splits`: cada `userId` precisa ser membro, sem repetição, cada `shareBp` entre 1 e 10000, soma exatamente 10000.
-- Com `splitting_enabled = 0`: `splits` deve vir vazio; nenhuma linha em `transaction_splits`.
+Split rules (only when `wallets.splitting_enabled = 1`):
+- No `splits` in the request: split equally among members with `splits_by_default = 1`, in bp, with the remainder going to the first one.
+- With `splits`: each `userId` must be a member, with no repeats, each `shareBp` between 1 and 10000, and the sum exactly 10000.
+- With `splitting_enabled = 0`: `splits` must be empty; no rows in `transaction_splits`.
 
-Saldos entre membros, calculados no `/summary`, considerando o histórico inteiro da carteira:
-- Para cada gasto com splits: `paid_by` recebe crédito de `amount`; cada participante recebe débito de `Allocate(amount, shares)[i]`.
-- `settlement` de A para B: A recebe crédito, B recebe débito.
-- Acertos sugeridos: algoritmo guloso que casa o maior devedor com o maior credor (o mesmo resultado que a UI atual mostra).
+Balances between members, computed in `/summary`, over the wallet's entire history:
+- For each expense with splits: `paid_by` is credited `amount`; each participant is debited `Allocate(amount, shares)[i]`.
+- `settlement` from A to B: A is credited, B is debited.
+- Suggested settlements: a greedy algorithm that matches the largest debtor with the largest creditor (the same result the current UI shows).
 
-## Recorrências
+## Recurrences
 
-`recurrence.Occurrences(dayOfMonth int, start, end, until string) []Occurrence` é uma função pura, com datas `YYYY-MM-DD` (`end` vazio = sem fim). Ela devolve `{Month "YYYY-MM", Date "YYYY-MM-DD"}` para cada mês entre `start` e `until`. O dia é limitado ao último do mês, e meses com data fora de `[start, end]` ficam de fora.
+`recurrence.Occurrences(dayOfMonth int, start, end, until string) []Occurrence` is a pure function, with `YYYY-MM-DD` dates (empty `end` = no end). It returns `{Month "YYYY-MM", Date "YYYY-MM-DD"}` for each month between `start` and `until`. The day is clamped to the last day of the month, and months whose date falls outside `[start, end]` are left out.
 
 `Materializer.Run(ctx, walletID *int64)`:
-- Lê recorrências `enabled = 1` (de todas as carteiras ou de uma).
-- Para cada ocorrência até **hoje em `GASTOS_TZ`**, faz `INSERT ... ON CONFLICT DO NOTHING` em `transactions` ou `settlements`, junto com os splits, numa transação por ocorrência.
-- O índice único `(recurrence_id, occurrence)` garante idempotência, mesmo com execuções concorrentes.
-- Se inseriu algo, chama `events.Notify(walletID, 0)`.
+- Reads `enabled = 1` recurrences (from all wallets or from one).
+- For each occurrence up to **today in `GASTOS_TZ`**, does `INSERT ... ON CONFLICT DO NOTHING` into `transactions` or `settlements`, together with the splits, in one transaction per occurrence.
+- The unique index `(recurrence_id, occurrence)` guarantees idempotency, even with concurrent runs.
+- If it inserted anything, it calls `events.Notify(walletID, 0)`.
 
-Quando roda:
-- no boot;
-- a cada hora (`time.Ticker`);
-- de forma síncrona depois de criar ou editar uma recorrência, só para aquela carteira, para a UI mostrar o lançamento na hora.
+When it runs:
+- at boot;
+- every hour (`time.Ticker`);
+- synchronously after a recurrence is created or edited, only for that wallet, so the UI shows the transaction right away.
 
-**GETs nunca escrevem.**
+**GETs never write.**
 
-Editar uma recorrência não altera lançamentos já gerados. Apagar uma recorrência mantém os lançamentos e zera o `recurrence_id`, pelo `SET NULL`.
+Editing a recurrence does not change transactions already generated. Deleting a recurrence keeps the transactions and clears `recurrence_id`, through `SET NULL`.
 
-## Autenticação
+## Authentication
 
-- `POST /api/auth/register`, `POST /api/auth/login`: geram um token aleatório de 32 bytes, gravam `sha256` em `sessions` com validade de 30 dias e enviam o cookie `gastos_session` (`HttpOnly`, `SameSite=Lax`, `Secure` conforme config, `Path=/`).
-- `POST /api/auth/logout`: apaga a sessão e expira o cookie.
-- `GET /api/me`: devolve `{ user, wallets: [...] }`, que é o bootstrap do frontend.
-- Renovação deslizante: se faltam menos de 15 dias, estende `expires_at` e reenvia o cookie.
-- Sessões expiradas são removidas pelo job horário.
-- CSRF: mutações exigem `Content-Type: application/json`. Formulários HTML cross-site não conseguem enviar esse header sem preflight, e o servidor não responde preflight cross-origin fora de `GASTOS_DEV`. Isso, mais `SameSite=Lax`, cobre o caso.
-- Senha com bcrypt custo 12, mínimo de 8 caracteres.
-- Rate limit em memória no login: 10 tentativas por 15 minutos, por IP e por e-mail. Responde `429`.
+- `POST /api/auth/register`, `POST /api/auth/login`: generate a random 32-byte token, store its `sha256` in `sessions` with a 30-day expiry, and send the `gastos_session` cookie (`HttpOnly`, `SameSite=Lax`, `Secure` per config, `Path=/`).
+- `POST /api/auth/logout`: deletes the session and expires the cookie.
+- `GET /api/me`: returns `{ user, wallets: [...] }`, which is the frontend bootstrap.
+- Sliding renewal: if fewer than 15 days remain, extends `expires_at` and resends the cookie.
+- Expired sessions are removed by the hourly job.
+- CSRF: mutations require `Content-Type: application/json`. Cross-site HTML forms cannot send that header without a preflight, and the server does not answer cross-origin preflights outside `GASTOS_DEV`. That, plus `SameSite=Lax`, covers the case.
+- Password with bcrypt cost 12, minimum 8 characters.
+- In-memory rate limit on login: 10 attempts per 15 minutes, per IP and per email. Responds `429`.
 
 ## API v2
 
-Base JSON, erros no formato:
+JSON base, errors in this format:
 
 ```json
 { "error": { "code": "validation", "message": "Dados inválidos", "fields": { "amountCents": "deve ser maior que zero" } } }
 ```
 
-Códigos: `validation` (400), `unauthenticated` (401), `forbidden` (403), `not_found` (404), `conflict` (409), `rate_limited` (429), `internal` (500).
+Codes: `validation` (400), `unauthenticated` (401), `forbidden` (403), `not_found` (404), `conflict` (409), `rate_limited` (429), `internal` (500).
 
-Middleware em cadeia: `logRequest → recoverPanic → RequireUser → RequireWallet(minRole)`.
-`RequireWallet` lê `r.PathValue("walletID")` e põe `{walletID, role}` no context. Os papéis são `reader < editor < owner`.
+Middleware chain: `logRequest → recoverPanic → RequireUser → RequireWallet(minRole)`.
+`RequireWallet` reads `r.PathValue("walletID")` and puts `{walletID, role}` in the context. The roles are `reader < editor < owner`.
 
-| Método e rota | Papel mínimo | Nota |
+| Method and route | Minimum role | Note |
 |---|---|---|
-| `POST /api/auth/register` | — | cria usuário e carteira "Pessoal" |
+| `POST /api/auth/register` | — | creates the user and a "Pessoal" (Personal) wallet |
 | `POST /api/auth/login` · `POST /api/auth/logout` | — / user | |
 | `GET /api/me` | user | |
 | `GET /api/wallets` · `POST /api/wallets` | user | |
 | `PATCH /api/wallets/{walletID}` · `DELETE` | owner | |
 | `GET /api/wallets/{walletID}/members` | reader | |
-| `POST .../members` · `PATCH .../members/{userID}` | owner | convite por e-mail de usuário existente |
-| `DELETE .../members/{userID}` | owner, ou o próprio usuário | sair da carteira |
-| `GET/POST .../categories` · `PUT/DELETE .../categories/{id}` | reader / editor | DELETE: arquiva se em uso, apaga se não |
-| `GET/POST .../payment-methods` · `PUT/DELETE .../payment-methods/{id}` | reader / editor | idem |
-| `GET .../transactions?from=&to=&kind=&categoryId=&q=` | reader | `from`/`to` obrigatórios (máx. 366 dias) |
+| `POST .../members` · `PATCH .../members/{userID}` | owner | invite by email of an existing user |
+| `DELETE .../members/{userID}` | owner, or the user themselves | leaving the wallet |
+| `GET/POST .../categories` · `PUT/DELETE .../categories/{id}` | reader / editor | DELETE: archives if in use, deletes if not |
+| `GET/POST .../payment-methods` · `PUT/DELETE .../payment-methods/{id}` | reader / editor | same |
+| `GET .../transactions?from=&to=&kind=&categoryId=&q=` | reader | `from`/`to` required (max 366 days) |
 | `POST .../transactions` · `PUT/DELETE .../transactions/{id}` | editor | |
-| `GET/POST .../recurrences` · `PUT/DELETE .../recurrences/{id}` | reader / editor | POST/PUT materializam na hora |
+| `GET/POST .../recurrences` · `PUT/DELETE .../recurrences/{id}` | reader / editor | POST/PUT materialize immediately |
 | `GET .../settlements?from=&to=` · `POST` · `PUT/DELETE .../settlements/{id}` | reader / editor | |
-| `GET .../budgets` · `PUT .../budgets/{categoryId}` · `DELETE` | reader / editor | PUT faz upsert |
-| `GET .../summary?month=YYYY-MM` | reader | ver abaixo |
+| `GET .../budgets` · `PUT .../budgets/{categoryId}` · `DELETE` | reader / editor | PUT does an upsert |
+| `GET .../summary?month=YYYY-MM` | reader | see below |
 | `GET .../events` | reader | SSE |
-| `GET /healthz` | — | `200 ok` se `db.Ping()` passar |
-| `GET /*` | — | SPA embutida; rotas desconhecidas devolvem `index.html` |
+| `GET /healthz` | — | `200 ok` if `db.Ping()` passes |
+| `GET /*` | — | embedded SPA; unknown routes return `index.html` |
 
-Formato de transação, igual na entrada e na saída:
+Transaction format, the same on input and output:
 
 ```json
 {
@@ -327,9 +327,9 @@ Formato de transação, igual na entrada e na saída:
 }
 ```
 
-`PUT` substitui todos os campos editáveis; o formulário sempre envia o objeto inteiro, o que evita a ambiguidade de "campo ausente" contra `null` num PATCH parcial. `PATCH` fica só para wallet (`name`, `splittingEnabled`) e membro (`role`, `splitsByDefault`). `createdBy`, `recurrenceId` e `id` são somente leitura. `paidByUserId` omitido ou `0` vale o usuário atual. Uma categoria arquivada é aceita no `PUT` só se já era a categoria da transação.
+`PUT` replaces all editable fields; the form always sends the whole object, which avoids the ambiguity of "missing field" versus `null` in a partial PATCH. `PATCH` is kept only for wallet (`name`, `splittingEnabled`) and member (`role`, `splitsByDefault`). `createdBy`, `recurrenceId` and `id` are read-only. An omitted or `0` `paidByUserId` means the current user. An archived category is accepted in `PUT` only if it was already the transaction's category.
 
-O GET de transações carrega os splits com **uma** query (`WHERE transaction_id IN (...)`), sem N+1.
+The transactions GET loads the splits with **one** query (`WHERE transaction_id IN (...)`), with no N+1.
 
 ### `/summary`
 
@@ -346,39 +346,39 @@ O GET de transações carrega os splits com **uma** query (`WHERE transaction_id
 }
 ```
 
-`dailyAverageCents` usa os dias decorridos no mês, se for o mês corrente em `GASTOS_TZ`, ou os dias do mês, se for um mês passado.
-`memberBalances` e `suggestedSettlements` só aparecem com `splitting_enabled`.
+`dailyAverageCents` uses the elapsed days of the month if it is the current month in `GASTOS_TZ`, or the days in the month if it is a past month.
+`memberBalances` and `suggestedSettlements` appear only with `splitting_enabled`.
 
-### Eventos (SSE)
+### Events (SSE)
 
-- Autentica pelo cookie e pelo `RequireWallet`, sem token na URL.
-- Manda `: ping\n\n` a cada 25 segundos.
-- Toda mutação bem-sucedida em recurso de carteira chama `events.Notify(walletID, actorUserID)`, incluindo categorias, formas de pagamento, budgets, membros e exclusão de carteira. A notificação é feita por um helper `mutated(r)` chamado no fim dos handlers, não à mão em cada um.
-- Payload: `data: {"type":"changed"}`. O frontend invalida as queries da carteira.
+- Authenticates through the cookie and `RequireWallet`, with no token in the URL.
+- Sends `: ping\n\n` every 25 seconds.
+- Every successful mutation on a wallet resource calls `events.Notify(walletID, actorUserID)`, including categories, payment methods, budgets, members and wallet deletion. The notification is done by a `mutated(r)` helper called at the end of the handlers, not by hand in each one.
+- Payload: `data: {"type":"changed"}`. The frontend invalidates the wallet's queries.
 
-## Observabilidade
+## Observability
 
-`log/slog` em JSON. Cada request gera um log com método, rota (o pattern, não o path cru), status, duração e `userID`. Panics são logados com stack e respondem `500`.
+`log/slog` in JSON. Each request produces a log with method, route (the pattern, not the raw path), status, duration and `userID`. Panics are logged with a stack trace and respond `500`.
 
-## Testes
+## Tests
 
-- **Unitários puros:** `money.Allocate`, `recurrence.Occurrences`, sugestão de acertos, validações.
-- **Integração** (`httptest` + SQLite em `t.TempDir()`), um arquivo por recurso em `internal/api`, cobrindo:
-  - fluxo de auth com cookie;
-  - permissões por papel em cada rota;
-  - CRUD de cada recurso;
-  - regras de split;
-  - idempotência do materializador, incluindo duas execuções concorrentes;
-  - `ON DELETE CASCADE` (apagar carteira apaga transações);
-  - arquivamento de categoria em uso;
-  - números do `/summary` com um cenário fixo.
-- Os testes atuais em `src/` são descartados junto com o código antigo.
+- **Pure unit tests:** `money.Allocate`, `recurrence.Occurrences`, settlement suggestion, validations.
+- **Integration** (`httptest` + SQLite in `t.TempDir()`), one file per resource in `internal/api`, covering:
+  - auth flow with cookie;
+  - permissions by role on each route;
+  - CRUD of each resource;
+  - split rules;
+  - materializer idempotency, including two concurrent runs;
+  - `ON DELETE CASCADE` (deleting a wallet deletes its transactions);
+  - archiving a category in use;
+  - `/summary` numbers with a fixed scenario.
+- The current tests in `src/` are discarded along with the old code.
 
-## Critérios de aceite
+## Acceptance criteria
 
-- `go test ./...` passa; `go vet ./...` limpo.
-- Banco novo sobe só com `schema.sql`, com `user_version = 1`.
-- Duas chamadas simultâneas do materializador não duplicam lançamentos (teste com `t.Parallel` e goroutines).
-- Apagar uma carteira remove todas as linhas dependentes (teste conta as linhas).
-- Nenhum `float64` em valores monetários no pacote `api` (checagem com `grep` no plano).
-- `curl /healthz` responde 200; um GET de rota SPA desconhecida devolve o `index.html` embutido.
+- `go test ./...` passes; `go vet ./...` is clean.
+- A new database comes up from `schema.sql` alone, with `user_version = 1`.
+- Two simultaneous materializer calls do not duplicate transactions (test with `t.Parallel` and goroutines).
+- Deleting a wallet removes all dependent rows (the test counts the rows).
+- No `float64` for money values in the `api` package (checked with `grep` in the plan).
+- `curl /healthz` responds 200; a GET of an unknown SPA route returns the embedded `index.html`.

@@ -1,47 +1,47 @@
-# Pipeline de deploy — local → GitHub → VDI
+# Deploy pipeline — local → GitHub → VDI
 
-**Data:** 2026-10-09
-**Status:** Draft — depende das perguntas em aberto 1 e 2 do roadmap
+**Date:** 2026-10-09
+**Status:** Draft — depends on open questions 1 and 2 of the roadmap
 **Roadmap:** [2026-10-09-roadmap.md](2026-10-09-roadmap.md)
 
-> **Decisão posterior (2026-10-11):** o deploy roda **somente em push na `master`**, só para produção. Não há ambiente de staging; as menções a staging abaixo ficam como histórico. O que vale está em `.github/workflows/ci.yml` e `docs/ops/vdi-setup.md`.
+> **Later decision (2026-10-11):** the deploy runs **only on a push to `master`**, for production only. There is no staging environment; the staging mentions below are kept as history. What applies is in `.github/workflows/ci.yml` and `docs/ops/vdi-setup.md`.
 
-## Objetivo
+## Goal
 
-Desenvolver tudo localmente (Windows), fazer push no GitHub e ter staging e produção atualizados na VDI Hetzner (`46.225.89.218`) sem compilar nada lá.
+Develop everything locally (Windows), push to GitHub and have staging and production updated on the Hetzner VDI (`46.225.89.218`) without compiling anything there.
 
-## Fluxo
+## Flow
 
 ```
 local ──push──▶ GitHub ──Actions──▶ build (web + go) ──scp+ssh──▶ VDI
-                  │                                               ├─ gastos-staging (:8001)  ← qualquer push em branch ≠ main
-                  │                                               └─ gastos          (:8000)  ← push em main (ou tag)
-                  └─ PR: só testes, sem deploy
+                  │                                               ├─ gastos-staging (:8001)  ← any push to a branch ≠ main
+                  │                                               └─ gastos          (:8000)  ← push to main (or tag)
+                  └─ PR: tests only, no deploy
 ```
 
-## Desenvolvimento local
+## Local development
 
-- `go run ./cmd/gastos` com `GASTOS_DEV=true GASTOS_COOKIE_SECURE=false`.
-- `npm run dev` em `web/`: Vite em `:5173` com proxy de `/api` para `:8000`. Cookies funcionam porque, do ponto de vista do browser, tudo vem de `localhost:5173`.
-- Um `Makefile` (ou `justfile`) e um `scripts/dev.ps1` sobem os dois juntos.
-- Pré-requisitos no Windows: Git, Go e Node LTS (já instalados ou instaláveis via `winget`).
+- `go run ./cmd/gastos` with `GASTOS_DEV=true GASTOS_COOKIE_SECURE=false`.
+- `npm run dev` in `web/`: Vite on `:5173` with a proxy from `/api` to `:8000`. Cookies work because, from the browser's point of view, everything comes from `localhost:5173`.
+- A `Makefile` (or `justfile`) and a `scripts/dev.ps1` start both together.
+- Prerequisites on Windows: Git, Go and Node LTS (already installed or installable via `winget`).
 
 ## Build (GitHub Actions)
 
-Um workflow `.github/workflows/ci.yml` com três jobs.
+One workflow `.github/workflows/ci.yml` with three jobs.
 
-1. **test**, em todo push e PR:
+1. **test**, on every push and PR:
    - `go vet ./...`, `go test ./...`;
-   - em `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`.
-2. **build**, só em push:
-   - `npm ci && npm run build` em `web/`, gerando `web/dist`;
-   - `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$GITHUB_SHA" -o gastos ./cmd/gastos`. O driver `modernc.org/sqlite` é Go puro, então o cross-compile funciona sem CGO.
-   - O binário fica disponível como artifact.
-3. **deploy**, só em push e com `needs: build`:
-   - o ambiente vem da branch: `main` vai para `production`, o resto para `staging`;
-   - usa GitHub Environments, com proteção opcional por aprovação manual em `production`.
+   - in `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`.
+2. **build**, on push only:
+   - `npm ci && npm run build` in `web/`, producing `web/dist`;
+   - `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$GITHUB_SHA" -o gastos ./cmd/gastos`. The `modernc.org/sqlite` driver is pure Go, so cross-compiling works without CGO.
+   - The binary is available as an artifact.
+3. **deploy**, on push only and with `needs: build`:
+   - the environment comes from the branch: `main` goes to `production`, the rest to `staging`;
+   - uses GitHub Environments, with optional manual approval protection on `production`.
 
-## Layout na VDI
+## Layout on the VDI
 
 ```
 /opt/gastos/
@@ -53,18 +53,18 @@ Um workflow `.github/workflows/ci.yml` com três jobs.
     current -> releases/<sha>
 /var/lib/gastos/production/   # gastos.db, backups/
 /var/lib/gastos/staging/
-/etc/gastos/production.env    # GASTOS_ADDR, GASTOS_DB_PATH, ... (fora do git)
+/etc/gastos/production.env    # GASTOS_ADDR, GASTOS_DB_PATH, ... (outside git)
 /etc/gastos/staging.env
 ```
 
-- Usuário de sistema `gastos`, sem shell, dono de `/var/lib/gastos`.
-- Usuário de deploy `deploy`, com a chave SSH do CI. Ele pode escrever em `/opt/gastos` e tem sudo restrito, só para:
+- System user `gastos`, no shell, owner of `/var/lib/gastos`.
+- Deploy user `deploy`, with the CI SSH key. It can write to `/opt/gastos` and has restricted sudo, only for:
   - `systemctl restart gastos`
   - `systemctl restart gastos-staging`
 
 ## systemd
 
-`/etc/systemd/system/gastos.service` (o de staging é igual, trocando o env e o path):
+`/etc/systemd/system/gastos.service` (the staging one is the same, swapping the env and the path):
 
 ```ini
 [Unit]
@@ -87,55 +87,55 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
-## Script de deploy (executado pelo CI via SSH)
+## Deploy script (run by CI over SSH)
 
-`scripts/remote-deploy.sh <env> <sha>`, versionado no repo e copiado junto com o binário:
+`scripts/remote-deploy.sh <env> <sha>`, versioned in the repo and copied along with the binary:
 
-1. Copia o binário para `/opt/gastos/<env>/releases/<sha>/`.
-2. Guarda o alvo atual do symlink `current` como `previous`.
-3. Aponta `current` para a nova release de forma atômica (`ln -sfn` + `mv -T`).
+1. Copies the binary to `/opt/gastos/<env>/releases/<sha>/`.
+2. Saves the current target of the `current` symlink as `previous`.
+3. Points `current` at the new release atomically (`ln -sfn` + `mv -T`).
 4. `sudo systemctl restart gastos[-staging]`.
-5. Faz o health check com `curl -fsS localhost:<port>/healthz`, com até 10 tentativas de 1 segundo.
-6. Se falhar, volta `current` para `previous`, reinicia e sai com código diferente de zero. O job fica vermelho.
-7. Mantém as últimas 5 releases e apaga as outras.
+5. Runs the health check with `curl -fsS localhost:<port>/healthz`, up to 10 attempts 1 second apart.
+6. On failure, points `current` back at `previous`, restarts and exits with a non-zero code. The job turns red.
+7. Keeps the last 5 releases and deletes the others.
 
-O schema roda no boot do binário (via `user_version`). Antes de iniciar uma release nova, o binário faz backup automático; isso já está na spec de backend.
+The schema runs at binary boot (via `user_version`). Before starting a new release, the binary makes an automatic backup; this is already in the backend spec.
 
-## Proxy reverso e TLS
+## Reverse proxy and TLS
 
-**Depende da pergunta em aberto 1.** A proposta é o Caddy, porque emite e renova o TLS sozinho:
+**Depends on open question 1.** The proposal is Caddy, because it issues and renews TLS on its own:
 
 ```
 gastos.<dominio>          { reverse_proxy localhost:8000 }
 staging.gastos.<dominio>  { reverse_proxy localhost:8001 }
 ```
 
-- O SSE exige `flush_interval -1` no Caddy. No nginx, o equivalente é `proxy_buffering off`.
-- Sem domínio, o staging pode ficar acessível só por túnel SSH (`ssh -L 8001:localhost:8001`).
-- O Open Finance (fase 4b) precisa de HTTPS público para o webhook.
+- SSE requires `flush_interval -1` in Caddy. In nginx, the equivalent is `proxy_buffering off`.
+- Without a domain, staging can be reachable only through an SSH tunnel (`ssh -L 8001:localhost:8001`).
+- Open Finance (phase 4b) needs public HTTPS for the webhook.
 
-## Staging com dados
+## Staging with data
 
-O staging começa vazio. Um botão "copiar produção para staging" fica para depois. Para testes, o staging usa o seed de demo (`GASTOS_DEV`).
+Staging starts empty. A "copy production to staging" button is left for later. For tests, staging uses the demo seed (`GASTOS_DEV`).
 
-## Segredos no GitHub
+## GitHub secrets
 
-| Segredo | Uso |
+| Secret | Use |
 |---|---|
-| `DEPLOY_SSH_KEY` | chave privada do usuário `deploy` |
+| `DEPLOY_SSH_KEY` | private key of the `deploy` user |
 | `DEPLOY_HOST` | `46.225.89.218` |
-| `DEPLOY_KNOWN_HOSTS` | saída de `ssh-keyscan` (evita `StrictHostKeyChecking=no`) |
+| `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` (avoids `StrictHostKeyChecking=no`) |
 
-## Setup único na VDI (documentado em `docs/ops/vdi-setup.md`)
+## One-time VDI setup (documented in `docs/ops/vdi-setup.md`)
 
-1. Criar os usuários `gastos` e `deploy` e configurar o sudoers restrito.
-2. Criar os diretórios, os arquivos `.env` e os dois units, e rodar `systemctl enable`.
-3. Instalar e configurar o Caddy, se for a opção escolhida.
-4. Parar e remover o serviço antigo (`gastos` com o `deploy.sh`) e o clone antigo em `/home/gustavo/gupa.dev/gastos.app`. Só depois de confirmar.
+1. Create the `gastos` and `deploy` users and configure the restricted sudoers.
+2. Create the directories, the `.env` files and the two units, and run `systemctl enable`.
+3. Install and configure Caddy, if that is the chosen option.
+4. Stop and remove the old service (`gastos` with `deploy.sh`) and the old clone in `/home/gustavo/gupa.dev/gastos.app`. Only after confirming.
 
-## Critérios de aceite
+## Acceptance criteria
 
-- Push numa branch `feature/x` atualiza o staging em menos de 5 minutos, sem tocar na produção.
-- Merge em `main` atualiza a produção; um binário que não passa no `/healthz` faz rollback automático.
-- Nenhuma ferramenta de build (Go, Node) é necessária na VDI.
-- O repo não contém binários nem `.env`.
+- A push to a `feature/x` branch updates staging in under 5 minutes, without touching production.
+- A merge into `main` updates production; a binary that fails `/healthz` triggers an automatic rollback.
+- No build tool (Go, Node) is needed on the VDI.
+- The repo contains no binaries or `.env` files.

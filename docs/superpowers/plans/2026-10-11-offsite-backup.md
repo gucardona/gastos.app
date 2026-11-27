@@ -1,48 +1,48 @@
-# Backup fora do servidor — plano
+# Off-server backup — plan
 
-**Data:** 2026-10-11
-**Status:** script e teste prontos; falta a instalação na VDI (feita por você)
+**Date:** 2026-10-11
+**Status:** script and test ready; the VDI installation is missing (done by you)
 
-## Problema
+## Problem
 
-O backup rotativo do app fica em `/var/lib/gastos/production/backups`, no mesmo disco do banco. Se o disco da VDI morrer, os dois vão juntos.
+The app's rotating backup lives in `/var/lib/gastos/production/backups`, on the same disk as the database. If the VDI disk dies, both go together.
 
-## Restrições
+## Constraints
 
-Sem custo adicional. O repositório `gastos.app` é **público**, então o backup vai para um repositório **separado e privado** e **cifrado**: o banco tem lançamentos financeiros e hashes de senha.
+No additional cost. The `gastos.app` repository is **public**, so the backup goes to a **separate, private** and **encrypted** repository: the database holds financial transactions and password hashes.
 
-## Decisão
+## Decision
 
-Um script com `systemd timer` envia, uma vez por dia, o backup mais recente para `gastos-backups` (privado), cifrado com GPG.
+A script with a `systemd timer` uploads, once a day, the most recent backup to `gastos-backups` (private), encrypted with GPG.
 
-- A VDI guarda só a chave **pública**. Quem invadir a VDI não decifra backups antigos. A privada fica com você, protegida por senha.
-- Cada envio faz push forçado de **um único commit** com os 14 backups mais novos. O repositório não cresce para sempre, e GitHub Free não cobra repositórios privados.
-- O remoto é a fonte da verdade: o script traz o conjunto atual antes de mexer, então recriar a cópia local não perde nada.
-- Falha de rede ou de cifragem aborta sem tocar no remoto (um erro de rede não pode virar "recomeçar do zero e apagar tudo").
-- A chave de deploy do repositório de backup é **só dele**, com permissão de escrita só nele.
+- The VDI keeps only the **public** key. Whoever breaks into the VDI cannot decrypt old backups. The private key stays with you, protected by a passphrase.
+- Each upload force-pushes **a single commit** with the 14 newest backups. The repository does not grow forever, and GitHub Free does not charge for private repositories.
+- The remote is the source of truth: the script fetches the current set before touching anything, so recreating the local copy loses nothing.
+- A network or encryption failure aborts without touching the remote (a network error must not turn into "start over and wipe everything").
+- The deploy key of the backup repository is **its own**, with write permission only on it.
 
-Alternativas descartadas: Litestream e Storage Box (custo ou serviço extra), repositório sem cifrar (dado financeiro legível por quem tiver acesso ao repositório).
+Discarded alternatives: Litestream and Storage Box (cost or extra service), unencrypted repository (financial data readable by whoever has access to the repository).
 
-## Arquivos
+## Files
 
-| Arquivo | Papel |
+| File | Role |
 |---|---|
-| `scripts/offsite-backup.sh` | cifra e publica o backup mais recente, poda, garante 1 commit |
-| `scripts/offsite-backup.test.sh` | teste de ponta a ponta com remoto local e chaves GPG descartáveis |
-| `deploy/gastos-offsite-backup.service` / `.timer` | execução diária (04:30, com atraso aleatório e `Persistent`) |
-| `docs/ops/backup.md` | instalação, verificação e **restauração** |
+| `scripts/offsite-backup.sh` | encrypts and publishes the most recent backup, prunes, ensures 1 commit |
+| `scripts/offsite-backup.test.sh` | end-to-end test with a local remote and disposable GPG keys |
+| `deploy/gastos-offsite-backup.service` / `.timer` | daily run (04:30, with random delay and `Persistent`) |
+| `docs/ops/backup.md` | installation, verification and **restore** |
 
-## Tarefas
+## Tasks
 
-- [x] **1. Script** com checagem do cabeçalho SQLite, cifragem GPG, poda e commit único.
-- [x] **2. Teste** (16 verificações, rodado em Ubuntu): primeiro envio, conteúdo cifrado e idêntico ao decifrar, chave pública não decifra, idempotência, rotação, remoto como fonte da verdade, remoto inacessível e destinatário inválido sem tocar no remoto.
-- [ ] **3. systemd** (unit e timer) e `docs/ops/backup.md`.
-- [ ] **4. CI**: o teste do script roda no job `backend`.
-- [ ] **5. Instalação na VDI (manual, depois do merge):** criar o repositório privado, gerar a chave GPG no seu PC, chave de deploy, instalar o script e ativar o timer.
-- [ ] **6. Ensaio de restauração** em uma máquina limpa antes de confiar no backup.
+- [x] **1. Script** with SQLite header check, GPG encryption, pruning and a single commit.
+- [x] **2. Test** (16 checks, run on Ubuntu): first upload, content encrypted and identical after decrypting, public key cannot decrypt, idempotence, rotation, remote as source of truth, unreachable remote and invalid recipient without touching the remote.
+- [ ] **3. systemd** (unit and timer) and `docs/ops/backup.md`.
+- [ ] **4. CI**: the script test runs in the `backend` job.
+- [ ] **5. Installation on the VDI (manual, after the merge):** create the private repository, generate the GPG key on your PC, deploy key, install the script and enable the timer.
+- [ ] **6. Restore rehearsal** on a clean machine before trusting the backup.
 
-## Risco e janela de perda
+## Risk and loss window
 
-O app faz backup quando o último tem mais de 24 horas; o envio roda diariamente. O pior caso é perder cerca de um dia e meio de lançamentos. Se isso for pouco, a evolução é um intervalo de backup configurável no app (`GASTOS_BACKUP_EVERY`).
+The app makes a backup when the last one is more than 24 hours old; the upload runs daily. The worst case is losing about a day and a half of transactions. If that is too much, the next step is a configurable backup interval in the app (`GASTOS_BACKUP_EVERY`).
 
-**Perder a chave privada GPG torna todos os backups ilegíveis.** Guarde-a, e a senha, no gerenciador de senhas.
+**Losing the GPG private key makes all backups unreadable.** Keep it, and its passphrase, in the password manager.

@@ -1,41 +1,41 @@
-# Spike da Pluggy: o que a API entrega
+# Pluggy spike: what the API delivers
 
-Data: 2026-10-15. Roteiro: `docs/superpowers/specs/2026-10-09-open-finance-design.md` (fase 4b). O script usado (`spikes/pluggy/main.go`) é descartável e ficou só na branch local `spike/pluggy`.
+Date: 2026-10-15. Roadmap: `docs/superpowers/specs/2026-10-09-open-finance-design.md` (phase 4b). The script used (`spikes/pluggy/main.go`) is disposable and lives only on the local branch `spike/pluggy`.
 
-## O que foi testado
+## What was tested
 
-Uma conexão do **sandbox** da Pluggy ("Pluggy Bank", fluxo básico), com uma conta corrente e um cartão de crédito. Nenhum banco real foi conectado ainda. O script só lê: autentica, busca o item, as contas e as transações dos últimos 90 dias, busca de novo para checar se os ids se repetem e imprime a convenção de sinais.
+One Pluggy **sandbox** connection ("Pluggy Bank", basic flow), with a checking account and a credit card. No real bank has been connected yet. The script only reads: it authenticates, fetches the item, the accounts and the transactions of the last 90 days, fetches again to check whether the ids repeat, and prints the sign convention.
 
-## Resultado
+## Result
 
-| Passo | Resultado |
+| Step | Result |
 | --- | --- |
-| Autenticação (`POST /auth`) | Funciona. Devolve uma chave de 2 horas, em cerca de 200 ms. |
-| Item (`GET /items/{id}`) | `status UPDATED`, `execution SUCCESS`. Traz também `consentExpiresAt`, `nextAutoSyncAt` e `webhookUrl`. |
-| Contas (`GET /accounts?itemId=`) | 2 contas: `BANK/CHECKING_ACCOUNT` (saldo R$ 36.286,90) e `CREDIT/CREDIT_CARD` (saldo −R$ 838,50). |
-| Transações v2 (`GET /v2/transactions`) | 11 na conta corrente e 6 no cartão, em ~40 a 50 ms, com paginação por cursor. |
-| Segunda busca | Mesmos ids, na mesma quantidade (`same ids: true`). Dá para importar de forma idempotente pelo `id`. |
+| Authentication (`POST /auth`) | Works. Returns a 2-hour key, in about 200 ms. |
+| Item (`GET /items/{id}`) | `status UPDATED`, `execution SUCCESS`. Also returns `consentExpiresAt`, `nextAutoSyncAt` and `webhookUrl`. |
+| Accounts (`GET /accounts?itemId=`) | 2 accounts: `BANK/CHECKING_ACCOUNT` (balance R$ 36,286.90) and `CREDIT/CREDIT_CARD` (balance −R$ 838.50). |
+| Transactions v2 (`GET /v2/transactions`) | 11 on the checking account and 6 on the card, in ~40 to 50 ms, with cursor pagination. |
+| Second fetch | Same ids, same count (`same ids: true`). Importing idempotently by `id` is possible. |
 
-## Descobertas que mudam o desenho
+## Findings that change the design
 
-1. **Os filtros do v2 se chamam `dateFrom` e `dateTo`.** `from` e `to` são recusados com 400. O endpoint antigo (`GET /transactions`, por página) **já responde 410**: foi desligado antes do prazo de 31/12/2026 que a documentação cita. Só o v2 vale.
-2. **A convenção de sinais é pelo valor, não pelo `type`.** Na conta corrente, `DEBIT` vem negativo e `CREDIT` vem positivo. No **cartão**, as compras vêm como `CREDIT` **com valor negativo**. Regra segura: negativo é despesa, positivo é receita, e o campo `type` é ignorado.
-3. **Os valores já vêm sem mais de 2 casas decimais** (nenhum caso com mais). A conversão para centavos é direta, mas deve arredondar de forma explícita.
-4. **O pagamento da fatura aparece como despesa na conta corrente** ("PAGAMENTO FATURA CARTAO VISA", −R$ 167,70) e as compras do cartão aparecem de novo no cartão. Importando conta e cartão, os gastos contariam duas vezes. Precisa de uma regra (marcar como transferência ou ignorar esse tipo de lançamento).
-5. **Os ids são estáveis e únicos** (11 de 11 e 6 de 6). Um índice único no id da Pluggy, igual ao que a importação de extrato já usa, evita duplicar.
-6. **A data vem como data e hora**, com fuso. A importação deve usar a data local (`America/Sao_Paulo`) do lançamento.
-7. **Só apareceram transações `POSTED`.** Não houve `PENDING` nem parcelamentos (`installments: 0`): o sandbox é idealizado.
+1. **The v2 filters are called `dateFrom` and `dateTo`.** `from` and `to` are rejected with 400. The old endpoint (`GET /transactions`, paged) **already returns 410**: it was turned off before the 2026-12-31 deadline the documentation mentions. Only v2 works.
+2. **The sign convention is in the amount, not in `type`.** On the checking account, `DEBIT` comes negative and `CREDIT` comes positive. On the **card**, purchases come as `CREDIT` **with a negative amount**. Safe rule: negative is an expense, positive is an income, and the `type` field is ignored.
+3. **Amounts already come with at most 2 decimal places** (no case with more). Conversion to cents is direct, but it must round explicitly.
+4. **The credit card bill payment shows up as an expense on the checking account** ("PAGAMENTO FATURA CARTAO VISA", −R$ 167.70) and the card purchases show up again on the card. If both account and card are imported, expenses would count twice. A rule is needed (mark as a transfer or ignore this kind of transaction).
+5. **The ids are stable and unique** (11 of 11 and 6 of 6). A unique index on the Pluggy id, like the one statement import already uses, prevents duplicates.
+6. **The date comes as date and time**, with a time zone. The import must use the transaction's local date (`America/Sao_Paulo`).
+7. **Only `POSTED` transactions appeared.** There were no `PENDING` ones and no installments (`installments: 0`): the sandbox is idealized.
 
-## O que o sandbox não prova
+## What the sandbox does not prove
 
-- Se os **bancos reais** do Gustavo e da Rafa se conectam e atualizam com estabilidade pelo plano gratuito.
-- Como os bancos reais mandam **lançamentos pendentes, parcelas e estornos**.
-- O comportamento do **consentimento do Open Finance** (o campo `consentExpiresAt` existe: o consentimento vence e precisa ser renovado pelo usuário).
-- O **custo** e os limites do plano para uso contínuo com contas reais.
-- Como o app receberia **atualizações automáticas** (webhooks exigem uma URL pública; o servidor tem uma).
+- Whether the **real banks** of Gustavo and Rafa connect and update reliably on the free plan.
+- How the real banks send **pending transactions, installments and refunds**.
+- The behavior of the **Open Finance consent** (the `consentExpiresAt` field exists: the consent expires and must be renewed by the user).
+- The **cost** and the plan limits for continuous use with real accounts.
+- How the app would receive **automatic updates** (webhooks require a public URL; the server has one).
 
-## Recomendação
+## Recommendation
 
-A API se encaixa bem no que o app já tem: cada transação vira uma linha na **caixa de entrada** (a mesma da importação de extrato), com id estável, valor assinado e descrição. O trabalho da fase 4b seria de tamanho médio.
+The API fits well with what the app already has: each transaction becomes a row in the **inbox** (the same one used by statement import), with a stable id, signed amount and description. The phase 4b work would be medium-sized.
 
-Mas **não construir a integração ainda.** O sandbox responde se a API funciona, não se ela serve para os bancos de vocês. Antes de escrever o plano, falta uma **segunda rodada do spike com uma conta real** (pelo Meu Pluggy, `meu.pluggy.ai`), olhando especificamente: cobertura do banco, atraso entre a compra e o lançamento, pendentes, parcelas, e quanto tempo o consentimento dura. Se essa rodada der certo, o plano da 4b parte do que está nas descobertas 1 a 6 acima.
+But **do not build the integration yet.** The sandbox answers whether the API works, not whether it works for your banks. Before writing the plan, a **second round of the spike with a real account** is needed (through Meu Pluggy, `meu.pluggy.ai`), looking specifically at: bank coverage, delay between the purchase and the transaction appearing, pending items, installments, and how long the consent lasts. If that round goes well, the 4b plan starts from findings 1 to 6 above.
