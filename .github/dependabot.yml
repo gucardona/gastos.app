@@ -1,9 +1,13 @@
 version: 2
 
 # Weekly update PRs, minor and patch bumps grouped so there is one PR per ecosystem instead of a flood.
+# The cooldown skips releases younger than 3 days, so a hijacked release is usually yanked first.
+# Security updates ignore the cooldown.
 updates:
   - package-ecosystem: gomod
     directory: /
+    cooldown:
+      default-days: 3
     schedule:
       interval: weekly
     groups:
@@ -12,6 +16,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /web
+    cooldown:
+      default-days: 3
     schedule:
       interval: weekly
     groups:
@@ -20,6 +26,8 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    cooldown:
+      default-days: 3
     schedule:
       interval: weekly
     groups:
