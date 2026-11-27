@@ -57,7 +57,7 @@ func TestCardPurchaseCountsInInvoiceMonth(t *testing.T) {
 func TestListByMonth(t *testing.T) {
 	c, card := cardApp(t)
 	purchase(c, "expense", "2026-11-22", card.ID)
-	var dec, nov []transaction
+	var dec, nov []Transaction
 	c.do("GET", c.wpath("/transactions?month=2026-12"), nil, 200, &dec)
 	c.do("GET", c.wpath("/transactions?month=2026-11"), nil, 200, &nov)
 	if len(dec) != 1 || due(dec[0]) != "2026-12-27" || len(nov) != 0 {

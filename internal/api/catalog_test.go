@@ -71,7 +71,7 @@ func TestCategoryInUseIsArchived(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	cat := firstCategory(t, ana, "expense")
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01",
 	}, 201, &tx)
@@ -81,7 +81,7 @@ func TestCategoryInUseIsArchived(t *testing.T) {
 	if !c.Archived {
 		t.Fatalf("should be archived: %+v", c)
 	}
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 1 || list[0].CategoryID != cat {
 		t.Fatalf("the transaction should keep its category: %+v", list)

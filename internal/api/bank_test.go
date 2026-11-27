@@ -339,14 +339,14 @@ func TestAcceptTurnsALineIntoATransaction(t *testing.T) {
 	item := findByDescription(t, pending(t, ana), "MERCADO")
 	cat := categoryByName(t, ana, "expense", "Mercado")
 
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": cat, "description": "Mercado do bairro"}, 201, &tx)
 	if tx.Kind != "expense" || tx.AmountCents != 4890 || tx.Date != "2026-10-01" || tx.Description != "Mercado do bairro" ||
 		tx.CategoryID != cat || tx.Source != "bank" || tx.PaidByUserID != ana.user.ID || tx.PaymentMethodID == nil || *tx.PaymentMethodID != methods[0].ID {
 		t.Fatalf("transaction: %+v", tx)
 	}
 	// it is a real transaction now
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 1 || list[0].ID != tx.ID {
 		t.Fatalf("transactions: %+v", list)
@@ -363,7 +363,7 @@ func TestAcceptAnIncomeLine(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	importFile(t, ana, newAccount(t, ana, "Conta").ID, monthStatement, 200)
 	item := findByDescription(t, pending(t, ana), "SALARIO")
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": categoryByName(t, ana, "income", "Salário")}, 201, &tx)
 	if tx.Kind != "income" || tx.AmountCents != 850000 || tx.Description != "CREDITO SALARIO" {
 		t.Fatalf("transaction: %+v", tx)
@@ -382,7 +382,7 @@ func TestAcceptValidationLeavesTheLinePending(t *testing.T) {
 	if n := len(pending(t, ana)); n != 3 {
 		t.Fatalf("%d pending, want 3: a refused accept must not consume the line", n)
 	}
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 0 {
 		t.Fatalf("a transaction was created anyway: %+v", list)
@@ -398,7 +398,7 @@ func TestAcceptInASplittingWalletAppliesTheDefaultSplit(t *testing.T) {
 	importFile(t, ana, newAccount(t, ana, "Conta").ID, monthStatement, 200)
 	item := findByDescription(t, pending(t, ana), "MERCADO")
 
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": categoryByName(t, ana, "expense", "Mercado")}, 201, &tx)
 	if len(tx.Splits) != 2 || tx.Splits[0].AmountCents+tx.Splits[1].AmountCents != 4890 {
 		t.Fatalf("splits: %+v", tx.Splits)
@@ -432,7 +432,7 @@ func TestDeletingAnAcceptedTransactionDoesNotBringTheLineBack(t *testing.T) {
 	acc := newAccount(t, ana, "Conta")
 	importFile(t, ana, acc.ID, monthStatement, 200)
 	item := findByDescription(t, pending(t, ana), "MERCADO")
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": categoryByName(t, ana, "expense", "Mercado")}, 201, &tx)
 	ana.do("DELETE", ana.wpath("/transactions/%d", tx.ID), nil, 204, nil)
 
@@ -460,7 +460,7 @@ func TestLinkALineToAnExistingTransaction(t *testing.T) {
 	importFile(t, ana, acc.ID, monthStatement, 200)
 	item := findByDescription(t, pending(t, ana), "MERCADO")
 
-	var typed transaction
+	var typed Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 4890, "description": "Mercado (digitado)", "categoryId": categoryByName(t, ana, "expense", "Mercado"), "date": "2026-10-01",
 	}, 201, &typed)
@@ -469,7 +469,7 @@ func TestLinkALineToAnExistingTransaction(t *testing.T) {
 	if findAny(pending(t, ana), "MERCADO") {
 		t.Fatal("a linked line must leave the inbox")
 	}
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 1 {
 		t.Fatalf("linking must not create a second transaction: %+v", list)
@@ -481,7 +481,7 @@ func TestLinkALineToAnExistingTransaction(t *testing.T) {
 	// nor a transaction that does not exist, or from another wallet
 	ana.do("POST", ana.wpath("/inbox/%d/match", other.ID), map[string]any{"transactionId": 99999}, 404, nil)
 	bia := app.register("Bia", "bia@example.com")
-	var biaTx transaction
+	var biaTx Transaction
 	bia.do("POST", bia.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 100, "description": "x", "categoryId": firstCategory(t, bia, "expense"), "date": "2026-10-01",
 	}, 201, &biaTx)
@@ -493,7 +493,7 @@ func TestLinkALineToAnExistingTransaction(t *testing.T) {
 func TestImportSuggestsAnExistingTransaction(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
-	var typed transaction
+	var typed Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 4890, "description": "Mercado (digitado)", "categoryId": categoryByName(t, ana, "expense", "Mercado"), "date": "2026-10-02",
 	}, 201, &typed)
@@ -511,7 +511,7 @@ func TestImportSuggestsAnExistingTransaction(t *testing.T) {
 func TestOneTransactionIsSuggestedToOnlyOneLine(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
-	var typed transaction
+	var typed Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 1000, "description": "Almoço", "categoryId": firstCategory(t, ana, "expense"), "date": "2026-10-01",
 	}, 201, &typed)
@@ -532,7 +532,7 @@ func TestAlreadyLinkedTransactionsAreNotSuggestedAgain(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	acc := newAccount(t, ana, "Conta")
-	var typed transaction
+	var typed Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 1000, "description": "Almoço", "categoryId": firstCategory(t, ana, "expense"), "date": "2026-10-01",
 	}, 201, &typed)
@@ -594,7 +594,7 @@ func TestAcceptSuggestedOnlyTakesLinesThatAreSafe(t *testing.T) {
 	if len(left) != 2 || findAny(left, "UBER") {
 		t.Fatalf("pending after accept-suggested: %+v", left)
 	}
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	for _, tx := range list {
 		if tx.Source == "bank" && (tx.Description != "Uber" || tx.CategoryID != transport || tx.AmountCents != 2500) {
@@ -715,14 +715,14 @@ func TestDeletingABankAccountKeepsTheTransactionsItCreated(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	acc := newAccount(t, ana, "Conta")
 	importFile(t, ana, acc.ID, monthStatement, 200)
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/inbox/%d/accept", findByDescription(t, pending(t, ana), "MERCADO").ID), map[string]any{"categoryId": categoryByName(t, ana, "expense", "Mercado")}, 201, &tx)
 
 	ana.do("DELETE", ana.wpath("/bank-accounts/%d", acc.ID), nil, 204, nil)
 	if n := len(pending(t, ana)); n != 0 {
 		t.Fatalf("%d pending left from a deleted account", n)
 	}
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 1 || list[0].ID != tx.ID {
 		t.Fatalf("the accepted transaction must survive its account: %+v", list)

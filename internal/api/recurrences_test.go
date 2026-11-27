@@ -14,9 +14,9 @@ func monthsAgoFirst(t *testing.T, app *testApp, n int) string {
 	return time.Date(now.Year(), now.Month()-time.Month(n), 1, 0, 0, 0, 0, time.UTC).Format(httpx.DateLayout)
 }
 
-func listRange(c *client, from string) []transaction {
+func listRange(c *client, from string) []Transaction {
 	c.app.t.Helper()
-	var list []transaction
+	var list []Transaction
 	to := mustDate(from).AddDate(0, 0, 365).Format(httpx.DateLayout)
 	c.do("GET", c.wpath("/transactions?from=%s&to=%s", from, to), nil, 200, &list)
 	return list

@@ -67,7 +67,7 @@ func TestSameEntryByTheOtherMemberThatDayIsQuestioned(t *testing.T) {
 func TestUpdateIsNeverQuestioned(t *testing.T) {
 	c := newTestApp(t).register("Ana", "ana@x.com")
 	c.do("POST", c.wpath("/transactions"), dupBody(c, 0, map[string]any{"paymentMethodId": nil}), 201, nil)
-	var tx transaction
+	var tx Transaction
 	c.do("POST", c.wpath("/transactions"), dupBody(c, 0, map[string]any{"paymentMethodId": nil, "amountCents": 4000}), 201, &tx)
 	c.do("PUT", c.wpath("/transactions/%d", tx.ID), dupBody(c, 0, map[string]any{"paymentMethodId": nil}), 200, nil)
 }

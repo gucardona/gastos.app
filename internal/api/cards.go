@@ -126,11 +126,11 @@ func invoiceDueFor(ctx context.Context, q httpx.Querier, paymentMethodID *int64,
 }
 
 // stampInvoice sets in.invoiceDue from its payment method and date.
-func (in *transactionInput) stampInvoice(ctx context.Context, q httpx.Querier) error {
+func (in *TransactionInput) stampInvoice(ctx context.Context, q httpx.Querier) error {
 	d, err := invoiceDueFor(ctx, q, in.PaymentMethodID, in.Date)
-	in.invoiceDue = nil
+	in.InvoiceDue = nil
 	if d.Valid {
-		in.invoiceDue = &d.String
+		in.InvoiceDue = &d.String
 	}
 	return err
 }

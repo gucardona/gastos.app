@@ -26,7 +26,7 @@ import (
 	"gastos/internal/testutil"
 )
 
-func init() { _bcryptCost = bcrypt.MinCost }
+func init() { BcryptCost = bcrypt.MinCost }
 
 type testApp struct {
 	t   *testing.T

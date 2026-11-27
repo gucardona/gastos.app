@@ -17,8 +17,10 @@ import (
 var _aiModels = []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}
 
 var (
-	errAIKeyUnreadable = errors.New("assistant API key cannot be decrypted")
-	errAIDisabled      = errors.New("assistant is disabled")
+	// ErrAIKeyUnreadable means the stored assistant key cannot be decrypted.
+	ErrAIKeyUnreadable = errors.New("assistant API key cannot be decrypted")
+	// ErrAIDisabled means the user has no assistant key or turned the assistant off.
+	ErrAIDisabled = errors.New("assistant is disabled")
 )
 
 // aiRow is a user's assistant settings as stored, with the API key still encrypted.
@@ -55,18 +57,18 @@ func (s *Server) openKey(enc []byte) (string, bool) {
 	return string(k), err == nil
 }
 
-// userAIKey returns the user's decrypted API key and model, or errAIDisabled / errAIKeyUnreadable.
-func (s *Server) userAIKey(ctx context.Context, userID int64) (key, model string, err error) {
+// UserAIKey returns the user's decrypted API key and model, or ErrAIDisabled / ErrAIKeyUnreadable.
+func (s *Server) UserAIKey(ctx context.Context, userID int64) (key, model string, err error) {
 	r, err := s.loadAI(ctx, userID)
 	if err != nil {
 		return "", "", err
 	}
 	if len(r.enc) == 0 || !r.enabled {
-		return "", "", errAIDisabled
+		return "", "", ErrAIDisabled
 	}
 	key, ok := s.openKey(r.enc)
 	if !ok {
-		return "", "", errAIKeyUnreadable
+		return "", "", ErrAIKeyUnreadable
 	}
 	return key, r.model, nil
 }

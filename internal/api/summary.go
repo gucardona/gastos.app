@@ -26,8 +26,8 @@ type categoryTotal struct {
 	BudgetCents *int64 `json:"budgetCents"`
 }
 
-// monthTotals is a month's income and expense.
-type monthTotals struct {
+// MonthTotals is a month's income and expense.
+type MonthTotals struct {
 	IncomeCents  int64 `json:"incomeCents"`
 	ExpenseCents int64 `json:"expenseCents"`
 }
@@ -47,7 +47,7 @@ type summaryDTO struct {
 	DailyAverageCents int64            `json:"dailyAverageCents"`
 	ByCategory        []categoryTotal  `json:"byCategory"`
 	ByEssentiality    map[string]int64 `json:"byEssentiality"`
-	Previous          monthTotals      `json:"previous"`
+	Previous          MonthTotals      `json:"previous"`
 	// Only present when splitting is enabled on the wallet.
 	MemberBalances       any `json:"memberBalances,omitempty"`
 	SuggestedSettlements any `json:"suggestedSettlements,omitempty"`
@@ -80,8 +80,8 @@ func monthRange(month string) (first, last string, ok bool) {
 
 // totals sums what the month (a card purchase counts in its invoice's month) realized up to today: a card purchase is
 // realized when its invoice is due, as a later-dated Pix is on its date.
-func (s *Server) totals(ctx context.Context, walletID int64, month, today string) (monthTotals, error) {
-	var m monthTotals
+func (s *Server) totals(ctx context.Context, walletID int64, month, today string) (MonthTotals, error) {
+	var m MonthTotals
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND month = ? AND COALESCE(invoice_due, date) <= ? GROUP BY kind`,
 		walletID, month, today)

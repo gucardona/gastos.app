@@ -74,13 +74,13 @@ func TestWalletCRUD(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 
-	var created walletDTO
+	var created WalletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa", "splittingEnabled": true}, 201, &created)
 	if created.Role != "owner" || !created.SplittingEnabled || created.OwnerName != "Ana" {
 		t.Fatalf("created wallet: %+v", created)
 	}
 
-	var list []walletDTO
+	var list []WalletDTO
 	ana.do("GET", "/api/wallets", nil, 200, &list)
 	if len(list) != 2 {
 		t.Fatalf("%d carteiras, want 2", len(list))

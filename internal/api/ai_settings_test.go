@@ -220,7 +220,7 @@ func TestKeyMissingAfterSecretRotation(t *testing.T) {
 	if me.AssistantEnabled {
 		t.Fatal("assistantEnabled with an unreadable key")
 	}
-	if _, _, err := app.s.userAIKey(t.Context(), ana.user.ID); err != errAIKeyUnreadable {
+	if _, _, err := app.s.UserAIKey(t.Context(), ana.user.ID); err != ErrAIKeyUnreadable {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -240,12 +240,12 @@ func TestMeReportsAssistantEnabled(t *testing.T) {
 	if !me.AssistantEnabled {
 		t.Fatal("not enabled")
 	}
-	key, model, err := app.s.userAIKey(t.Context(), ana.user.ID)
+	key, model, err := app.s.UserAIKey(t.Context(), ana.user.ID)
 	if err != nil || key != aiTestKey || model != "claude-sonnet-5-5" {
 		t.Fatalf("userAIKey = %q %q %v", key, model, err)
 	}
 	ana.do("PUT", "/api/me/ai", map[string]any{"enabled": false}, 200, nil)
-	if _, _, err := app.s.userAIKey(t.Context(), ana.user.ID); err != errAIDisabled {
+	if _, _, err := app.s.UserAIKey(t.Context(), ana.user.ID); err != ErrAIDisabled {
 		t.Fatalf("err = %v", err)
 	}
 }

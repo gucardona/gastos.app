@@ -59,7 +59,7 @@ func TestUpdateMemberSplitsByDefault(t *testing.T) {
 func TestUpdateWallet(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
-	var w walletDTO
+	var w WalletDTO
 
 	ana.do("PATCH", ana.wpath(""), map[string]any{"name": "  Casa nova  "}, 200, &w)
 	if w.Name != "Casa nova" || w.SplittingEnabled {
@@ -85,7 +85,7 @@ func TestCreateWalletValidation(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	ana.do("POST", "/api/wallets", map[string]any{"name": ""}, 400, nil)
-	var w walletDTO
+	var w WalletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Viagem"}, 201, &w)
 	var cats []categoryDTO
 	ana.do("GET", "/api/wallets/"+itoa(w.ID)+"/categories", nil, 200, &cats)

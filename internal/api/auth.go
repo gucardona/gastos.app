@@ -164,7 +164,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if err := fe.Err(); err != nil {
 		return err
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), _bcryptCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), BcryptCost)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 		}
-		_, err = createWallet(r.Context(), tx, "Pessoal", userID, false)
+		_, err = CreateWallet(r.Context(), tx, "Pessoal", userID, false)
 		return err
 	})
 	if err != nil {
@@ -249,7 +249,7 @@ var errBadLogin = &httpx.APIError{Status: 401, Code: "unauthenticated", Message:
 
 // _dummyHash is a valid bcrypt hash of an arbitrary password, used to equalize response time.
 var _dummyHash = func() string {
-	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), _bcryptCost)
+	h, _ := bcrypt.GenerateFromPassword([]byte("dummy"), BcryptCost)
 	return string(h)
 }()
 
@@ -273,12 +273,12 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 		httpx.UserIDFrom(r.Context())).Scan(&u.ID, &u.Name, &u.Email); err != nil {
 		return err
 	}
-	wallets, err := s.walletsFor(r.Context(), u.ID)
+	wallets, err := s.WalletsFor(r.Context(), u.ID)
 	if err != nil {
 		return err
 	}
-	_, _, aiErr := s.userAIKey(r.Context(), u.ID)
-	if aiErr != nil && !errors.Is(aiErr, errAIDisabled) && !errors.Is(aiErr, errAIKeyUnreadable) {
+	_, _, aiErr := s.UserAIKey(r.Context(), u.ID)
+	if aiErr != nil && !errors.Is(aiErr, ErrAIDisabled) && !errors.Is(aiErr, ErrAIKeyUnreadable) {
 		return aiErr
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets, "assistantEnabled": aiErr == nil})
@@ -314,7 +314,7 @@ func (s *Server) rename(w http.ResponseWriter, r *http.Request) error {
 	s.NotifyUsers(uid) // their other tabs, even with no wallet left
 	ctx, cancel := httpx.NotifyCtx(r.Context())
 	defer cancel()
-	wallets, err := s.walletsFor(ctx, uid)
+	wallets, err := s.WalletsFor(ctx, uid)
 	if err != nil {
 		s.Log.ErrorContext(ctx, "notify co-members", "user", uid, "err", err) // the new name is saved: only the notice is lost
 	}
@@ -358,7 +358,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	if err := fe.Err(); err != nil {
 		return err
 	}
-	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), _bcryptCost)
+	newHash, err := bcrypt.GenerateFromPassword([]byte(in.NewPassword), BcryptCost)
 	if err != nil {
 		return err
 	}
@@ -406,8 +406,8 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, exp time.
 	})
 }
 
-// requireUser rejects requests without a valid session and stores the user id in the context.
-func (s *Server) requireUser(next http.Handler) http.Handler {
+// RequireUser rejects requests without a valid session and stores the user id in the context.
+func (s *Server) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(sessionCookie)
 		if err != nil {

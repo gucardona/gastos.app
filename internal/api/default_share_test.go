@@ -65,7 +65,7 @@ func TestMemberDefaultSharePatch(t *testing.T) {
 // splitsOf posts an expense without splits and returns share_bp per user.
 func splitsOf(t *testing.T, c *client, cat int64) map[int64]int64 {
 	t.Helper()
-	var tx transaction
+	var tx Transaction
 	c.do("POST", c.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01", "allowDuplicate": true,
 	}, 201, &tx)
@@ -119,7 +119,7 @@ func TestDefaultSharesDriveSplits(t *testing.T) {
 	ana.do("PATCH", ana.wpath("/members/%d", cleo.user.ID), map[string]any{"splitsByDefault": false}, 200, nil)
 
 	set(6000, 4000)
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 1000, "description": "x", "categoryId": cat, "date": "2026-10-01", "allowDuplicate": true,
 		"splits": []map[string]any{{"userId": ana.user.ID, "shareBp": 3000}, {"userId": bia.user.ID, "shareBp": 7000}},

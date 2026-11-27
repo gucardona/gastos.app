@@ -146,7 +146,7 @@ func TestPathID(t *testing.T) {
 }
 
 func TestWithAmountsSumsToTotal(t *testing.T) {
-	got := withAmounts(10001, []split{{UserID: 1, ShareBP: 3334}, {UserID: 2, ShareBP: 3333}, {UserID: 3, ShareBP: 3333}})
+	got := WithAmounts(10001, []Split{{UserID: 1, ShareBP: 3334}, {UserID: 2, ShareBP: 3333}, {UserID: 3, ShareBP: 3333}})
 	var sum int64
 	var amounts []int64
 	for _, s := range got {
@@ -163,7 +163,7 @@ func TestWithAmountsSumsToTotal(t *testing.T) {
 	if got[0].UserID != 1 || got[1].ShareBP != 3333 {
 		t.Errorf("the order and the original shares must be preserved: %+v", got)
 	}
-	if len(withAmounts(100, nil)) != 0 {
+	if len(WithAmounts(100, nil)) != 0 {
 		t.Error("no shares, no allocation")
 	}
 }

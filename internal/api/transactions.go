@@ -20,15 +20,15 @@ func (s *Server) transactionRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
 	mux.Handle("DELETE "+base+"/{id}", wallet(httpx.RoleEditor, s.deleteTransaction))
 }
 
-// split is one member's share of a transaction, in basis points and in cents.
-type split struct {
+// Split is one member's share of a transaction, in basis points and in cents.
+type Split struct {
 	UserID      int64 `json:"userId"`
 	ShareBP     int64 `json:"shareBp"`
 	AmountCents int64 `json:"amountCents"`
 }
 
-// transaction is a transaction as the API returns it.
-type transaction struct {
+// Transaction is a transaction as the API returns it.
+type Transaction struct {
 	ID              int64   `json:"id"`
 	Kind            string  `json:"kind"`
 	AmountCents     int64   `json:"amountCents"`
@@ -41,11 +41,11 @@ type transaction struct {
 	RecurrenceID    *int64  `json:"recurrenceId"`
 	InvoiceDue      *string `json:"invoiceDue"` // due date of the card invoice it falls in; its month is the month it counts in
 	Source          string  `json:"source"`     // manual, recurring or bank
-	Splits          []split `json:"splits"`
+	Splits          []Split `json:"splits"`
 }
 
-// transactionInput is the body of a transaction create or update.
-type transactionInput struct {
+// TransactionInput is the body of a transaction create or update.
+type TransactionInput struct {
 	Kind            string  `json:"kind"`
 	AmountCents     int64   `json:"amountCents"`
 	Description     string  `json:"description"`
@@ -53,9 +53,9 @@ type transactionInput struct {
 	PaymentMethodID *int64  `json:"paymentMethodId"`
 	Date            string  `json:"date"`
 	PaidByUserID    int64   `json:"paidByUserId"`
-	Splits          []split `json:"splits"`
+	Splits          []Split `json:"splits"`
 	AllowDuplicate  bool    `json:"allowDuplicate"` // the person saw the duplicate warning and saves anyway
-	invoiceDue      *string // set when it is saved: see stampInvoice
+	InvoiceDue      *string `json:"-"`              // set when it is saved (see stampInvoice); never read from a request body
 }
 
 // Stored dates must fall in this range; reads accept any valid date, so older data stays readable.
@@ -85,7 +85,7 @@ func amountProblem(cents int64) string {
 
 // validate normalizes the input and checks references within the wallet.
 // currentCategoryID allows keeping an archived category the transaction already had (0 on create).
-func (in *transactionInput) validate(ctx context.Context, q httpx.Querier, walletID, userID, currentCategoryID int64) error {
+func (in *TransactionInput) validate(ctx context.Context, q httpx.Querier, walletID, userID, currentCategoryID int64) error {
 	in.Description = strings.TrimSpace(in.Description)
 	if in.PaidByUserID == 0 {
 		in.PaidByUserID = userID
@@ -151,7 +151,7 @@ func (in *transactionInput) validate(ctx context.Context, q httpx.Querier, walle
 }
 
 // resolveSplits applies the spec's split rules and returns the final splits (without amountCents).
-func resolveSplits(ctx context.Context, q httpx.Querier, walletID int64, kind string, requested []split) ([]split, error) {
+func resolveSplits(ctx context.Context, q httpx.Querier, walletID int64, kind string, requested []Split) ([]Split, error) {
 	var splitting bool
 	if err := q.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
 		return nil, err
@@ -197,10 +197,10 @@ func resolveSplits(ctx context.Context, q httpx.Querier, walletID int64, kind st
 		if allShared {
 			shares = money.Allocate(money.FullShare, defaultShares)
 		}
-		var out []split
+		var out []Split
 		for i, id := range defaults {
 			if shares[i] > 0 { // a tiny share can round to 0%: that member does not take part
-				out = append(out, split{UserID: id, ShareBP: shares[i]})
+				out = append(out, Split{UserID: id, ShareBP: shares[i]})
 			}
 		}
 		return out, nil
@@ -223,29 +223,29 @@ func resolveSplits(ctx context.Context, q httpx.Querier, walletID int64, kind st
 	if total != money.FullShare {
 		return nil, httpx.ValidationError(map[string]string{"splits": "as partes devem somar 100%"})
 	}
-	out := make([]split, len(requested))
+	out := make([]Split, len(requested))
 	for i, sp := range requested {
-		out[i] = split{UserID: sp.UserID, ShareBP: sp.ShareBP}
+		out[i] = Split{UserID: sp.UserID, ShareBP: sp.ShareBP}
 	}
 	return out, nil
 }
 
-// withAmounts fills in each split's amount from total and its share, without losing a cent.
-func withAmounts(total int64, splits []split) []split {
+// WithAmounts fills in each split's amount from total and its share, without losing a cent.
+func WithAmounts(total int64, splits []Split) []Split {
 	shares := make([]int64, len(splits))
 	for i, sp := range splits {
 		shares[i] = sp.ShareBP
 	}
 	amounts := money.Allocate(total, shares)
-	out := make([]split, len(splits))
+	out := make([]Split, len(splits))
 	for i, sp := range splits {
-		out[i] = split{UserID: sp.UserID, ShareBP: sp.ShareBP, AmountCents: amounts[i]}
+		out[i] = Split{UserID: sp.UserID, ShareBP: sp.ShareBP, AmountCents: amounts[i]}
 	}
 	return out
 }
 
 // replaceTransactionSplits replaces the member shares of transaction txID with splits.
-func replaceTransactionSplits(ctx context.Context, q httpx.Querier, txID int64, splits []split) error {
+func replaceTransactionSplits(ctx context.Context, q httpx.Querier, txID int64, splits []Split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM transaction_splits WHERE transaction_id = ?`, txID); err != nil {
 		return err
 	}
@@ -314,15 +314,15 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	defer rows.Close()
-	list := []transaction{}
+	list := []Transaction{}
 	index := map[int64]int{}
 	for rows.Next() {
-		var t transaction
+		var t Transaction
 		if err := rows.Scan(&t.ID, &t.Kind, &t.AmountCents, &t.Description, &t.CategoryID, &t.PaymentMethodID,
 			&t.Date, &t.PaidByUserID, &t.CreatedBy, &t.RecurrenceID, &t.Source, &t.InvoiceDue); err != nil {
 			return err
 		}
-		t.Splits = []split{}
+		t.Splits = []Split{}
 		index[t.ID] = len(list)
 		list = append(list, t)
 	}
@@ -338,7 +338,7 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 }
 
 // attachSplits loads the splits of every transaction in the list with a single query.
-func (s *Server) attachSplits(ctx context.Context, list []transaction, index map[int64]int) error {
+func (s *Server) attachSplits(ctx context.Context, list []Transaction, index map[int64]int) error {
 	if len(list) == 0 {
 		return nil
 	}
@@ -356,7 +356,7 @@ func (s *Server) attachSplits(ctx context.Context, list []transaction, index map
 	defer rows.Close()
 	for rows.Next() {
 		var txID int64
-		var sp split
+		var sp Split
 		if err := rows.Scan(&txID, &sp.UserID, &sp.ShareBP); err != nil {
 			return err
 		}
@@ -367,14 +367,14 @@ func (s *Server) attachSplits(ctx context.Context, list []transaction, index map
 		return err
 	}
 	for i := range list {
-		list[i].Splits = withAmounts(list[i].AmountCents, list[i].Splits)
+		list[i].Splits = WithAmounts(list[i].AmountCents, list[i].Splits)
 	}
 	return nil
 }
 
-// saveTransaction validates in and inserts it, with its splits, inside tx. source says where it came from:
+// SaveTransaction validates in and inserts it, with its splits, inside tx. source says where it came from:
 // "manual" (typed by a person) or "bank" (accepted from an imported statement).
-func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in *transactionInput, source string) (int64, error) {
+func SaveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in *TransactionInput, source string) (int64, error) {
 	if err := in.validate(ctx, tx, walletID, userID, 0); err != nil {
 		return 0, err
 	}
@@ -390,7 +390,7 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 	err := tx.QueryRowContext(ctx, `
 		INSERT INTO transactions (wallet_id, kind, amount_cents, description, category_id, payment_method_id, date, paid_by_user_id, created_by, source, invoice_due)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source, in.invoiceDue,
+		walletID, in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, userID, source, in.InvoiceDue,
 	).Scan(&id)
 	if err != nil {
 		return 0, err
@@ -401,21 +401,21 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 // createTransaction handles POST /transactions.
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
-	var in transactionInput
+	var in TransactionInput
 	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
 	var id int64
 	err := s.InTx(ctx, func(tx *sql.Tx) (err error) {
-		id, err = saveTransaction(ctx, tx, walletID, userID, &in, "manual")
+		id, err = SaveTransaction(ctx, tx, walletID, userID, &in, "manual")
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	out := transaction{ID: id, Source: "manual", Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
+	out := Transaction{ID: id, Source: "manual", Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date,
-		PaidByUserID: in.PaidByUserID, CreatedBy: userID, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
+		PaidByUserID: in.PaidByUserID, CreatedBy: userID, InvoiceDue: in.InvoiceDue, Splits: WithAmounts(in.AmountCents, in.Splits)}
 	s.Mutated(r)
 	httpx.WriteJSON(w, http.StatusCreated, out)
 	return nil
@@ -428,7 +428,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
-	var in transactionInput
+	var in TransactionInput
 	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
@@ -441,7 +441,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 		var currentMethod *int64
 		if err := tx.QueryRowContext(ctx,
 			`SELECT category_id, created_by, recurrence_id, source, date, payment_method_id, invoice_due FROM transactions WHERE id = ? AND wallet_id = ?`, id, walletID,
-		).Scan(&currentCat, &createdBy, &recurrenceID, &source, &currentDate, &currentMethod, &in.invoiceDue); err != nil {
+		).Scan(&currentCat, &createdBy, &recurrenceID, &source, &currentDate, &currentMethod, &in.InvoiceDue); err != nil {
 			return err // sql.ErrNoRows → 404 through writeError
 		}
 		if err := in.validate(ctx, tx, walletID, userID, currentCat); err != nil {
@@ -457,7 +457,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 			UPDATE transactions SET kind = ?, amount_cents = ?, description = ?, category_id = ?, payment_method_id = ?,
 			       date = ?, paid_by_user_id = ?, invoice_due = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
 			WHERE id = ? AND wallet_id = ?`,
-			in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, in.invoiceDue, id, walletID,
+			in.Kind, in.AmountCents, in.Description, in.CategoryID, in.PaymentMethodID, in.Date, in.PaidByUserID, in.InvoiceDue, id, walletID,
 		); err != nil {
 			return err
 		}
@@ -466,9 +466,9 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
-	out := transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
+	out := Transaction{ID: id, Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description,
 		CategoryID: in.CategoryID, PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID,
-		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, InvoiceDue: in.invoiceDue, Splits: withAmounts(in.AmountCents, in.Splits)}
+		CreatedBy: createdBy, RecurrenceID: recurrenceID, Source: source, InvoiceDue: in.InvoiceDue, Splits: WithAmounts(in.AmountCents, in.Splits)}
 	s.Mutated(r)
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil

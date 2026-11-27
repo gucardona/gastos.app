@@ -13,7 +13,7 @@ const duplicateWindow = "-15 minutes"
 
 // checkDuplicate refuses a new manual entry identical (kind, amount, date, category, method; never the description) to one
 // the same person saved minutes ago, or to one another member saved for that day: the client asks and resends with allowDuplicate.
-func checkDuplicate(ctx context.Context, q httpx.Querier, walletID, userID int64, in *transactionInput) error {
+func checkDuplicate(ctx context.Context, q httpx.Querier, walletID, userID int64, in *TransactionInput) error {
 	var desc, name string
 	var by int64
 	err := q.QueryRowContext(ctx, `

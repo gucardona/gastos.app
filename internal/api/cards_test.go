@@ -98,15 +98,15 @@ func TestCardSurvivesArchiveAndTurnsOff(t *testing.T) {
 }
 
 // purchase posts a transaction on the given method and returns it.
-func purchase(c *client, kind, date string, method int64) transaction {
+func purchase(c *client, kind, date string, method int64) Transaction {
 	c.app.t.Helper()
-	var tx transaction
+	var tx Transaction
 	c.do("POST", c.wpath("/transactions"), map[string]any{"kind": kind, "amountCents": 8700, "description": "Jantar",
 		"categoryId": firstCategory(c.app.t, c, kind), "paymentMethodId": method, "date": date, "paidByUserId": c.user.ID}, 201, &tx)
 	return tx
 }
 
-func due(tx transaction) string {
+func due(tx Transaction) string {
 	if tx.InvoiceDue == nil {
 		return "<nil>"
 	}
@@ -125,7 +125,7 @@ func TestCardPurchaseGetsInvoiceDue(t *testing.T) {
 			t.Errorf("%s on %s: invoiceDue %s, want %s", x.kind, x.date, got, x.want)
 		}
 	}
-	var list []transaction
+	var list []Transaction
 	c.do("GET", c.wpath("/transactions?from=2026-11-01&to=2026-11-30"), nil, 200, &list)
 	if len(list) != 3 || due(list[0]) == "<nil>" {
 		t.Fatalf("the list carries invoiceDue too: %+v", list)
@@ -174,7 +174,7 @@ func TestBankAcceptOnCardAccount(t *testing.T) {
 	c.do("PUT", c.wpath("/bank-accounts/%d", acc.ID), map[string]any{"name": "Cartão", "paymentMethodId": card.ID, "enabled": true}, 200, nil)
 	importFile(t, c, acc.ID, ofxRows("20261122|-48.90|C1|RESTAURANTE"), 200)
 	item := findByDescription(t, pending(t, c), "RESTAURANTE")
-	var tx transaction
+	var tx Transaction
 	c.do("POST", c.wpath("/inbox/%d/accept", item.ID), map[string]any{"categoryId": firstCategory(t, c, "expense")}, 201, &tx)
 	if due(tx) != "2026-12-27" {
 		t.Fatalf("accepted line: invoiceDue %s", due(tx))

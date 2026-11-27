@@ -34,7 +34,7 @@ type recurrenceDTO struct {
 	EndDate         *string `json:"endDate"`
 	Enabled         bool    `json:"enabled"`
 	NextDate        *string `json:"nextDate"`
-	Splits          []split `json:"splits"`
+	Splits          []Split `json:"splits"`
 }
 
 // recurrenceInput is the body of a recurrence create or update.
@@ -50,7 +50,7 @@ type recurrenceInput struct {
 	StartDate       string  `json:"startDate"`
 	EndDate         *string `json:"endDate"`
 	Enabled         *bool   `json:"enabled"`
-	Splits          []split `json:"splits"`
+	Splits          []Split `json:"splits"`
 }
 
 // maxBackfillMonths bounds how far back a new start date may go: each past month is materialized inside the request.
@@ -94,7 +94,7 @@ func (in *recurrenceInput) validate(ctx context.Context, q httpx.Querier, wallet
 		if in.CategoryID == nil || in.ToUserID != nil {
 			return httpx.ValidationError(map[string]string{"categoryId": "obrigatória para gastos e entradas"})
 		}
-		ti := transactionInput{Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description, CategoryID: *in.CategoryID,
+		ti := TransactionInput{Kind: in.Kind, AmountCents: in.AmountCents, Description: in.Description, CategoryID: *in.CategoryID,
 			PaymentMethodID: in.PaymentMethodID, Date: in.StartDate, PaidByUserID: in.PaidByUserID, Splits: in.Splits}
 		if err := ti.validate(ctx, q, walletID, userID, currentCategoryID); err != nil {
 			var ae *httpx.APIError
@@ -146,7 +146,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 			&d.PaidByUserID, &d.ToUserID, &d.DayOfMonth, &d.StartDate, &d.EndDate, &d.Enabled); err != nil {
 			return nil, err
 		}
-		d.Splits = []split{}
+		d.Splits = []Split{}
 		index[d.ID] = len(list)
 		list = append(list, d)
 	}
@@ -164,7 +164,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 	defer srows.Close()
 	for srows.Next() {
 		var rid int64
-		var sp split
+		var sp Split
 		if err := srows.Scan(&rid, &sp.UserID, &sp.ShareBP); err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 		return nil, err
 	}
 	for i := range list {
-		list[i].Splits = withAmounts(list[i].AmountCents, list[i].Splits)
+		list[i].Splits = WithAmounts(list[i].AmountCents, list[i].Splits)
 		list[i].NextDate = s.nextDate(list[i])
 	}
 	return list, nil
@@ -227,7 +227,7 @@ func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) error {
 }
 
 // replaceRecurrenceSplits replaces the member shares of recurrence id with splits.
-func replaceRecurrenceSplits(ctx context.Context, q httpx.Querier, id int64, splits []split) error {
+func replaceRecurrenceSplits(ctx context.Context, q httpx.Querier, id int64, splits []Split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM recurrence_splits WHERE recurrence_id = ?`, id); err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ func newToolFixture(t *testing.T) *toolFixture {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
 	bia := app.register("Bia", "bia@example.com")
-	var w walletDTO
+	var w WalletDTO
 	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &w)
 	f := &toolFixture{app: app, ana: ana, bia: bia, a: ana.walletID, b: w.ID, c: bia.walletID}
 

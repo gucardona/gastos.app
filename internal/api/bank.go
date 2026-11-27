@@ -690,7 +690,7 @@ func lockPendingLine(ctx context.Context, tx *sql.Tx, walletID, id int64) (pendi
 }
 
 // acceptLine creates a "bank" transaction from the line and marks the line accepted.
-func acceptLine(ctx context.Context, tx *sql.Tx, walletID, userID int64, l pendingLine, categoryID int64, description string) (transaction, error) {
+func acceptLine(ctx context.Context, tx *sql.Tx, walletID, userID int64, l pendingLine, categoryID int64, description string) (Transaction, error) {
 	description = strings.TrimSpace(description)
 	if description == "" {
 		description = l.desc
@@ -705,18 +705,18 @@ func acceptLine(ctx context.Context, tx *sql.Tx, walletID, userID int64, l pendi
 	if abs < 0 {
 		abs = -abs
 	}
-	in := transactionInput{Kind: kindOf(l.amount), AmountCents: abs, Description: description, CategoryID: categoryID,
+	in := TransactionInput{Kind: kindOf(l.amount), AmountCents: abs, Description: description, CategoryID: categoryID,
 		PaymentMethodID: l.paymentMethodID, Date: l.date, PaidByUserID: l.paidBy}
-	txID, err := saveTransaction(ctx, tx, walletID, userID, &in, "bank")
+	txID, err := SaveTransaction(ctx, tx, walletID, userID, &in, "bank")
 	if err != nil {
-		return transaction{}, err
+		return Transaction{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE bank_transactions SET status = 'accepted', transaction_id = ? WHERE id = ?`, txID, l.id); err != nil {
-		return transaction{}, err
+		return Transaction{}, err
 	}
-	return transaction{ID: txID, Kind: in.Kind, AmountCents: abs, Description: description, CategoryID: categoryID,
+	return Transaction{ID: txID, Kind: in.Kind, AmountCents: abs, Description: description, CategoryID: categoryID,
 		PaymentMethodID: in.PaymentMethodID, Date: in.Date, PaidByUserID: in.PaidByUserID, CreatedBy: userID,
-		Source: "bank", InvoiceDue: in.invoiceDue, Splits: withAmounts(abs, in.Splits)}, nil
+		Source: "bank", InvoiceDue: in.InvoiceDue, Splits: WithAmounts(abs, in.Splits)}, nil
 }
 
 // acceptInboxItem handles POST /inbox/{id}/accept: the line becomes a transaction.
@@ -733,7 +733,7 @@ func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {
 	if err := httpx.Decode(w, r, &in); err != nil {
 		return err
 	}
-	var out transaction
+	var out Transaction
 	err = s.InTx(ctx, func(tx *sql.Tx) error {
 		l, err := lockPendingLine(ctx, tx, walletID, id)
 		if err != nil {

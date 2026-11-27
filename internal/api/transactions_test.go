@@ -12,7 +12,7 @@ func TestTransactionCRUD(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	cat := firstCategory(t, ana, "expense")
 
-	var created transaction
+	var created Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 12990, "description": "Mercado",
 		"categoryId": cat, "date": "2026-10-09",
@@ -21,7 +21,7 @@ func TestTransactionCRUD(t *testing.T) {
 		t.Fatalf("created: %+v", created)
 	}
 
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 1 || list[0].AmountCents != 12990 {
 		t.Fatalf("list: %+v", list)
@@ -58,7 +58,7 @@ func TestTransactionListFilters(t *testing.T) {
 	post("expense", exp, "Fora do mês", "2026-09-30")
 
 	count := func(query string) int {
-		var list []transaction
+		var list []Transaction
 		ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31%s", query), nil, 200, &list)
 		return len(list)
 	}
@@ -95,6 +95,24 @@ func TestTransactionValidation(t *testing.T) {
 	ana.do("GET", ana.wpath("/transactions?from=2020-01-01&to=2026-01-01"), nil, 400, nil)
 }
 
+// TestInvoiceDueNotAccepted pins that a request body cannot set invoiceDue:
+// the server derives it from the card, so the key is an unknown field.
+func TestInvoiceDueNotAccepted(t *testing.T) {
+	app := newTestApp(t)
+	ana := app.register("Ana", "ana@example.com")
+	cat := firstCategory(t, ana, "expense")
+	var res struct {
+		Error httpx.APIError `json:"error"`
+	}
+	ana.do("POST", ana.wpath("/transactions"), map[string]any{
+		"kind": "expense", "amountCents": 1000, "description": "Luz", "categoryId": cat,
+		"date": "2026-10-01", "invoiceDue": "2026-12-10",
+	}, 400, &res)
+	if res.Error.Code != "validation" {
+		t.Fatalf("code = %q, want validation", res.Error.Code)
+	}
+}
+
 func TestEditorKeepsCreatorAndPayer(t *testing.T) {
 	app := newTestApp(t)
 	ana := app.register("Ana", "ana@example.com")
@@ -102,7 +120,7 @@ func TestEditorKeepsCreatorAndPayer(t *testing.T) {
 	shareWallet(ana, bia, "editor")
 	cat := firstCategory(t, ana, "expense")
 
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 1000, "description": "Luz", "categoryId": cat, "date": "2026-10-01",
 	}, 201, &tx)
@@ -147,7 +165,7 @@ func TestSplits(t *testing.T) {
 	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
 
 	// no splits: equal among members with splitsByDefault; 101 cents → 51 + 50
-	var tx transaction
+	var tx Transaction
 	ana.do("POST", ana.wpath("/transactions"), body(nil), 201, &tx)
 	if len(tx.Splits) != 2 || tx.Splits[0].AmountCents != 51 || tx.Splits[1].AmountCents != 50 {
 		t.Fatalf("default split: %+v", tx.Splits)
@@ -162,7 +180,7 @@ func TestSplits(t *testing.T) {
 	}
 
 	// o GET devolve os mesmos splits
-	var list []transaction
+	var list []Transaction
 	ana.do("GET", ana.wpath("/transactions?from=2026-10-01&to=2026-10-31"), nil, 200, &list)
 	if len(list) != 2 || len(list[0].Splits) != 2 {
 		t.Fatalf("list: %+v", list)
@@ -187,7 +205,7 @@ func TestTransactionSourceIsReported(t *testing.T) {
 	ana := app.register("Ana", "ana@example.com")
 	cat := firstCategory(t, ana, "expense")
 
-	var manual transaction
+	var manual Transaction
 	ana.do("POST", ana.wpath("/transactions"), map[string]any{
 		"kind": "expense", "amountCents": 100, "description": "typed", "categoryId": cat, "date": "2026-10-01",
 	}, 201, &manual)

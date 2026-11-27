@@ -249,11 +249,11 @@ func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
 	if len(wallets) != len(in.Wallets) || len(active) == 0 {
 		return httpx.ErrForbidden
 	}
-	key, model, keyErr := s.userAIKey(ctx, uid)
+	key, model, keyErr := s.UserAIKey(ctx, uid)
 	switch {
-	case errors.Is(keyErr, errAIDisabled):
+	case errors.Is(keyErr, ErrAIDisabled):
 		return httpx.ErrConflict("Ative o assistente em Ajustes para usar o chat.")
-	case keyErr != nil && !errors.Is(keyErr, errAIKeyUnreadable):
+	case keyErr != nil && !errors.Is(keyErr, ErrAIKeyUnreadable):
 		return keyErr
 	}
 	if err := s.checkAILimit(ctx, uid); err != nil {

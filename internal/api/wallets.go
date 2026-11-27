@@ -10,12 +10,12 @@ import (
 	"gastos/internal/money"
 )
 
-// _bcryptCost is a variable so tests can use a low cost.
-var _bcryptCost = 12
+// BcryptCost is a variable so tests can use a low cost.
+var BcryptCost = 12
 
-// requireWallet requires the user to be a member of the wallet in the path with role >= minRole.
+// RequireWallet requires the user to be a member of the wallet in the path with role >= minRole.
 // Non-members get 404 so the wallet's existence is not revealed.
-func (s *Server) requireWallet(minRole httpx.Role, next http.Handler) http.Handler {
+func (s *Server) RequireWallet(minRole httpx.Role, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		walletID, err := httpx.PathID(r, "walletID")
 		if err != nil {
@@ -40,8 +40,8 @@ func (s *Server) requireWallet(minRole httpx.Role, next http.Handler) http.Handl
 	})
 }
 
-// walletDTO is a wallet as the API returns it, with the caller's role in it.
-type walletDTO struct {
+// WalletDTO is a wallet as the API returns it, with the caller's role in it.
+type WalletDTO struct {
 	ID               int64  `json:"id"`
 	Name             string `json:"name"`
 	Role             string `json:"role"`
@@ -49,8 +49,8 @@ type walletDTO struct {
 	OwnerName        string `json:"ownerName"`
 }
 
-// walletsFor returns the wallets userID is a member of.
-func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, error) {
+// WalletsFor returns the wallets userID is a member of.
+func (s *Server) WalletsFor(ctx context.Context, userID int64) ([]WalletDTO, error) {
 	rows, err := s.DB.QueryContext(ctx, `
 		SELECT w.id, w.name, me.role, w.splitting_enabled, u.name
 		FROM wallets w
@@ -62,9 +62,9 @@ func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, err
 		return nil, err
 	}
 	defer rows.Close()
-	out := []walletDTO{}
+	out := []WalletDTO{}
 	for rows.Next() {
-		var d walletDTO
+		var d WalletDTO
 		if err := rows.Scan(&d.ID, &d.Name, &d.Role, &d.SplittingEnabled, &d.OwnerName); err != nil {
 			return nil, err
 		}
@@ -74,8 +74,8 @@ func (s *Server) walletsFor(ctx context.Context, userID int64) ([]walletDTO, err
 }
 
 // walletByID returns walletID as seen by userID.
-func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (walletDTO, error) {
-	var d walletDTO
+func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (WalletDTO, error) {
+	var d WalletDTO
 	err := s.DB.QueryRowContext(ctx, `
 		SELECT w.id, w.name, me.role, w.splitting_enabled, u.name
 		FROM wallets w
@@ -86,8 +86,8 @@ func (s *Server) walletByID(ctx context.Context, userID, walletID int64) (wallet
 	return d, err
 }
 
-// createWallet inserts the wallet, the owner and the defaults (categories and payment methods).
-func createWallet(ctx context.Context, q httpx.Querier, name string, ownerID int64, splitting bool) (int64, error) {
+// CreateWallet inserts the wallet, the owner and the defaults (categories and payment methods).
+func CreateWallet(ctx context.Context, q httpx.Querier, name string, ownerID int64, splitting bool) (int64, error) {
 	var id int64
 	if err := q.QueryRowContext(ctx, `INSERT INTO wallets (name, splitting_enabled) VALUES (?, ?) RETURNING id`,
 		name, splitting).Scan(&id); err != nil {
@@ -156,7 +156,7 @@ func seedWallet(ctx context.Context, q httpx.Querier, walletID int64) error {
 
 // listWallets handles GET /api/wallets: the caller's wallets.
 func (s *Server) listWallets(w http.ResponseWriter, r *http.Request) error {
-	list, err := s.walletsFor(r.Context(), httpx.UserIDFrom(r.Context()))
+	list, err := s.WalletsFor(r.Context(), httpx.UserIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (s *Server) createWallet(w http.ResponseWriter, r *http.Request) error {
 	userID := httpx.UserIDFrom(r.Context())
 	var id int64
 	err := s.InTx(r.Context(), func(tx *sql.Tx) (err error) {
-		id, err = createWallet(r.Context(), tx, in.Name, userID, in.SplittingEnabled)
+		id, err = CreateWallet(r.Context(), tx, in.Name, userID, in.SplittingEnabled)
 		return err
 	})
 	if err != nil {
