@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useBudgets } from "../../api/queries";
 import type { Category } from "../../api/types";
-import { BudgetSheet } from "../../components/BudgetSheet";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { useApp } from "../../context";
+import { BudgetSheet } from "../../features/budgets/BudgetSheet";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { useApp } from "../../app/context";
 import { formatBRL } from "../../lib/money";
 
 export function BudgetsSection() {

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useSummary, useTransactions } from "../api/queries";
-import { Flows } from "../components/Flows";
-import { MonthSwitcher, PageBar } from "../components/PageBar";
-import { RecurringSection } from "../components/RecurringSection";
-import { Segmented } from "../components/Segmented";
-import { TransactionList } from "../components/TransactionList";
-import { UpcomingList } from "../components/UpcomingList";
-import { useApp } from "../context";
+import { Flows } from "../features/transactions/Flows";
+import { MonthSwitcher, PageBar } from "../app/PageBar";
+import { RecurringSection } from "../features/transactions/RecurringSection";
+import { Segmented } from "../ui/Segmented";
+import { TransactionList } from "../features/transactions/TransactionList";
+import { UpcomingList } from "../features/transactions/UpcomingList";
+import { useApp } from "../app/context";
 import { isPaid, today } from "../lib/dates";
 import { matcher, type Searchable } from "../lib/search";
 

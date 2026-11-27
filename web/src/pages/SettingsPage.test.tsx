@@ -3,8 +3,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ToastProvider } from "../components/Toast";
-import { Ctx } from "../context";
+import { ToastProvider } from "../ui/Toast";
+import { Ctx } from "../app/context";
 import { appCtx, mockFetch } from "../test/fixtures";
 import { Settings } from "./Settings";
 

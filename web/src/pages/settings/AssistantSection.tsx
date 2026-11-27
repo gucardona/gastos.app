@@ -3,10 +3,10 @@ import { useState } from "react";
 import { api } from "../../api/client";
 import { useAISettings } from "../../api/queries";
 import type { AISettings } from "../../api/types";
-import { ConfirmButton } from "../../components/ConfirmButton";
-import { ListGroup, ListRow } from "../../components/ListGroup";
-import { Segmented } from "../../components/Segmented";
-import { Switch } from "../../components/Switch";
+import { ConfirmButton } from "../../ui/ConfirmButton";
+import { ListGroup, ListRow } from "../../ui/ListGroup";
+import { Segmented } from "../../ui/Segmented";
+import { Switch } from "../../ui/Switch";
 import { useAction } from "../../hooks/useAction";
 import { centsToInput, formatBRL, parseCents, typedAmount } from "../../lib/money";
 
