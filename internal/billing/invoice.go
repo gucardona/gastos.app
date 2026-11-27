@@ -33,6 +33,7 @@ func InvoiceDue(date string, closingDay, dueDay int) (string, error) {
 // BestPurchaseDay is the first day of a new invoice: the day after the closing (31 wraps to 1).
 func BestPurchaseDay(closingDay int) int { return closingDay%31 + 1 }
 
+// firstOfMonth returns midnight UTC on the first day of t's month.
 func firstOfMonth(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
 }

@@ -13,13 +13,14 @@ import (
 	"gastos/internal/secret"
 )
 
-var aiModels = []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}
+var _aiModels = []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}
 
 var (
 	errAIKeyUnreadable = errors.New("assistant API key cannot be decrypted")
 	errAIDisabled      = errors.New("assistant is disabled")
 )
 
+// aiRow is a user's assistant settings as stored, with the API key still encrypted.
 type aiRow struct {
 	enc       []byte // empty when the user has no key (the row only holds model/retention)
 	hint      string
@@ -30,6 +31,7 @@ type aiRow struct {
 	monthly   int64
 }
 
+// loadAI returns userID's assistant settings, or the defaults when the user has none.
 func (s *Server) loadAI(ctx context.Context, userID int64) (aiRow, error) {
 	r := aiRow{model: "claude-sonnet-5-5", retention: 7}
 	err := s.db.QueryRowContext(ctx,
@@ -42,6 +44,8 @@ func (s *Server) loadAI(ctx context.Context, userID int64) (aiRow, error) {
 	return r, err
 }
 
+// openKey decrypts a stored API key; it reports false when there is no key, no server secret
+// or the key does not decrypt.
 func (s *Server) openKey(enc []byte) (string, bool) {
 	if len(enc) == 0 || s.cfg.SecretKey == nil {
 		return "", false
@@ -66,6 +70,8 @@ func (s *Server) userAIKey(ctx context.Context, userID int64) (key, model string
 	return key, r.model, nil
 }
 
+// aiDTO is the assistant settings as the API returns them. The key itself never leaves the server,
+// only its hint.
 type aiDTO struct {
 	Available     bool    `json:"available"`
 	Configured    bool    `json:"configured"`
@@ -83,6 +89,7 @@ type aiDTO struct {
 	UsdBrlAt          *string  `json:"usdBrlAt"`
 }
 
+// aiDTO builds the response for userID from the stored settings r.
 func (s *Server) aiDTO(ctx context.Context, userID int64, r aiRow) (aiDTO, error) {
 	_, readable := s.openKey(r.enc)
 	d := aiDTO{Available: s.cfg.SecretKey != nil, Configured: readable, Model: r.model, Enabled: r.enabled && readable, RetentionDays: r.retention,
@@ -157,6 +164,7 @@ func (s *Server) recordUsage(ctx context.Context, userID int64, model string, in
 	}
 }
 
+// getAI handles GET /api/me/ai.
 func (s *Server) getAI(w http.ResponseWriter, r *http.Request) error {
 	uid := userIDFrom(r.Context())
 	row, err := s.loadAI(r.Context(), uid)
@@ -171,6 +179,7 @@ func (s *Server) getAI(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// putAI handles PUT /api/me/ai: key, model, retention and on/off.
 func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		APIKey        *string `json:"apiKey"`
@@ -200,7 +209,7 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 	}
 	fe := fieldErrors{}
 	if in.Model != nil {
-		if !slices.Contains(aiModels, *in.Model) {
+		if !slices.Contains(_aiModels, *in.Model) {
 			fe.add("model", "modelo inválido")
 		} else {
 			cur.model = *in.Model
@@ -276,6 +285,7 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// deleteAIKey handles DELETE /api/me/ai/key: erases the key and turns the assistant off.
 func (s *Server) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
 	uid := userIDFrom(r.Context())
 	if _, err := s.db.ExecContext(r.Context(),
@@ -287,6 +297,7 @@ func (s *Server) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// anthropicClient returns a client for the Anthropic API with key.
 func (s *Server) anthropicClient(key string) *anthropic.Client {
 	return &anthropic.Client{BaseURL: s.anthropicURL, APIKey: key}
 }

@@ -12,6 +12,7 @@ import (
 
 const dateLayout = "2006-01-02"
 
+// transactionRoutes registers the transaction routes of a wallet.
 func (s *Server) transactionRoutes(mux *http.ServeMux, wallet routeWrap) {
 	const base = "/api/wallets/{walletID}/transactions"
 	mux.Handle("GET "+base, wallet(roleReader, s.listTransactions))
@@ -20,12 +21,14 @@ func (s *Server) transactionRoutes(mux *http.ServeMux, wallet routeWrap) {
 	mux.Handle("DELETE "+base+"/{id}", wallet(roleEditor, s.deleteTransaction))
 }
 
+// split is one member's share of a transaction, in basis points and in cents.
 type split struct {
 	UserID      int64 `json:"userId"`
 	ShareBP     int64 `json:"shareBp"`
 	AmountCents int64 `json:"amountCents"`
 }
 
+// transaction is a transaction as the API returns it.
 type transaction struct {
 	ID              int64   `json:"id"`
 	Kind            string  `json:"kind"`
@@ -42,6 +45,7 @@ type transaction struct {
 	Splits          []split `json:"splits"`
 }
 
+// transactionInput is the body of a transaction create or update.
 type transactionInput struct {
 	Kind            string  `json:"kind"`
 	AmountCents     int64   `json:"amountCents"`
@@ -55,6 +59,7 @@ type transactionInput struct {
 	invoiceDue      *string // set when it is saved: see stampInvoice
 }
 
+// validDate reports whether s is a valid YYYY-MM-DD date.
 func validDate(s string) bool { _, err := time.Parse(dateLayout, s); return err == nil }
 
 // Stored dates must fall in this range; reads accept any valid date, so older data stays readable.
@@ -229,6 +234,7 @@ func resolveSplits(ctx context.Context, q querier, walletID int64, kind string, 
 	return out, nil
 }
 
+// withAmounts fills in each split's amount from total and its share, without losing a cent.
 func withAmounts(total int64, splits []split) []split {
 	shares := make([]int64, len(splits))
 	for i, sp := range splits {
@@ -242,6 +248,7 @@ func withAmounts(total int64, splits []split) []split {
 	return out
 }
 
+// replaceTransactionSplits replaces the member shares of transaction txID with splits.
 func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits []split) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM transaction_splits WHERE transaction_id = ?`, txID); err != nil {
 		return err
@@ -255,6 +262,7 @@ func replaceTransactionSplits(ctx context.Context, q querier, txID int64, splits
 	return nil
 }
 
+// listTransactions handles GET /transactions.
 func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	qs := r.URL.Query()
@@ -394,6 +402,7 @@ func saveTransaction(ctx context.Context, tx *sql.Tx, walletID, userID int64, in
 	return id, replaceTransactionSplits(ctx, tx, id, in.Splits)
 }
 
+// createTransaction handles POST /transactions.
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	var in transactionInput
@@ -416,6 +425,7 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
+// updateTransaction handles PUT /transactions/{id}.
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	id, err := pathID(r, "id")
@@ -468,6 +478,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
+// deleteTransaction handles DELETE /transactions/{id}.
 func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {

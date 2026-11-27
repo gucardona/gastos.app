@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ApiError } from "../api/client";
 import { useRefresh } from "../api/queries";
-import { useToast } from "../components/Toast";
-import { useApp } from "../context";
+import { useToast } from "../ui/Toast";
+import { useApp } from "../app/context";
 
 /** What to tell the person when a call fails. */
 export const errorMessage = (e: unknown) => (e instanceof ApiError ? (Object.values(e.fields)[0] ?? e.message) : "Sem conexão. Tente de novo.");

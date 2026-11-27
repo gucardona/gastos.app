@@ -2,16 +2,16 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useSummary, useTransactions } from "../api/queries";
 import type { Transaction, Transfer, Upcoming } from "../api/types";
-import { Flows } from "../components/Flows";
-import { MonthSwitcher, PageBar } from "../components/PageBar";
-import { SettlementSheet } from "../components/SettlementSheet";
-import { TransactionList } from "../components/TransactionList";
-import { UpcomingList } from "../components/UpcomingList";
-import { firstName, useApp } from "../context";
+import { Flows } from "../features/transactions/Flows";
+import { MonthSwitcher, PageBar } from "../app/PageBar";
+import { SettlementSheet } from "../features/division/SettlementSheet";
+import { TransactionList } from "../features/transactions/TransactionList";
+import { UpcomingList } from "../features/transactions/UpcomingList";
+import { firstName, useApp } from "../app/context";
 import { isPaid, monthOf, monthRange, today } from "../lib/dates";
 import { formatBRL, splitBRL } from "../lib/money";
 import { groupTop, pctLabel } from "../lib/share";
-import { Chart } from "../components/Chart";
+import { Chart } from "../features/reports/Chart";
 
 const RULER_HEIGHT = 72;
 

@@ -26,7 +26,7 @@ type Entry struct {
 	Description string
 }
 
-var cp1252 = map[byte]rune{
+var _cp1252 = map[byte]rune{
 	0x80: '€', 0x82: '‚', 0x83: 'ƒ', 0x84: '„', 0x85: '…', 0x86: '†', 0x87: '‡', 0x88: 'ˆ', 0x89: '‰', 0x8A: 'Š', 0x8B: '‹',
 	0x8C: 'Œ', 0x8E: 'Ž', 0x91: '‘', 0x92: '’', 0x93: '“', 0x94: '”', 0x95: '•', 0x96: '–', 0x97: '—', 0x98: '˜', 0x99: '™',
 	0x9A: 'š', 0x9B: '›', 0x9C: 'œ', 0x9E: 'ž', 0x9F: 'Ÿ',
@@ -41,7 +41,7 @@ func decodeText(raw []byte) string {
 	}
 	var b strings.Builder
 	for _, c := range raw {
-		if r, ok := cp1252[c]; ok {
+		if r, ok := _cp1252[c]; ok {
 			b.WriteRune(r)
 		} else {
 			b.WriteRune(rune(c)) // 0x00-0x7F and 0xA0-0xFF map to the same code point in Latin-1

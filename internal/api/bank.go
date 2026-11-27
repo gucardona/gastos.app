@@ -12,6 +12,7 @@ import (
 	"gastos/internal/bankimport"
 )
 
+// bankRoutes registers the bank account, statement import, inbox and categorization rule routes of a wallet.
 func (s *Server) bankRoutes(mux *http.ServeMux, wallet routeWrap) {
 	const base = "/api/wallets/{walletID}"
 	mux.Handle("GET "+base+"/bank-accounts", wallet(roleReader, s.listBankAccounts))
@@ -33,6 +34,7 @@ func (s *Server) bankRoutes(mux *http.ServeMux, wallet routeWrap) {
 
 // ---- bank accounts ----
 
+// bankAccountDTO is a bank account as the API returns it, with the number of lines waiting in the inbox.
 type bankAccountDTO struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
@@ -42,6 +44,7 @@ type bankAccountDTO struct {
 	PendingCount    int    `json:"pendingCount"`
 }
 
+// bankAccountInput is the body of a bank account create or update.
 type bankAccountInput struct {
 	Name            string `json:"name"`
 	PaymentMethodID *int64 `json:"paymentMethodId"`
@@ -52,17 +55,20 @@ type bankAccountInput struct {
 const bankAccountCols = `ba.id, ba.name, ba.payment_method_id, ba.paid_by_user_id, ba.enabled,
 	(SELECT COUNT(*) FROM bank_transactions bt WHERE bt.bank_account_id = ba.id AND bt.status = 'pending')`
 
+// scanBankAccount reads a row selected with bankAccountCols.
 func scanBankAccount(row interface{ Scan(...any) error }) (bankAccountDTO, error) {
 	var a bankAccountDTO
 	err := row.Scan(&a.ID, &a.Name, &a.PaymentMethodID, &a.PaidByUserID, &a.Enabled, &a.PendingCount)
 	return a, err
 }
 
+// bankAccountByID returns bank account id of walletID.
 func (s *Server) bankAccountByID(ctx context.Context, q querier, walletID, id int64) (bankAccountDTO, error) {
 	return scanBankAccount(q.QueryRowContext(ctx,
 		`SELECT `+bankAccountCols+` FROM bank_accounts ba WHERE ba.id = ? AND ba.wallet_id = ?`, id, walletID))
 }
 
+// validate trims the name and checks every field against walletID, returning the field errors.
 func (in *bankAccountInput) validate(ctx context.Context, q querier, walletID int64) error {
 	in.Name = strings.TrimSpace(in.Name)
 	fe := fieldErrors{}
@@ -92,6 +98,7 @@ func (in *bankAccountInput) validate(ctx context.Context, q querier, walletID in
 	return fe.err()
 }
 
+// listBankAccounts handles GET /bank-accounts.
 func (s *Server) listBankAccounts(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(),
 		`SELECT `+bankAccountCols+` FROM bank_accounts ba WHERE ba.wallet_id = ? ORDER BY ba.name, ba.id`, walletIDFrom(r.Context()))
@@ -114,6 +121,7 @@ func (s *Server) listBankAccounts(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
+// createBankAccount handles POST /bank-accounts.
 func (s *Server) createBankAccount(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	var in bankAccountInput
@@ -180,6 +188,7 @@ func (s *Server) updateBankAccount(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
+// deleteBankAccount handles DELETE /bank-accounts/{id}.
 func (s *Server) deleteBankAccount(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {
@@ -199,6 +208,7 @@ func (s *Server) deleteBankAccount(w http.ResponseWriter, r *http.Request) error
 
 // ---- rules ----
 
+// ruleDTO is a categorization rule as the API returns it.
 type ruleDTO struct {
 	ID         int64   `json:"id"`
 	Pattern    string  `json:"pattern"`
@@ -230,6 +240,7 @@ func loadRules(ctx context.Context, q querier, walletID int64) (map[string][]ban
 	return out, rows.Err()
 }
 
+// kindOf returns "income" for a positive statement amount and "expense" otherwise.
 func kindOf(amountCents int64) string {
 	if amountCents > 0 {
 		return "income"
@@ -286,6 +297,7 @@ func reclassify(ctx context.Context, tx *sql.Tx, walletID int64) (int, error) {
 	return changed, nil
 }
 
+// listRules handles GET /rules, highest priority first.
 func (s *Server) listRules(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(),
 		`SELECT id, pattern, category_id, rename_to, priority FROM categorization_rules WHERE wallet_id = ? ORDER BY priority DESC, id`,
@@ -309,6 +321,7 @@ func (s *Server) listRules(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// createRule handles POST /rules.
 func (s *Server) createRule(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	var in struct {
@@ -370,6 +383,7 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// deleteRule handles DELETE /rules/{id}.
 func (s *Server) deleteRule(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	id, err := pathID(r, "id")
@@ -397,6 +411,7 @@ func (s *Server) deleteRule(w http.ResponseWriter, r *http.Request) error {
 
 // ---- importing ----
 
+// importResult reports how many statement lines an import added and how many it skipped as duplicates.
 type importResult struct {
 	Imported   int `json:"imported"`
 	Duplicates int `json:"duplicates"`
@@ -405,6 +420,8 @@ type importResult struct {
 // importSlack is room for the multipart framing around a file of up to bankimport.MaxFileBytes.
 const importSlack = 1 << 20
 
+// importStatement handles POST /bank-accounts/{id}/import: an OFX or CSV statement whose new lines go
+// to the inbox.
 func (s *Server) importStatement(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	id, err := pathID(r, "id")
@@ -474,6 +491,7 @@ func (s *Server) importStatement(w http.ResponseWriter, r *http.Request) error {
 
 var errTooLarge = &apiError{Status: http.StatusRequestEntityTooLarge, Code: "too_large", Message: "Arquivo grande demais (máximo de 5 MB)."}
 
+// csvMapping reads from the form which CSV columns hold the date, the amount and the description.
 func csvMapping(r *http.Request) (bankimport.CSVMapping, error) {
 	fe := fieldErrors{}
 	col := func(field string) int {
@@ -577,12 +595,14 @@ func loadCandidates(ctx context.Context, q querier, walletID int64, entries []ba
 
 // ---- inbox ----
 
+// matchRefDTO is the transaction an inbox line was matched to.
 type matchRefDTO struct {
 	ID          int64  `json:"id"`
 	Description string `json:"description"`
 	Date        string `json:"date"`
 }
 
+// inboxItemDTO is a statement line in the inbox, with its suggested category and description.
 type inboxItemDTO struct {
 	ID                   int64        `json:"id"`
 	BankAccountID        int64        `json:"bankAccountId"`
@@ -596,6 +616,7 @@ type inboxItemDTO struct {
 	SuggestedMatch       *matchRefDTO `json:"suggestedMatch"`
 }
 
+// listInbox handles GET /inbox?status=pending|accepted|matched|ignored (pending when omitted).
 func (s *Server) listInbox(w http.ResponseWriter, r *http.Request) error {
 	status := r.URL.Query().Get("status")
 	switch status {
@@ -697,6 +718,7 @@ func acceptLine(ctx context.Context, tx *sql.Tx, walletID, userID int64, l pendi
 		Source: "bank", InvoiceDue: in.invoiceDue, Splits: withAmounts(abs, in.Splits)}, nil
 }
 
+// acceptInboxItem handles POST /inbox/{id}/accept: the line becomes a transaction.
 func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), walletIDFrom(r.Context()), userIDFrom(r.Context())
 	id, err := pathID(r, "id")
@@ -727,6 +749,7 @@ func (s *Server) acceptInboxItem(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// ignoreInboxItem handles POST /inbox/{id}/ignore.
 func (s *Server) ignoreInboxItem(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	id, err := pathID(r, "id")

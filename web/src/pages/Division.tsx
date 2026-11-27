@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useSettlements, useSummary } from "../api/queries";
 import type { Settlement, Transfer } from "../api/types";
-import { ListGroup, ListRow } from "../components/ListGroup";
-import { PageBar } from "../components/PageBar";
-import { SettlementSheet } from "../components/SettlementSheet";
-import { firstName, useApp } from "../context";
+import { ListGroup, ListRow } from "../ui/ListGroup";
+import { PageBar } from "../app/PageBar";
+import { SettlementSheet } from "../features/division/SettlementSheet";
+import { firstName, useApp } from "../app/context";
 import { dayLabel } from "../lib/dates";
 import { formatBRL } from "../lib/money";
 
