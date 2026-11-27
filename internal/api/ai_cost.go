@@ -5,10 +5,10 @@ import (
 	"math/big"
 )
 
-// modelPrices are in nano-USD per token ($0.10 per million tokens = 100). Checked on 2026-10-17 at
+// _modelPrices are in nano-USD per token ($0.10 per million tokens = 100). Checked on 2026-10-17 at
 // platform.claude.com/docs/en/about-claude/pricing. Haiku's higher tier for prompts over 100K tokens is
 // ignored (ours are far smaller) and prompt caching is not used.
-var modelPrices = map[string]struct{ in, out int64 }{
+var _modelPrices = map[string]struct{ in, out int64 }{
 	"claude-haiku-5-5":  {100, 500},
 	"claude-sonnet-5-5": {2000, 10000},
 	"claude-opus-5-5":   {4000, 20000},
@@ -18,9 +18,9 @@ var modelPrices = map[string]struct{ in, out int64 }{
 // plus a 5% safety margin, rounded up. An unknown model is priced as Opus so the estimate never under-counts.
 // The arithmetic is done in big.Int: tokens x price x rate x 105 overflows int64 around 1e7 tokens.
 func costMicroBRL(model string, inTok, outTok int, usdBrlMicro int64) int64 {
-	p, ok := modelPrices[model]
+	p, ok := _modelPrices[model]
 	if !ok {
-		p = modelPrices["claude-opus-5-5"]
+		p = _modelPrices["claude-opus-5-5"]
 	}
 	nano := new(big.Int).Add(big.NewInt(int64(inTok)*p.in), big.NewInt(int64(outTok)*p.out))
 	num := nano.Mul(nano, big.NewInt(usdBrlMicro))

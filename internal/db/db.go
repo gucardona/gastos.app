@@ -1,3 +1,4 @@
+// Package db opens the SQLite database and keeps its schema current through numbered migrations.
 package db
 
 import (
@@ -9,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // registers the "sqlite" driver used by sql.Open
 )
 
 //go:embed schema.sql
-var schemaSQL string
+var _schemaSQL string
 
 const pragmas = "?_pragma=foreign_keys(1)" +
 	"&_pragma=journal_mode(WAL)" +
@@ -45,24 +46,25 @@ func Open(path string) (*sql.DB, error) {
 const baseVersion = 4
 
 //go:embed migrations/0005_member_share.sql
-var migration0005 string
+var _migration0005 string
 
 //go:embed migrations/0006_recurrence_skips.sql
-var migration0006 string
+var _migration0006 string
 
 //go:embed migrations/0007_invite_codes.sql
-var migration0007 string
+var _migration0007 string
 
 //go:embed migrations/0008_credit_cards.sql
-var migration0008 string
+var _migration0008 string
 
 //go:embed migrations/0009_default_payment_method.sql
-var migration0009 string
+var _migration0009 string
 
-// migrations[i] takes the database from version baseVersion+i to baseVersion+i+1. Only append to it.
-var migrations = []string{migration0005, migration0006, migration0007, migration0008, migration0009}
+// _migrations[i] takes the database from version baseVersion+i to baseVersion+i+1. Only append to it.
+var _migrations = []string{_migration0005, _migration0006, _migration0007, _migration0008, _migration0009}
 
-func latestVersion() int { return baseVersion + len(migrations) }
+// latestVersion is the schema version after every migration has run.
+func latestVersion() int { return baseVersion + len(_migrations) }
 
 // applySchema builds an empty database (user_version 0) from schema.sql and brings a baseline-or-later one
 // up to date, one step per transaction so a failed step leaves the previous version intact. Any other
@@ -79,6 +81,7 @@ func applySchema(d *sql.DB, path string) error {
 	}
 }
 
+// applyStep runs the next pending migration in its own transaction and reports whether none was left.
 func applyStep(d *sql.DB) (done bool, err error) {
 	tx, err := d.Begin()
 	if err != nil {
@@ -94,9 +97,9 @@ func applyStep(d *sql.DB) (done bool, err error) {
 	case version == latestVersion():
 		return true, nil
 	case version == 0:
-		step = schemaSQL
+		step = _schemaSQL
 	case version >= baseVersion && version < latestVersion():
-		step = migrations[version-baseVersion]
+		step = _migrations[version-baseVersion]
 	default:
 		return false, fmt.Errorf("database is at schema version %d, this binary knows versions %d to %d (or an empty database): refusing to open it",
 			version, baseVersion, latestVersion())

@@ -12,10 +12,12 @@ import (
 	"gastos/internal/recurrence"
 )
 
+// summaryRoutes registers the monthly summary route of a wallet.
 func (s *Server) summaryRoutes(mux *http.ServeMux, wallet routeWrap) {
 	mux.Handle("GET /api/wallets/{walletID}/summary", wallet(roleReader, s.summary))
 }
 
+// categoryTotal is what a category received or spent in the month.
 type categoryTotal struct {
 	CategoryID  int64  `json:"categoryId"`
 	Kind        string `json:"kind"`
@@ -23,16 +25,19 @@ type categoryTotal struct {
 	BudgetCents *int64 `json:"budgetCents"`
 }
 
+// monthTotals is a month's income and expense.
 type monthTotals struct {
 	IncomeCents  int64 `json:"incomeCents"`
 	ExpenseCents int64 `json:"expenseCents"`
 }
 
+// memberBalance is how much a member is owed (positive) or owes (negative) in the wallet.
 type memberBalance struct {
 	UserID   int64 `json:"userId"`
 	NetCents int64 `json:"netCents"`
 }
 
+// summaryDTO is the monthly summary as the API returns it.
 type summaryDTO struct {
 	Month             string           `json:"month"`
 	IncomeCents       int64            `json:"incomeCents"`
@@ -63,6 +68,7 @@ type upcoming struct {
 	PaymentMethodID *int64 `json:"paymentMethodId"`
 }
 
+// monthRange returns the first and last day of month (YYYY-MM), or false when it does not parse.
 func monthRange(month string) (first, last string, ok bool) {
 	t, err := time.Parse("2006-01", month)
 	if err != nil {
@@ -97,6 +103,7 @@ func (s *Server) totals(ctx context.Context, walletID int64, month, today string
 	return m, rows.Err()
 }
 
+// summary handles GET /summary?month=YYYY-MM.
 func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), walletIDFrom(r.Context())
 	month := r.URL.Query().Get("month")

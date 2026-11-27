@@ -9,8 +9,10 @@ import (
 	"strings"
 )
 
+// routeWrap wraps a handler with the wallet middleware at a minimum role.
 type routeWrap = func(role, handlerFunc) http.Handler
 
+// catalogRoutes registers the category and payment method routes of a wallet.
 func (s *Server) catalogRoutes(mux *http.ServeMux, wallet routeWrap) {
 	const base = "/api/wallets/{walletID}"
 	mux.Handle("GET "+base+"/categories", wallet(roleReader, s.listCategories))
@@ -23,14 +25,16 @@ func (s *Server) catalogRoutes(mux *http.ServeMux, wallet routeWrap) {
 	mux.Handle("DELETE "+base+"/payment-methods/{id}", wallet(roleEditor, s.deletePaymentMethod))
 }
 
-var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+var _colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
+// validName requires a name of 1 to 40 characters.
 func validName(fe fieldErrors, field, v string) {
 	if v == "" || len([]rune(v)) > 40 {
 		fe.add(field, "obrigatório, até 40 caracteres")
 	}
 }
 
+// validIcon requires an icon of at most 32 bytes.
 func validIcon(fe fieldErrors, v string) {
 	if v == "" || len(v) > 32 {
 		fe.add("icon", "obrigatório")
@@ -39,6 +43,7 @@ func validIcon(fe fieldErrors, v string) {
 
 // ---- categories ----
 
+// categoryDTO is a category as the API returns it.
 type categoryDTO struct {
 	ID           int64   `json:"id"`
 	Kind         string  `json:"kind"`
@@ -50,6 +55,7 @@ type categoryDTO struct {
 	Archived     bool    `json:"archived"`
 }
 
+// categoryInput is the body of a category create or update.
 type categoryInput struct {
 	Kind         string  `json:"kind"`
 	Name         string  `json:"name"`
@@ -60,6 +66,7 @@ type categoryInput struct {
 	Archived     *bool   `json:"archived"`
 }
 
+// validate trims the text fields and checks every field, returning the field errors.
 func (in *categoryInput) validate() error {
 	in.Name, in.Icon = strings.TrimSpace(in.Name), strings.TrimSpace(in.Icon)
 	fe := fieldErrors{}
@@ -68,7 +75,7 @@ func (in *categoryInput) validate() error {
 	}
 	validName(fe, "name", in.Name)
 	validIcon(fe, in.Icon)
-	if !colorRe.MatchString(in.Color) {
+	if !_colorRe.MatchString(in.Color) {
 		fe.add("color", "use o formato #RRGGBB")
 	}
 	switch {
@@ -84,16 +91,19 @@ func (in *categoryInput) validate() error {
 
 const categoryCols = `id, kind, name, icon, color, essentiality, sort_order, archived_at IS NOT NULL`
 
+// scanCategory reads a row selected with categoryCols.
 func scanCategory(row interface{ Scan(...any) error }) (categoryDTO, error) {
 	var c categoryDTO
 	err := row.Scan(&c.ID, &c.Kind, &c.Name, &c.Icon, &c.Color, &c.Essentiality, &c.SortOrder, &c.Archived)
 	return c, err
 }
 
+// categoryByID returns category id of walletID.
 func (s *Server) categoryByID(ctx context.Context, q querier, walletID, id int64) (categoryDTO, error) {
 	return scanCategory(q.QueryRowContext(ctx, `SELECT `+categoryCols+` FROM categories WHERE id = ? AND wallet_id = ?`, id, walletID))
 }
 
+// listCategories handles GET /categories: every category of the wallet, archived ones included.
 func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(),
 		`SELECT `+categoryCols+` FROM categories WHERE wallet_id = ? ORDER BY kind, sort_order, id`, walletIDFrom(r.Context()))
@@ -116,6 +126,7 @@ func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// createCategory handles POST /categories.
 func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) error {
 	var in categoryInput
 	if err := decode(w, r, &in); err != nil {
@@ -145,6 +156,7 @@ func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// updateCategory handles PUT /categories/{id}.
 func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {
@@ -211,6 +223,8 @@ func (s *Server) ensureNotLastActive(ctx context.Context, walletID int64, kind s
 	return nil
 }
 
+// deleteCategory handles DELETE /categories/{id}. A category still used by a transaction or a
+// recurrence is archived instead, and its budget removed; the last active category of a kind stays.
 func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {
@@ -253,6 +267,7 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) error {
 
 // ---- payment methods ----
 
+// paymentMethodDTO is a payment method as the API returns it, with the card details when it is a card.
 type paymentMethodDTO struct {
 	ID        int64    `json:"id"`
 	Name      string   `json:"name"`
@@ -262,6 +277,7 @@ type paymentMethodDTO struct {
 	Card      *cardDTO `json:"card"` // null: not a credit card
 }
 
+// paymentMethodInput is the body of a payment method create or update.
 type paymentMethodInput struct {
 	Name      string `json:"name"`
 	Icon      string `json:"icon"`
@@ -272,6 +288,7 @@ type paymentMethodInput struct {
 	card *cardInput      // Card decoded by validate when it is an object
 }
 
+// validate trims the text fields and checks every field, returning the field errors.
 func (in *paymentMethodInput) validate() error {
 	in.Name, in.Icon = strings.TrimSpace(in.Name), strings.TrimSpace(in.Icon)
 	fe := fieldErrors{}
@@ -281,6 +298,7 @@ func (in *paymentMethodInput) validate() error {
 	return fe.err()
 }
 
+// scanPaymentMethod reads a row selected with paymentMethodCols.
 func scanPaymentMethod(row interface{ Scan(...any) error }) (paymentMethodDTO, error) {
 	var p paymentMethodDTO
 	var c cardScan
@@ -291,11 +309,13 @@ func scanPaymentMethod(row interface{ Scan(...any) error }) (paymentMethodDTO, e
 
 const paymentMethodCols = `id, name, icon, sort_order, archived_at IS NOT NULL, ` + cardCols
 
+// paymentMethodByID returns payment method id of walletID.
 func (s *Server) paymentMethodByID(ctx context.Context, walletID, id int64) (paymentMethodDTO, error) {
 	return scanPaymentMethod(s.db.QueryRowContext(ctx,
 		`SELECT `+paymentMethodCols+` FROM payment_methods WHERE id = ? AND wallet_id = ?`, id, walletID))
 }
 
+// listPaymentMethods handles GET /payment-methods: every method of the wallet, archived ones included.
 func (s *Server) listPaymentMethods(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.db.QueryContext(r.Context(),
 		`SELECT `+paymentMethodCols+` FROM payment_methods WHERE wallet_id = ? ORDER BY sort_order, id`, walletIDFrom(r.Context()))
@@ -318,6 +338,7 @@ func (s *Server) listPaymentMethods(w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
+// createPaymentMethod handles POST /payment-methods.
 func (s *Server) createPaymentMethod(w http.ResponseWriter, r *http.Request) error {
 	var in paymentMethodInput
 	if err := decode(w, r, &in); err != nil {
@@ -347,6 +368,7 @@ func (s *Server) createPaymentMethod(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
+// updatePaymentMethod handles PUT /payment-methods/{id}.
 func (s *Server) updatePaymentMethod(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {
@@ -397,6 +419,8 @@ func (s *Server) updatePaymentMethod(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
+// deletePaymentMethod handles DELETE /payment-methods/{id}. A method still used by a transaction or
+// a recurrence is archived instead.
 func (s *Server) deletePaymentMethod(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathID(r, "id")
 	if err != nil {

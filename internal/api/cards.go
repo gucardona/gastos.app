@@ -21,6 +21,7 @@ type cardDTO struct {
 	BestPurchaseDay int    `json:"bestPurchaseDay"`
 }
 
+// cardInput is the card part of a payment method body: closing and due days, issuer, form, last 4 digits.
 type cardInput struct {
 	ClosingDay *int   `json:"closingDay"`
 	DueDay     *int   `json:"dueDay"`
@@ -29,7 +30,7 @@ type cardInput struct {
 	Last4      string `json:"last4"`
 }
 
-var last4Re = regexp.MustCompile(`^[0-9]{4}$`)
+var _last4Re = regexp.MustCompile(`^[0-9]{4}$`)
 
 // cardCols follow paymentMethodCols' base columns; scanCard reads them.
 const cardCols = `closing_day, due_day, COALESCE(issuer, ''), COALESCE(card_form, ''), COALESCE(last4, '')`
@@ -63,7 +64,7 @@ func (in *paymentMethodInput) validateCard(fe fieldErrors) {
 	if c.CardForm != "" && c.CardForm != "physical" && c.CardForm != "virtual" {
 		fe.add("cardForm", "físico ou virtual")
 	}
-	if c.Last4 != "" && !last4Re.MatchString(c.Last4) {
+	if c.Last4 != "" && !_last4Re.MatchString(c.Last4) {
 		fe.add("last4", "use os 4 últimos dígitos")
 	}
 	in.card = &c
@@ -78,6 +79,7 @@ func (in *paymentMethodInput) cardArgs() []any {
 	return []any{*c.ClosingDay, *c.DueDay, nullIfEmpty(c.Issuer), nullIfEmpty(c.CardForm), nullIfEmpty(c.Last4)}
 }
 
+// nullIfEmpty returns nil for an empty string, so it is stored as NULL.
 func nullIfEmpty(s string) any {
 	if s == "" {
 		return nil
@@ -91,8 +93,10 @@ type cardScan struct {
 	issuer, cardForm, last4 string
 }
 
+// dest returns the scan destinations of the card columns, in paymentMethodCols order.
 func (c *cardScan) dest() []any { return []any{&c.closing, &c.due, &c.issuer, &c.cardForm, &c.last4} }
 
+// toDTO returns the card, or nil when the method is not a credit card.
 func (c *cardScan) toDTO() *cardDTO {
 	if !c.closing.Valid || !c.due.Valid {
 		return nil
@@ -130,4 +134,5 @@ func (in *transactionInput) stampInvoice(ctx context.Context, q querier) error {
 	return err
 }
 
+// sameID reports whether a and b are both nil or point to equal ids.
 func sameID(a, b *int64) bool { return (a == nil && b == nil) || (a != nil && b != nil && *a == *b) }
