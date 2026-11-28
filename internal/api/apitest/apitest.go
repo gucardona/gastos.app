@@ -3,7 +3,9 @@
 package apitest
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -368,4 +370,30 @@ func FindByDescription(t *testing.T, list []InboxItem, contains string) InboxIte
 	}
 	t.Fatalf("no inbox item containing %q in %+v", contains, list)
 	return InboxItem{}
+}
+
+// OpenStream opens the user's SSE stream and delivers every line read on the channel.
+// The server subscribes before sending the headers, so the stream is live once it returns.
+func OpenStream(t *testing.T, c *Client) <-chan string {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	req, _ := http.NewRequestWithContext(ctx, "GET", c.app.srv.URL+"/api/events", nil)
+	res, err := c.http.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("status %d, content-type %q", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	lines := make(chan string, 16)
+	go func() {
+		defer res.Body.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
+		sc := bufio.NewScanner(res.Body)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+		close(lines)
+	}()
+	return lines
 }

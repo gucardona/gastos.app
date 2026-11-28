@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"gastos/internal/api/bank"
 	"gastos/internal/api/httpx"
 	"gastos/internal/api/ledger"
 	"gastos/internal/api/wallet"
@@ -24,6 +25,7 @@ type Server struct {
 	*httpx.Env
 	wallet  *wallet.Handler
 	ledger  *ledger.Handler
+	bank    *bank.Handler
 	limiter *httpx.RateLimiter
 
 	anthropicURL string
@@ -40,7 +42,7 @@ func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materia
 		aiURL = config.DefaultAnthropicURL
 	}
 	env := &httpx.Env{DB: db, Cfg: cfg, Bus: bus, Mat: mat, Log: log, Now: time.Now}
-	return &Server{Env: env, wallet: &wallet.Handler{Env: env}, ledger: &ledger.Handler{Env: env}, limiter: httpx.NewRateLimiter(10, 15*time.Minute), anthropicURL: aiURL,
+	return &Server{Env: env, wallet: &wallet.Handler{Env: env}, ledger: &ledger.Handler{Env: env}, bank: &bank.Handler{Env: env}, limiter: httpx.NewRateLimiter(10, 15*time.Minute), anthropicURL: aiURL,
 		chatLimiter: httpx.NewRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
 }
 
@@ -72,7 +74,7 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	s.wallet.Routes(mux, user, inWallet)
 
 	s.ledger.Routes(mux, user, inWallet)
-	s.bankRoutes(mux, inWallet)
+	s.bank.Routes(mux, inWallet)
 
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("/api/", public(func(http.ResponseWriter, *http.Request) error { return httpx.ErrNotFound }))
