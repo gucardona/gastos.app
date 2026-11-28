@@ -31,7 +31,7 @@ In Ajustes > Pessoas (Settings > People), the wallet owner can set a "Parte padr
 
 ```text
 cmd/gastos/           main: config, database, server and background jobs
-internal/api/         HTTP handlers
+internal/api/         HTTP wiring and middleware, with one package per area: wallet, ledger, bank, assistant, auth, and httpx for the shared plumbing
 internal/anthropic/   Anthropic Messages API client for the assistant
 internal/bankimport/  OFX and CSV statement parsing and categorization rules
 internal/billing/     credit card bill dates

@@ -8,6 +8,7 @@ Entries marked *reconstructed* were written later from the git history, because 
 
 | Date | Decision | Where |
 |---|---|---|
+| 2026-11-27 | `internal/api` splits into one package per area (`wallet`, `ledger`, `bank`, `assistant`, `auth`), with wiring and middleware left in `internal/api`. `internal/api/httpx` is allowed despite the "no `util` or `common` packages" rule: it has one job, the HTTP plumbing every area shares (handler type, errors, JSON, rate limiter, roles), and without it the areas would import each other in a cycle. No behavior changed. | [spec](superpowers/specs/2026-11-27-api-package-structure-design.md), #78 |
 | 2026-11-27 | Internal docs, code, comments, commits, PRs and issues are in English. UI copy stays pt-BR. The README is bilingual. | [AGENTS.md](../AGENTS.md), #72 |
 | 2026-11-27 | Every PR closes an issue. Issues use forms (bug, feature, task). Vulnerabilities are reported privately. | `.github/`, #72 |
 | 2026-11-27 | CI supply chain: actions pinned by SHA, zizmor, CodeQL, no npm install scripts, 7-day cooldown on new releases, Dependabot security updates on, e2e required on master. | [security.md](security.md), #71 |
