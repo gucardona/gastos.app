@@ -397,3 +397,33 @@ func OpenStream(t *testing.T, c *Client) <-chan string {
 	}()
 	return lines
 }
+
+// URL returns the base URL of the test server.
+func (a *App) URL() string { return a.srv.URL }
+
+// HTTP returns the client's HTTP client, with its cookie jar, for requests the helpers do not cover (streams).
+func (c *Client) HTTP() *http.Client { return c.http }
+
+// RunHousekeeping runs the housekeeping job until the condition is true and then cancels it.
+func RunHousekeeping(t *testing.T, app *App, until func() bool) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { app.s.Housekeeping(ctx, time.Hour); close(done) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for !until() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Housekeeping did not stop when the context was cancelled")
+	}
+}
+
+// Backups lists the backup files the app has written.
+func Backups(app *App) []string {
+	files, _ := filepath.Glob(filepath.Join(app.s.Cfg.BackupDir, "gastos-*.db"))
+	return files
+}

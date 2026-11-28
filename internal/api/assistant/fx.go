@@ -1,4 +1,4 @@
-package api
+package assistant
 
 import (
 	"context"
@@ -19,7 +19,7 @@ var _fxClient = &http.Client{Timeout: 10 * time.Second}
 
 // RefreshFX fetches the USD-BRL quote from cfg.FXURL and stores its ask price (what a buyer pays, the
 // conservative side). On any failure the stored rate is left as it was.
-func (s *Server) RefreshFX(ctx context.Context) error {
+func (s *Handler) RefreshFX(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.Cfg.FXURL, nil)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (s *Server) RefreshFX(ctx context.Context) error {
 }
 
 // fxRate returns the stored rate in micro-reais per dollar and when it was fetched (httpx.TSLayout); ok is false when none.
-func (s *Server) fxRate(ctx context.Context) (micro int64, fetchedAt string, ok bool) {
+func (s *Handler) fxRate(ctx context.Context) (micro int64, fetchedAt string, ok bool) {
 	err := s.DB.QueryRowContext(ctx, `SELECT usd_brl_micro, fetched_at FROM fx_rate WHERE id = 1`).Scan(&micro, &fetchedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		s.Log.Error("read fx rate", "err", err)
@@ -60,7 +60,7 @@ func (s *Server) fxRate(ctx context.Context) (micro int64, fetchedAt string, ok 
 }
 
 // FXStale reports whether the rate is missing or older than 20 hours (a daily fetch, with slack for the hourly tick).
-func (s *Server) FXStale(ctx context.Context) bool {
+func (s *Handler) FXStale(ctx context.Context) bool {
 	_, at, ok := s.fxRate(ctx)
 	if !ok {
 		return true

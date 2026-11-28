@@ -35,8 +35,8 @@ func (s *Server) Housekeeping(ctx context.Context, every time.Duration) {
 			}
 		}
 		// Last, so a slow quote service (10s timeout) never delays the steps above. An empty URL (tests) skips it.
-		if s.Cfg.FXURL != "" && s.FXStale(ctx) {
-			if err := s.RefreshFX(ctx); err != nil && ctx.Err() == nil {
+		if s.Cfg.FXURL != "" && s.assistant.FXStale(ctx) {
+			if err := s.assistant.RefreshFX(ctx); err != nil && ctx.Err() == nil {
 				s.Log.Warn("refresh usd-brl rate", "err", err)
 			}
 		}

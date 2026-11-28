@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
+	"gastos/internal/api/assistant"
 	"gastos/internal/api/bank"
 	"gastos/internal/api/httpx"
 	"gastos/internal/api/ledger"
@@ -28,11 +28,7 @@ type Server struct {
 	bank    *bank.Handler
 	limiter *httpx.RateLimiter
 
-	anthropicURL string
-
-	chatLimiter  *httpx.RateLimiter
-	chatMu       sync.Mutex
-	chatInFlight map[int64]bool // users with an answer being generated
+	assistant *assistant.Handler
 }
 
 // New returns a Server ready to route requests.
@@ -42,9 +38,12 @@ func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materia
 		aiURL = config.DefaultAnthropicURL
 	}
 	env := &httpx.Env{DB: db, Cfg: cfg, Bus: bus, Mat: mat, Log: log, Now: time.Now}
-	return &Server{Env: env, wallet: &wallet.Handler{Env: env}, ledger: &ledger.Handler{Env: env}, bank: &bank.Handler{Env: env}, limiter: httpx.NewRateLimiter(10, 15*time.Minute), anthropicURL: aiURL,
-		chatLimiter: httpx.NewRateLimiter(20, time.Minute), chatInFlight: map[int64]bool{}}
+	return &Server{Env: env, wallet: &wallet.Handler{Env: env}, ledger: &ledger.Handler{Env: env}, bank: &bank.Handler{Env: env}, limiter: httpx.NewRateLimiter(10, 15*time.Minute),
+		assistant: assistant.New(env, aiURL, httpx.NewRateLimiter(20, time.Minute))}
 }
+
+// Assistant returns the query assistant handler. It exists for the test harness.
+func (s *Server) Assistant() *assistant.Handler { return s.assistant }
 
 // Routes returns the handler for every route: the API, /healthz and the web app served from spa,
 // wrapped in logging, panic recovery and the security headers.
@@ -64,12 +63,8 @@ func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux.Handle("GET /api/events", user(s.events))
 	mux.Handle("PATCH /api/me", user(s.rename))
 	mux.Handle("PUT /api/me/password", user(s.changePassword))
-	mux.Handle("GET /api/me/ai", user(s.getAI))
-	mux.Handle("PUT /api/me/ai", user(s.putAI))
-	mux.Handle("DELETE /api/me/ai/key", user(s.deleteAIKey))
-	mux.Handle("POST /api/chat", user(s.postChat))
-	mux.Handle("GET /api/chat", user(s.getChat))
-	mux.Handle("DELETE /api/chat", user(s.deleteChat))
+
+	s.assistant.Routes(mux, user)
 
 	s.wallet.Routes(mux, user, inWallet)
 

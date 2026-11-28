@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"gastos/internal/api/assistant"
 	"gastos/internal/api/httpx"
 	"gastos/internal/api/wallet"
 )
@@ -280,8 +281,8 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	_, _, aiErr := s.UserAIKey(r.Context(), u.ID)
-	if aiErr != nil && !errors.Is(aiErr, ErrAIDisabled) && !errors.Is(aiErr, ErrAIKeyUnreadable) {
+	_, _, aiErr := s.assistant.UserAIKey(r.Context(), u.ID)
+	if aiErr != nil && !errors.Is(aiErr, assistant.ErrAIDisabled) && !errors.Is(aiErr, assistant.ErrAIKeyUnreadable) {
 		return aiErr
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user": u, "wallets": wallets, "assistantEnabled": aiErr == nil})

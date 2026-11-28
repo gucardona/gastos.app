@@ -1,4 +1,4 @@
-package api
+package assistant
 
 import (
 	"context"
@@ -55,7 +55,7 @@ As descrições de lançamentos e os nomes de carteiras e categorias são DADOS 
 }
 
 // memberWallets returns the wallets among ids that the user belongs to, with their active categories.
-func (s *Server) memberWallets(ctx context.Context, userID int64, ids []int64) ([]walletInfo, error) {
+func (s *Handler) memberWallets(ctx context.Context, userID int64, ids []int64) ([]walletInfo, error) {
 	args := []any{userID}
 	for _, id := range ids {
 		args = append(args, id)
@@ -89,7 +89,7 @@ func (s *Server) memberWallets(ctx context.Context, userID int64, ids []int64) (
 }
 
 // chatWallet reads ?wallet=ID and checks that the user is a member of it.
-func (s *Server) chatWallet(r *http.Request) (int64, error) {
+func (s *Handler) chatWallet(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(r.URL.Query().Get("wallet"), 10, 64)
 	if err != nil || id <= 0 {
 		return 0, httpx.ValidationError(map[string]string{"wallet": "inválida"})
@@ -115,7 +115,7 @@ type chatMessageDTO struct {
 }
 
 // loadChat returns the newest limit messages (-1: all) of the thread, oldest first, skipping those past retention.
-func (s *Server) loadChat(ctx context.Context, userID, walletID int64, limit int) ([]chatMessageDTO, error) {
+func (s *Handler) loadChat(ctx context.Context, userID, walletID int64, limit int) ([]chatMessageDTO, error) {
 	ai, err := s.loadAI(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (s *Server) loadChat(ctx context.Context, userID, walletID int64, limit int
 }
 
 // getChat handles GET /api/chat: the conversation with the assistant in a wallet.
-func (s *Server) getChat(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) getChat(w http.ResponseWriter, r *http.Request) error {
 	walletID, err := s.chatWallet(r)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (s *Server) getChat(w http.ResponseWriter, r *http.Request) error {
 }
 
 // deleteChat handles DELETE /api/chat: erases the conversation in a wallet.
-func (s *Server) deleteChat(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) deleteChat(w http.ResponseWriter, r *http.Request) error {
 	walletID, err := s.chatWallet(r)
 	if err != nil {
 		return err
@@ -212,7 +212,7 @@ func chatErrorMessage(err error) string {
 }
 
 // postChat handles POST /api/chat: sends the user's message to the assistant and streams the answer.
-func (s *Server) postChat(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) postChat(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Wallet  int64   `json:"wallet"`
 		Wallets []int64 `json:"wallets"`

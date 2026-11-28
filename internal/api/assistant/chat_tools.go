@@ -1,4 +1,4 @@
-package api
+package assistant
 
 import (
 	"bytes"
@@ -131,7 +131,7 @@ type txItem struct {
 
 // runTool runs the tool name over walletIDs and returns its result as JSON for the model, plus a chart
 // when the tool draws one.
-func (s *Server) runTool(ctx context.Context, walletIDs []int64, name string, input json.RawMessage) (string, *chartDTO, error) {
+func (s *Handler) runTool(ctx context.Context, walletIDs []int64, name string, input json.RawMessage) (string, *chartDTO, error) {
 	if name == "mostrar_grafico" {
 		chart, err := chartFromInput(input)
 		if err != nil {
@@ -223,7 +223,7 @@ func walletFilter(walletIDs []int64, p period, byMonth bool) (string, []any) {
 }
 
 // toolCategorySummary runs resumo_por_categoria: totals per category in a period.
-func (s *Server) toolCategorySummary(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
+func (s *Handler) toolCategorySummary(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
 	var in period
 	if err := decodeToolInput(input, &in); err != nil {
 		return nil, err
@@ -272,7 +272,7 @@ func (s *Server) toolCategorySummary(ctx context.Context, walletIDs []int64, inp
 }
 
 // toolPeriodTotals runs totais_por_periodo: income and expense totals in a period, grouped by time.
-func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
+func (s *Handler) toolPeriodTotals(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
 	var in struct {
 		period
 		Agrupar string `json:"agrupar"`
@@ -334,7 +334,7 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 }
 
 // queryTx runs the shared transaction listing; extra is an additional WHERE clause (may be empty).
-func (s *Server) queryTx(ctx context.Context, walletIDs []int64, p period, extra string, extraArgs []any, order string, limit int) ([]txItem, error) {
+func (s *Handler) queryTx(ctx context.Context, walletIDs []int64, p period, extra string, extraArgs []any, order string, limit int) ([]txItem, error) {
 	where, args := walletFilter(walletIDs, p, p.wholeMonths())
 	//nolint:gosec // moved unchanged, see docs/security.md
 	rows, err := s.DB.QueryContext(ctx, `
@@ -361,7 +361,7 @@ func (s *Server) queryTx(ctx context.Context, walletIDs []int64, p period, extra
 }
 
 // toolListTransactions runs listar_lancamentos: the transactions of a period, with optional filters.
-func (s *Server) toolListTransactions(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
+func (s *Handler) toolListTransactions(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
 	var in struct {
 		period
 		Categoria string `json:"categoria"`
@@ -405,7 +405,7 @@ func (s *Server) toolListTransactions(ctx context.Context, walletIDs []int64, in
 }
 
 // toolTopExpenses runs maiores_gastos: the largest expenses of a period.
-func (s *Server) toolTopExpenses(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
+func (s *Handler) toolTopExpenses(ctx context.Context, walletIDs []int64, input json.RawMessage) (any, error) {
 	var in struct {
 		period
 		N *int `json:"n"`

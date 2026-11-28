@@ -1,4 +1,4 @@
-package api
+package assistant_test
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"gastos/internal/api/apitest"
+	"gastos/internal/api/assistant"
 	"gastos/internal/api/httpx"
 	"gastos/internal/config"
 )
@@ -38,7 +40,7 @@ type aiSettings struct {
 }
 
 // newAIApp starts a server wired to a fake Anthropic API whose reply status can be changed through the returned counter.
-func newAIApp(t *testing.T, withSecret bool) (*testApp, *atomic.Int32) {
+func newAIApp(t *testing.T, withSecret bool) (*apitest.App, *atomic.Int32) {
 	t.Helper()
 	status := &atomic.Int32{}
 	status.Store(200)
@@ -52,7 +54,7 @@ func newAIApp(t *testing.T, withSecret bool) (*testApp, *atomic.Int32) {
 		fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n\n")
 	}))
 	t.Cleanup(fake.Close)
-	return newTestAppWith(t, func(c *config.Config) {
+	return apitest.NewWith(t, func(c *config.Config) {
 		c.AnthropicURL = fake.URL
 		if withSecret {
 			c.SecretKey = aiSecret
@@ -62,9 +64,9 @@ func newAIApp(t *testing.T, withSecret bool) (*testApp, *atomic.Int32) {
 
 func TestAISettingsDefaults(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	var got aiSettings
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	want := aiSettings{Available: true, Model: "claude-sonnet-5-5", RetentionDays: 7}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
@@ -73,9 +75,9 @@ func TestAISettingsDefaults(t *testing.T) {
 
 func TestSaveKeyNeverReturnsIt(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	var raw json.RawMessage
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, &raw)
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, &raw)
 	var got aiSettings
 	json.Unmarshal(raw, &got)
 	if !got.Configured || got.KeyHint != "1234" || !got.Enabled || got.Warning != nil {
@@ -84,11 +86,11 @@ func TestSaveKeyNeverReturnsIt(t *testing.T) {
 	if strings.Contains(string(raw), aiTestKey) {
 		t.Fatalf("put leaked the key: %s", raw)
 	}
-	ana.do("GET", "/api/me/ai", nil, 200, &raw)
+	ana.Do("GET", "/api/me/ai", nil, 200, &raw)
 	if strings.Contains(string(raw), aiTestKey) || !strings.Contains(string(raw), `"keyHint":"1234"`) {
 		t.Fatalf("get: %s", raw)
 	}
-	ana.do("GET", "/api/me", nil, 200, &raw)
+	ana.Do("GET", "/api/me", nil, 200, &raw)
 	if strings.Contains(string(raw), aiTestKey) {
 		t.Fatalf("me leaked the key: %s", raw)
 	}
@@ -96,10 +98,10 @@ func TestSaveKeyNeverReturnsIt(t *testing.T) {
 
 func TestSaveKeyStoredEncrypted(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, 200, nil)
+	ana := app.Register("Ana", "ana@example.com")
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, 200, nil)
 	var enc []byte
-	if err := app.s.DB.QueryRow(`SELECT api_key_enc FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&enc); err != nil {
+	if err := app.Server().DB.QueryRow(`SELECT api_key_enc FROM ai_settings WHERE user_id = ?`, ana.User.ID).Scan(&enc); err != nil {
 		t.Fatal(err)
 	}
 	if len(enc) == 0 || bytes.Contains(enc, []byte(aiTestKey)) {
@@ -109,19 +111,19 @@ func TestSaveKeyStoredEncrypted(t *testing.T) {
 
 func TestRejectedKeyIsNotSaved(t *testing.T) {
 	app, status := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	status.Store(401)
 	var e struct {
 		Error httpx.APIError `json:"error"`
 	}
-	if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, &e); st != 400 {
+	if st := ana.DoRaw("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, &e); st != 400 {
 		t.Fatalf("status %d", st)
 	}
 	if e.Error.Fields["apiKey"] != "chave recusada pela Anthropic" {
 		t.Fatalf("error: %+v", e.Error)
 	}
 	var got aiSettings
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Configured {
 		t.Fatal("rejected key was saved")
 	}
@@ -131,10 +133,10 @@ func TestSaveKeyOnNetworkFailureWarns(t *testing.T) {
 	dead := httptest.NewServer(http.NotFoundHandler())
 	url := dead.URL
 	dead.Close()
-	app := newTestAppWith(t, func(c *config.Config) { c.AnthropicURL = url; c.SecretKey = aiSecret })
-	ana := app.register("Ana", "ana@example.com")
+	app := apitest.NewWith(t, func(c *config.Config) { c.AnthropicURL = url; c.SecretKey = aiSecret })
+	ana := app.Register("Ana", "ana@example.com")
 	var got aiSettings
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, 200, &got)
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, 200, &got)
 	if !got.Configured || got.Warning == nil {
 		t.Fatalf("got %+v", got)
 	}
@@ -142,23 +144,23 @@ func TestSaveKeyOnNetworkFailureWarns(t *testing.T) {
 
 func TestRetentionAndModelValidation(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	for _, body := range []map[string]any{
 		{"retentionDays": 0}, {"retentionDays": 31}, {"model": "gpt-4"},
 	} {
 		var e struct {
 			Error httpx.APIError `json:"error"`
 		}
-		if st := ana.doRaw("PUT", "/api/me/ai", body, &e); st != 400 || len(e.Error.Fields) != 1 {
+		if st := ana.DoRaw("PUT", "/api/me/ai", body, &e); st != 400 || len(e.Error.Fields) != 1 {
 			t.Fatalf("%v: status %d, %+v", body, st, e.Error)
 		}
 	}
 	var got aiSettings
-	ana.do("PUT", "/api/me/ai", map[string]any{"retentionDays": 30, "model": "claude-opus-5-5"}, 200, &got)
+	ana.Do("PUT", "/api/me/ai", map[string]any{"retentionDays": 30, "model": "claude-opus-5-5"}, 200, &got)
 	if got.RetentionDays != 30 || got.Model != "claude-opus-5-5" || got.Configured {
 		t.Fatalf("got %+v", got)
 	}
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.RetentionDays != 30 || got.Model != "claude-opus-5-5" {
 		t.Fatalf("not persisted: %+v", got)
 	}
@@ -166,38 +168,38 @@ func TestRetentionAndModelValidation(t *testing.T) {
 
 func TestEnableNeedsKey(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	var e struct {
 		Error httpx.APIError `json:"error"`
 	}
-	if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{"enabled": true}, &e); st != 400 || e.Error.Fields["enabled"] == "" {
+	if st := ana.DoRaw("PUT", "/api/me/ai", map[string]any{"enabled": true}, &e); st != 400 || e.Error.Fields["enabled"] == "" {
 		t.Fatalf("status %d, %+v", st, e.Error)
 	}
 }
 
 func TestUnavailableWithoutSecretKey(t *testing.T) {
 	app, _ := newAIApp(t, false)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	var got aiSettings
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Available {
 		t.Fatal("available without SecretKey")
 	}
 	var e struct {
 		Error httpx.APIError `json:"error"`
 	}
-	if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, &e); st != 400 || e.Error.Message != "assistente indisponível neste servidor" {
+	if st := ana.DoRaw("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey}, &e); st != 400 || e.Error.Message != "assistente indisponível neste servidor" {
 		t.Fatalf("status %d, %+v", st, e.Error)
 	}
 }
 
 func TestRemoveKeyDisables(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
-	ana.do("DELETE", "/api/me/ai/key", nil, 204, nil)
+	ana := app.Register("Ana", "ana@example.com")
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
+	ana.Do("DELETE", "/api/me/ai/key", nil, 204, nil)
 	var got aiSettings
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Configured || got.Enabled || got.KeyHint != "" {
 		t.Fatalf("got %+v", got)
 	}
@@ -205,58 +207,58 @@ func TestRemoveKeyDisables(t *testing.T) {
 
 func TestKeyMissingAfterSecretRotation(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
-	app.s.Cfg.SecretKey = bytes.Repeat([]byte{9}, 32)
+	ana := app.Register("Ana", "ana@example.com")
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
+	app.Server().Cfg.SecretKey = bytes.Repeat([]byte{9}, 32)
 	var got aiSettings
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Configured {
 		t.Fatalf("got %+v", got)
 	}
 	var me struct {
 		AssistantEnabled bool `json:"assistantEnabled"`
 	}
-	ana.do("GET", "/api/me", nil, 200, &me)
+	ana.Do("GET", "/api/me", nil, 200, &me)
 	if me.AssistantEnabled {
 		t.Fatal("assistantEnabled with an unreadable key")
 	}
-	if _, _, err := app.s.UserAIKey(t.Context(), ana.user.ID); err != ErrAIKeyUnreadable {
+	if _, _, err := app.Server().Assistant().UserAIKey(t.Context(), ana.User.ID); err != assistant.ErrAIKeyUnreadable {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestMeReportsAssistantEnabled(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
+	ana := app.Register("Ana", "ana@example.com")
 	var me struct {
 		AssistantEnabled bool `json:"assistantEnabled"`
 	}
-	ana.do("GET", "/api/me", nil, 200, &me)
+	ana.Do("GET", "/api/me", nil, 200, &me)
 	if me.AssistantEnabled {
 		t.Fatal("enabled by default")
 	}
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
-	ana.do("GET", "/api/me", nil, 200, &me)
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
+	ana.Do("GET", "/api/me", nil, 200, &me)
 	if !me.AssistantEnabled {
 		t.Fatal("not enabled")
 	}
-	key, model, err := app.s.UserAIKey(t.Context(), ana.user.ID)
+	key, model, err := app.Server().Assistant().UserAIKey(t.Context(), ana.User.ID)
 	if err != nil || key != aiTestKey || model != "claude-sonnet-5-5" {
 		t.Fatalf("userAIKey = %q %q %v", key, model, err)
 	}
-	ana.do("PUT", "/api/me/ai", map[string]any{"enabled": false}, 200, nil)
-	if _, _, err := app.s.UserAIKey(t.Context(), ana.user.ID); err != ErrAIDisabled {
+	ana.Do("PUT", "/api/me/ai", map[string]any{"enabled": false}, 200, nil)
+	if _, _, err := app.Server().Assistant().UserAIKey(t.Context(), ana.User.ID); err != assistant.ErrAIDisabled {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestSettingsArePerUser(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
-	bia := app.register("Bia", "bia@example.com")
-	ana.do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
+	ana := app.Register("Ana", "ana@example.com")
+	bia := app.Register("Bia", "bia@example.com")
+	ana.Do("PUT", "/api/me/ai", map[string]any{"apiKey": aiTestKey, "enabled": true}, 200, nil)
 	var got aiSettings
-	bia.do("GET", "/api/me/ai", nil, 200, &got)
+	bia.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.Configured || got.Enabled || got.KeyHint != "" {
 		t.Fatalf("bia sees %+v", got)
 	}
@@ -264,28 +266,28 @@ func TestSettingsArePerUser(t *testing.T) {
 
 func TestAILimitsSetClearAndValidate(t *testing.T) {
 	app, _ := newAIApp(t, true)
-	ana := app.register("Ana", "ana@example.com")
-	bia := app.register("Bia", "bia@example.com")
+	ana := app.Register("Ana", "ana@example.com")
+	bia := app.Register("Bia", "bia@example.com")
 
 	// No key is needed to save a limit.
 	var got aiSettings
-	ana.do("PUT", "/api/me/ai", map[string]any{"dailyLimitCents": 500, "monthlyLimitCents": 10000}, 200, &got)
+	ana.Do("PUT", "/api/me/ai", map[string]any{"dailyLimitCents": 500, "monthlyLimitCents": 10000}, 200, &got)
 	if got.DailyLimitCents != 500 || got.MonthlyLimitCents != 10000 || got.Configured {
 		t.Fatalf("put: %+v", got)
 	}
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.DailyLimitCents != 500 || got.MonthlyLimitCents != 10000 {
 		t.Fatalf("not persisted: %+v", got)
 	}
 
 	// Omitted fields stay; 0 removes the limit.
-	ana.do("PUT", "/api/me/ai", map[string]any{"dailyLimitCents": 0, "retentionDays": 10}, 200, &got)
+	ana.Do("PUT", "/api/me/ai", map[string]any{"dailyLimitCents": 0, "retentionDays": 10}, 200, &got)
 	if got.DailyLimitCents != 0 || got.MonthlyLimitCents != 10000 || got.RetentionDays != 10 {
 		t.Fatalf("clear daily: %+v", got)
 	}
 	var stored sql.NullInt64
 	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
-	app.s.DB.QueryRow(`SELECT daily_limit_cents FROM ai_settings WHERE user_id = ?`, ana.user.ID).Scan(&stored)
+	app.Server().DB.QueryRow(`SELECT daily_limit_cents FROM ai_settings WHERE user_id = ?`, ana.User.ID).Scan(&stored)
 	if stored.Valid {
 		t.Fatalf("a removed limit should be NULL, got %v", stored)
 	}
@@ -295,36 +297,36 @@ func TestAILimitsSetClearAndValidate(t *testing.T) {
 			var e struct {
 				Error httpx.APIError `json:"error"`
 			}
-			if st := ana.doRaw("PUT", "/api/me/ai", map[string]any{field: bad}, &e); st != 400 || e.Error.Fields[field] != "use um valor entre R$ 0,01 e R$ 100.000,00" {
+			if st := ana.DoRaw("PUT", "/api/me/ai", map[string]any{field: bad}, &e); st != 400 || e.Error.Fields[field] != "use um valor entre R$ 0,01 e R$ 100.000,00" {
 				t.Fatalf("%s=%d: status %d, %+v", field, bad, st, e.Error)
 			}
 		}
 		for _, ok := range []int64{1, 10_000_000} {
-			ana.do("PUT", "/api/me/ai", map[string]any{field: ok}, 200, &got)
+			ana.Do("PUT", "/api/me/ai", map[string]any{field: ok}, 200, &got)
 		}
 	}
-	ana.do("GET", "/api/me/ai", nil, 200, &got)
+	ana.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.DailyLimitCents != 10_000_000 || got.MonthlyLimitCents != 10_000_000 {
 		t.Fatalf("bounds: %+v", got)
 	}
 
-	bia.do("GET", "/api/me/ai", nil, 200, &got)
+	bia.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.DailyLimitCents != 0 || got.MonthlyLimitCents != 0 {
 		t.Fatalf("bia sees ana's limits: %+v", got)
 	}
 }
 
-func seedFX(t *testing.T, app *testApp, micro int64, at string) {
+func seedFX(t *testing.T, app *apitest.App, micro int64, at string) {
 	t.Helper()
-	if _, err := app.s.DB.Exec(`INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)`, micro, at); err != nil {
+	if _, err := app.Server().DB.Exec(`INSERT INTO fx_rate (id, usd_brl_micro, fetched_at) VALUES (1, ?, ?)`, micro, at); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func seedUsage(t *testing.T, app *testApp, c *client, day string, micro int64) {
+func seedUsage(t *testing.T, app *apitest.App, c *apitest.Client, day string, micro int64) {
 	t.Helper()
-	if _, err := app.s.DB.Exec(`INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (?, ?, ?, 777, 888)`,
-		c.user.ID, day, micro); err != nil {
+	if _, err := app.Server().DB.Exec(`INSERT INTO ai_usage (user_id, day, cost_micro_brl, input_tokens, output_tokens) VALUES (?, ?, ?, 777, 888)`,
+		c.User.ID, day, micro); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -332,12 +334,12 @@ func seedUsage(t *testing.T, app *testApp, c *client, day string, micro int64) {
 func TestAISettingsReportUsageAndRate(t *testing.T) {
 	app, _ := newAIApp(t, true)
 	// 01:00 UTC on the 18th is still the 17th in São Paulo.
-	app.s.Now = func() time.Time { return time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC) }
-	ana := app.register("Ana", "ana@example.com")
-	bia := app.register("Bia", "bia@example.com")
+	app.SetNow(func() time.Time { return time.Date(2026, 10, 18, 1, 0, 0, 0, time.UTC) })
+	ana := app.Register("Ana", "ana@example.com")
+	bia := app.Register("Bia", "bia@example.com")
 
 	var raw json.RawMessage
-	ana.do("GET", "/api/me/ai", nil, 200, &raw)
+	ana.Do("GET", "/api/me/ai", nil, 200, &raw)
 	if !strings.Contains(string(raw), `"usdBrl":null`) || !strings.Contains(string(raw), `"usdBrlAt":null`) {
 		t.Fatalf("unknown rate should be null: %s", raw)
 	}
@@ -349,7 +351,7 @@ func TestAISettingsReportUsageAndRate(t *testing.T) {
 	seedUsage(t, app, ana, "2026-10-18", 7_000_000) // tomorrow in São Paulo (cannot happen; proves the local day is used)
 	seedUsage(t, app, bia, "2026-10-17", 5_000_000)
 
-	ana.do("GET", "/api/me/ai", nil, 200, &raw)
+	ana.Do("GET", "/api/me/ai", nil, 200, &raw)
 	var got aiSettings
 	json.Unmarshal(raw, &got)
 	if got.UsedTodayCents != 12 || got.UsedMonthCents != 113 { // 1.128.456 micro = 112,8456 centavos, half up
@@ -363,7 +365,7 @@ func TestAISettingsReportUsageAndRate(t *testing.T) {
 			t.Fatalf("GET exposes %q: %s", leak, raw)
 		}
 	}
-	bia.do("GET", "/api/me/ai", nil, 200, &got)
+	bia.Do("GET", "/api/me/ai", nil, 200, &got)
 	if got.UsedTodayCents != 500 || got.UsedMonthCents != 500 {
 		t.Fatalf("bia: %+v", got)
 	}

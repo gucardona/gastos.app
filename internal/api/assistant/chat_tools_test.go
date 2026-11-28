@@ -1,4 +1,4 @@
-package api
+package assistant_test
 
 import (
 	"context"
@@ -6,22 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"gastos/internal/api/apitest"
+	"gastos/internal/api/assistant"
 	"gastos/internal/api/wallet"
 )
 
 type toolFixture struct {
-	app          *testApp
-	ana, bia     *client
+	app          *apitest.App
+	ana, bia     *apitest.Client
 	a, b, c      int64 // a, b: Ana's wallets; c: Bia's, never handed to the tools
 	catA, catB   string
 	walletsAB    []int64
 	walletsOnlyA []int64
 }
 
-func catIDByName(t *testing.T, c *client, walletID int64, kind, name string) int64 {
+func catIDByName(t *testing.T, c *apitest.Client, walletID int64, kind, name string) int64 {
 	t.Helper()
 	var cats []categoryDTO
-	c.do("GET", "/api/wallets/"+itoa(walletID)+"/categories", nil, 200, &cats)
+	c.Do("GET", "/api/wallets/"+apitest.Itoa(walletID)+"/categories", nil, 200, &cats)
 	for _, cat := range cats {
 		if cat.Kind == kind && cat.Name == name {
 			return cat.ID
@@ -33,15 +35,15 @@ func catIDByName(t *testing.T, c *client, walletID int64, kind, name string) int
 
 func newToolFixture(t *testing.T) *toolFixture {
 	t.Helper()
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
-	bia := app.register("Bia", "bia@example.com")
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
+	bia := app.Register("Bia", "bia@example.com")
 	var w wallet.WalletDTO
-	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &w)
-	f := &toolFixture{app: app, ana: ana, bia: bia, a: ana.walletID, b: w.ID, c: bia.walletID}
+	ana.Do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &w)
+	f := &toolFixture{app: app, ana: ana, bia: bia, a: ana.WalletID, b: w.ID, c: bia.WalletID}
 
 	var cats []categoryDTO
-	ana.do("GET", ana.wpath("/categories"), nil, 200, &cats)
+	ana.Do("GET", ana.WPath("/categories"), nil, 200, &cats)
 	var exp, inc []categoryDTO
 	for _, c := range cats {
 		if c.Kind == "expense" {
@@ -51,9 +53,9 @@ func newToolFixture(t *testing.T) *toolFixture {
 		}
 	}
 	x, y := exp[0], exp[1]
-	post := func(cl *client, wallet int64, kind, name string, cents int, desc, date string) {
+	post := func(cl *apitest.Client, wallet int64, kind, name string, cents int, desc, date string) {
 		t.Helper()
-		cl.do("POST", "/api/wallets/"+itoa(wallet)+"/transactions", map[string]any{
+		cl.Do("POST", "/api/wallets/"+apitest.Itoa(wallet)+"/transactions", map[string]any{
 			"kind": kind, "amountCents": cents, "description": desc, "date": date,
 			"categoryId": catIDByName(t, cl, wallet, kind, name),
 		}, 201, nil)
@@ -70,9 +72,9 @@ func newToolFixture(t *testing.T) *toolFixture {
 	return f
 }
 
-func (f *toolFixture) run(t *testing.T, wallets []int64, name, input string) (map[string]any, *chartDTO) {
+func (f *toolFixture) run(t *testing.T, wallets []int64, name, input string) (map[string]any, *assistant.ChartDTO) {
 	t.Helper()
-	text, chart, err := f.app.s.runTool(context.Background(), wallets, name, json.RawMessage(input))
+	text, chart, err := f.app.Server().Assistant().RunTool(context.Background(), wallets, name, json.RawMessage(input))
 	if err != nil {
 		t.Fatalf("%s(%s): %v", name, input, err)
 	}
@@ -145,7 +147,7 @@ func TestListarLancamentosFilters(t *testing.T) {
 	if got := list(`,"busca":"padaria"`); len(got) != 1 || got[0].(map[string]any)["centavos"] != float64(3000) {
 		t.Errorf("text: %v", got)
 	}
-	f.ana.do("POST", "/api/wallets/"+itoa(f.a)+"/transactions", map[string]any{
+	f.ana.Do("POST", "/api/wallets/"+apitest.Itoa(f.a)+"/transactions", map[string]any{
 		"kind": "expense", "amountCents": 100, "description": "Desconto 10%", "date": "2026-10-08",
 		"categoryId": catIDByName(t, f.ana, f.a, "expense", f.catA),
 	}, 201, nil)
@@ -191,7 +193,7 @@ func TestMostrarGraficoReturnsChart(t *testing.T) {
 		"long title":  `{"tipo":"bars","titulo":"` + strings.Repeat("t", 81) + `","pontos":[{"rotulo":"a","valor":1}]}`,
 		"long label":  `{"tipo":"bars","titulo":"x","pontos":[{"rotulo":"` + strings.Repeat("r", 61) + `","valor":1}]}`,
 	} {
-		if _, c, err := f.app.s.runTool(context.Background(), f.walletsAB, "mostrar_grafico", json.RawMessage(in)); err == nil || c != nil {
+		if _, c, err := f.app.Server().Assistant().RunTool(context.Background(), f.walletsAB, "mostrar_grafico", json.RawMessage(in)); err == nil || c != nil {
 			t.Errorf("%s: want error, got chart=%v err=%v", name, c, err)
 		}
 	}
@@ -200,7 +202,7 @@ func TestMostrarGraficoReturnsChart(t *testing.T) {
 func TestToolsOnlySeeGivenWallets(t *testing.T) {
 	f := newToolFixture(t)
 	for _, name := range []string{"resumo_por_categoria", "totais_por_periodo", "listar_lancamentos", "maiores_gastos"} {
-		text, _, err := f.app.s.runTool(context.Background(), f.walletsAB, name, json.RawMessage(`{`+octRange+`}`))
+		text, _, err := f.app.Server().Assistant().RunTool(context.Background(), f.walletsAB, name, json.RawMessage(`{`+octRange+`}`))
 		if err != nil || strings.Contains(text, "99999") || strings.Contains(text, "Segredo") {
 			t.Errorf("%s leaked another wallet: %v %s", name, err, text)
 		}
@@ -224,7 +226,7 @@ func TestToolRejectsBadInput(t *testing.T) {
 		"n 21":         {"maiores_gastos", `{` + octRange + `,"n":21}`},
 		"unknown tool": {"apagar_tudo", `{}`},
 	} {
-		if _, _, err := f.app.s.runTool(context.Background(), f.walletsAB, c[0], json.RawMessage(c[1])); err == nil {
+		if _, _, err := f.app.Server().Assistant().RunTool(context.Background(), f.walletsAB, c[0], json.RawMessage(c[1])); err == nil {
 			t.Errorf("%s: want error", name)
 		}
 	}
@@ -250,5 +252,89 @@ func TestToolNamesWalletWhenMany(t *testing.T) {
 	out, _ = f.run(t, f.walletsOnlyA, "maiores_gastos", `{`+octRange+`,"n":1}`)
 	if _, has := out["maiores_gastos"].([]any)[0].(map[string]any)["carteira"]; has {
 		t.Errorf("one wallet: %v", out)
+	}
+}
+
+// categoryDTO decodes only the fields these tests read from a category.
+type categoryDTO struct {
+	ID   int64  `json:"id"`
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+func TestMonthlyTotalsUseInvoiceMonth(t *testing.T) {
+	c := apitest.New(t).Register("Ana", "ana@x.com")
+	card := apitest.Card2027(c)
+	apitest.Purchase(c, "expense", "2026-11-22", card.ID) // due 2026-12-27
+	run := func(input string) map[string]any {
+		t.Helper()
+		text, _, err := c.App().Server().Assistant().RunTool(context.Background(), []int64{c.WalletID}, "totais_por_periodo", json.RawMessage(input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]any
+		if err := json.Unmarshal([]byte(text), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	out := run(`{"de":"2026-11-01","ate":"2026-12-31","agrupar":"mes"}`)
+	ps := out["periodos"].([]any)
+	if len(ps) != 1 || ps[0].(map[string]any)["periodo"] != "2026-12" || out["despesas"] != float64(8700) {
+		t.Fatalf("by month: %v", out)
+	}
+	// by day it stays on the purchase date
+	out = run(`{"de":"2026-11-01","ate":"2026-11-30","agrupar":"dia"}`)
+	if ps := out["periodos"].([]any); len(ps) != 1 || ps[0].(map[string]any)["periodo"] != "2026-11-22" || out["despesas"] != float64(8700) {
+		t.Fatalf("by day: %v", out)
+	}
+}
+
+func runTool(t *testing.T, c *apitest.Client, name, input string) map[string]any {
+	t.Helper()
+	text, _, err := c.App().Server().Assistant().RunTool(context.Background(), []int64{c.WalletID}, name, json.RawMessage(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(text), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// A range that is not whole months keeps filtering by date, for everyone: "até dia 15" means up to the 15th.
+func TestPartialRangeKeepsDateFilter(t *testing.T) {
+	c := apitest.New(t).Register("Ana", "ana@x.com")
+	var methods []apitest.PaymentMethod
+	c.Do("GET", c.WPath("/payment-methods"), nil, 200, &methods)
+	apitest.Purchase(c, "expense", "2026-11-03", methods[0].ID)
+	apitest.Purchase(c, "expense", "2026-11-25", methods[0].ID)
+	for _, tool := range []string{"totais_por_periodo", "resumo_por_categoria"} {
+		out := runTool(t, c, tool, `{"de":"2026-11-01","ate":"2026-11-15"}`)
+		got := out["despesas"]
+		if tool == "resumo_por_categoria" {
+			got = out["total_despesas"]
+		}
+		if got != float64(8700) {
+			t.Errorf("%s up to the 15th: %v, want 8700", tool, got)
+		}
+	}
+}
+
+// Whole months follow the invoice in every tool, so they agree with the Visão.
+func TestWholeMonthToolsFollowInvoice(t *testing.T) {
+	c := apitest.New(t).Register("Ana", "ana@x.com")
+	card := apitest.Card2027(c)
+	apitest.Purchase(c, "expense", "2026-11-22", card.ID) // due 2026-12-27
+	dec := `{"de":"2026-12-01","ate":"2026-12-31"}`
+	if out := runTool(t, c, "resumo_por_categoria", dec); out["total_despesas"] != float64(8700) {
+		t.Errorf("category summary for December: %v", out)
+	}
+	if out := runTool(t, c, "resumo_por_categoria", `{"de":"2026-11-01","ate":"2026-11-30"}`); out["total_despesas"] != float64(0) {
+		t.Errorf("category summary for November: %v", out)
+	}
+	if out := runTool(t, c, "listar_lancamentos", dec); len(out["lancamentos"].([]any)) != 1 {
+		t.Errorf("listing December: %v", out)
 	}
 }

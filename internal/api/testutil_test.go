@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -238,4 +239,32 @@ type paymentMethodDTO struct {
 	SortOrder int       `json:"sortOrder"`
 	Archived  bool      `json:"archived"`
 	Card      *testCard `json:"card"` // null: not a credit card
+}
+
+const aiTestKey = "sk-ant-test-key-1234"
+
+var aiSecret = bytes.Repeat([]byte{7}, 32)
+
+// newAIApp starts a server wired to a fake Anthropic API whose reply status can be changed through the returned counter.
+// Temporary copy of the one in the assistant tests, until the events tests move.
+func newAIApp(t *testing.T, withSecret bool) (*testApp, *atomic.Int32) {
+	t.Helper()
+	status := &atomic.Int32{}
+	status.Store(200)
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { //nolint:revive // moved unchanged, see docs/security.md
+		if st := int(status.Load()); st != 200 {
+			w.WriteHeader(st)
+			fmt.Fprint(w, `{"error":{"type":"authentication_error","message":"invalid x-api-key"}}`) //nolint:errcheck,gosec // moved unchanged, see docs/security.md
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n\n") //nolint:errcheck,gosec // moved unchanged, see docs/security.md
+	}))
+	t.Cleanup(fake.Close)
+	return newTestAppWith(t, func(c *config.Config) {
+		c.AnthropicURL = fake.URL
+		if withSecret {
+			c.SecretKey = aiSecret
+		}
+	}), status
 }

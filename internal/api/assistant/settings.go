@@ -1,4 +1,4 @@
-package api
+package assistant
 
 import (
 	"context"
@@ -35,7 +35,7 @@ type aiRow struct {
 }
 
 // loadAI returns userID's assistant settings, or the defaults when the user has none.
-func (s *Server) loadAI(ctx context.Context, userID int64) (aiRow, error) {
+func (s *Handler) loadAI(ctx context.Context, userID int64) (aiRow, error) {
 	r := aiRow{model: "claude-sonnet-5-5", retention: 7}
 	err := s.DB.QueryRowContext(ctx,
 		`SELECT api_key_enc, key_hint, model, enabled, retention_days, COALESCE(daily_limit_cents, 0), COALESCE(monthly_limit_cents, 0)
@@ -49,7 +49,7 @@ func (s *Server) loadAI(ctx context.Context, userID int64) (aiRow, error) {
 
 // openKey decrypts a stored API key; it reports false when there is no key, no server secret
 // or the key does not decrypt.
-func (s *Server) openKey(enc []byte) (string, bool) {
+func (s *Handler) openKey(enc []byte) (string, bool) {
 	if len(enc) == 0 || s.Cfg.SecretKey == nil {
 		return "", false
 	}
@@ -58,7 +58,7 @@ func (s *Server) openKey(enc []byte) (string, bool) {
 }
 
 // UserAIKey returns the user's decrypted API key and model, or ErrAIDisabled / ErrAIKeyUnreadable.
-func (s *Server) UserAIKey(ctx context.Context, userID int64) (key, model string, err error) {
+func (s *Handler) UserAIKey(ctx context.Context, userID int64) (key, model string, err error) {
 	r, err := s.loadAI(ctx, userID)
 	if err != nil {
 		return "", "", err
@@ -93,7 +93,7 @@ type aiDTO struct {
 }
 
 // aiDTO builds the response for userID from the stored settings r.
-func (s *Server) aiDTO(ctx context.Context, userID int64, r aiRow) (aiDTO, error) {
+func (s *Handler) aiDTO(ctx context.Context, userID int64, r aiRow) (aiDTO, error) {
 	_, readable := s.openKey(r.enc)
 	d := aiDTO{Available: s.Cfg.SecretKey != nil, Configured: readable, Model: r.model, Enabled: r.enabled && readable, RetentionDays: r.retention,
 		DailyLimitCents: r.daily, MonthlyLimitCents: r.monthly}
@@ -113,7 +113,7 @@ func (s *Server) aiDTO(ctx context.Context, userID int64, r aiRow) (aiDTO, error
 }
 
 // aiSpend returns the user's estimated assistant spend today and this calendar month (in cfg.Location), in micro-reais.
-func (s *Server) aiSpend(ctx context.Context, userID int64) (today, month int64, err error) {
+func (s *Handler) aiSpend(ctx context.Context, userID int64) (today, month int64, err error) {
 	day := s.Now().In(s.Cfg.Location).Format(httpx.DateLayout)
 	err = s.DB.QueryRowContext(ctx, `
 		SELECT COALESCE(SUM(CASE WHEN day = ? THEN cost_micro_brl END), 0), COALESCE(SUM(cost_micro_brl), 0)
@@ -124,7 +124,7 @@ func (s *Server) aiSpend(ctx context.Context, userID int64) (today, month int64,
 // checkAILimit refuses a question once today's or this month's spend reached the user's limit. Spend is only
 // known after an answer, so one answer may overshoot the limit. Without a USD-BRL rate the spend is recorded
 // as zero, so limits are not enforced until the first rate arrives.
-func (s *Server) checkAILimit(ctx context.Context, userID int64) error {
+func (s *Handler) checkAILimit(ctx context.Context, userID int64) error {
 	r, err := s.loadAI(ctx, userID)
 	if err != nil || (r.daily == 0 && r.monthly == 0) {
 		return err
@@ -148,7 +148,7 @@ func (s *Server) checkAILimit(ctx context.Context, userID int64) error {
 
 // recordUsage adds an exchange's tokens and estimated cost to today's ai_usage row. It runs on a detached
 // context so a question cancelled by the client still counts.
-func (s *Server) recordUsage(ctx context.Context, userID int64, model string, inTok, outTok int) {
+func (s *Handler) recordUsage(ctx context.Context, userID int64, model string, inTok, outTok int) {
 	if inTok == 0 && outTok == 0 {
 		return
 	}
@@ -168,7 +168,7 @@ func (s *Server) recordUsage(ctx context.Context, userID int64, model string, in
 }
 
 // getAI handles GET /api/me/ai.
-func (s *Server) getAI(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) getAI(w http.ResponseWriter, r *http.Request) error {
 	uid := httpx.UserIDFrom(r.Context())
 	row, err := s.loadAI(r.Context(), uid)
 	if err != nil {
@@ -183,7 +183,7 @@ func (s *Server) getAI(w http.ResponseWriter, r *http.Request) error {
 }
 
 // putAI handles PUT /api/me/ai: key, model, retention and on/off.
-func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) putAI(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		APIKey        *string `json:"apiKey"`
 		Model         *string `json:"model"`
@@ -291,7 +291,7 @@ func (s *Server) putAI(w http.ResponseWriter, r *http.Request) error {
 }
 
 // deleteAIKey handles DELETE /api/me/ai/key: erases the key and turns the assistant off.
-func (s *Server) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
 	uid := httpx.UserIDFrom(r.Context())
 	if _, err := s.DB.ExecContext(r.Context(),
 		`UPDATE ai_settings SET api_key_enc = x'', key_hint = '', enabled = 0 WHERE user_id = ?`, uid); err != nil {
@@ -303,6 +303,6 @@ func (s *Server) deleteAIKey(w http.ResponseWriter, r *http.Request) error {
 }
 
 // anthropicClient returns a client for the Anthropic API with key.
-func (s *Server) anthropicClient(key string) *anthropic.Client {
+func (s *Handler) anthropicClient(key string) *anthropic.Client {
 	return &anthropic.Client{BaseURL: s.anthropicURL, APIKey: key}
 }

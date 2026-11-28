@@ -1,6 +1,10 @@
-package api
+package assistant_test
 
-import "testing"
+import (
+	"testing"
+
+	"gastos/internal/api/assistant"
+)
 
 func TestCostMicroBRL(t *testing.T) {
 	const rate = 5063100 // R$ 5,0631 per dollar
@@ -20,7 +24,7 @@ func TestCostMicroBRL(t *testing.T) {
 		{"zero tokens", "claude-opus-5-5", 0, 0, rate, 0},
 		{"no overflow at 1e7 tokens", "claude-opus-5-5", 10_000_000, 10_000_000, 100_000_000, 25_200_000_000},
 	} {
-		if got := costMicroBRL(tc.model, tc.in, tc.out, tc.rate); got != tc.want {
+		if got := assistant.CostMicroBRL(tc.model, tc.in, tc.out, tc.rate); got != tc.want {
 			t.Errorf("%s: got %d, want %d", tc.name, got, tc.want)
 		}
 	}
@@ -28,8 +32,8 @@ func TestCostMicroBRL(t *testing.T) {
 
 func TestFormatBRL(t *testing.T) {
 	for cents, want := range map[int64]string{0: "R$ 0,00", 5: "R$ 0,05", 1234: "R$ 12,34", 123456: "R$ 1.234,56", 10000000: "R$ 100.000,00", 123456789: "R$ 1.234.567,89"} {
-		if got := formatBRL(cents); got != want {
-			t.Errorf("formatBRL(%d) = %q, want %q", cents, got, want)
+		if got := assistant.FormatBRL(cents); got != want {
+			t.Errorf("assistant.FormatBRL(%d) = %q, want %q", cents, got, want)
 		}
 	}
 }
