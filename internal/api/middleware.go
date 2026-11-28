@@ -86,6 +86,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// errCrossSite is the answer for an unsafe request that comes from another site.
 var errCrossSite = &httpx.APIError{Status: 403, Code: "forbidden", Message: "Requisição de outro site bloqueada"}
 
 // sameOriginWrites refuses API writes that the browser says come from another origin, a CSRF barrier for

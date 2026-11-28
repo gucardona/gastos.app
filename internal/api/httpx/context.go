@@ -5,6 +5,7 @@ import "context"
 // ctxKey keys the values the middleware stores in a request context.
 type ctxKey int
 
+// Context keys for the signed-in user, the wallet in the path and the user's role in it.
 const (
 	ctxUserID ctxKey = iota
 	ctxWalletID
@@ -14,6 +15,7 @@ const (
 // Role is a member's permission level in a wallet; a higher role can do everything a lower one can.
 type Role int
 
+// The roles a member can have in a wallet, from lowest to highest.
 const (
 	// RoleReader can read a wallet.
 	RoleReader Role = iota + 1

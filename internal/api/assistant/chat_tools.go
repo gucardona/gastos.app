@@ -28,6 +28,7 @@ type chartDTO struct {
 	Points []chartPoint `json:"points"`
 }
 
+// Limits on what the assistant tools accept and return.
 const (
 	maxChartPoints = 24
 	maxRangeYears  = 5
@@ -107,6 +108,7 @@ func (e toolInputError) Error() string { return e.msg }
 // inputErr returns a toolInputError with a formatted message.
 func inputErr(format string, a ...any) error { return toolInputError{fmt.Sprintf(format, a...)} }
 
+// _likeEscaper escapes the wildcards of a LIKE pattern built from user text.
 var _likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 // decodeToolInput decodes a tool input into v, rejecting unknown fields.

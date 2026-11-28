@@ -16,6 +16,7 @@ import (
 	"gastos/internal/api/httpx"
 )
 
+// Limits on one assistant answer: text and token sizes, tool turns, history sent back and wallets read.
 const (
 	chatMaxText      = 4000
 	chatMaxTokens    = 1024
@@ -32,6 +33,7 @@ type walletInfo struct {
 	Categories []string
 }
 
+// _weekdaysPT names the weekdays, indexed by time.Weekday, for the system prompt.
 var _weekdaysPT = [...]string{"domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"}
 
 // systemPrompt builds the assistant's instructions: today's date in loc and the wallets it can read.

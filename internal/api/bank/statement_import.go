@@ -91,6 +91,7 @@ func (s *Handler) importStatement(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
+// errTooLarge is the answer for a statement upload over the size cap.
 var errTooLarge = &httpx.APIError{Status: http.StatusRequestEntityTooLarge, Code: "too_large", Message: "Arquivo grande demais (máximo de 5 MB)."}
 
 // csvMapping reads from the form which CSV columns hold the date, the amount and the description.

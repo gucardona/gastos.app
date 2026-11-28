@@ -13,6 +13,7 @@ import (
 	"gastos/internal/api/httpx"
 )
 
+// maxNameLen is the longest display name a user may have, in characters.
 const maxNameLen = 60
 
 // rename changes the caller's own name; the other members of their wallets are told to reload.

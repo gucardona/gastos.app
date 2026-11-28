@@ -14,6 +14,7 @@ import (
 	"gastos/internal/secret"
 )
 
+// _aiModels lists the models a user may pick for the assistant.
 var _aiModels = []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"}
 
 var (

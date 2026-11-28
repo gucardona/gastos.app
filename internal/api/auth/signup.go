@@ -17,6 +17,7 @@ import (
 // registrationMode says who may sign up right now.
 type registrationMode string
 
+// The registration modes that /api/auth/registration reports.
 const (
 	modeOpen   registrationMode = "open"   // anyone can sign up (only while the database has no users)
 	modeCode   registrationMode = "code"   // signing up requires the invite code

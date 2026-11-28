@@ -21,6 +21,7 @@ import (
 // BcryptCost is a variable so tests can use a low cost.
 var BcryptCost = 12
 
+// Session cookie name and lifetimes: a session lasts sessionTTL and is renewed once it is older than sessionRenew.
 const (
 	sessionCookie = "gastos_session"
 	sessionTTL    = 30 * 24 * time.Hour
@@ -77,6 +78,7 @@ func (s *Handler) login(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// errBadLogin is the one answer for an unknown e-mail and for a wrong password.
 var errBadLogin = &httpx.APIError{Status: 401, Code: "unauthenticated", Message: "E-mail ou senha incorretos"}
 
 // _dummyHash is a valid bcrypt hash of an arbitrary password, used to equalize response time.

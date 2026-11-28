@@ -15,6 +15,7 @@ import (
 	"gastos/internal/api/httpx"
 )
 
+// _fxClient fetches exchange rates, with a timeout.
 var _fxClient = &http.Client{Timeout: 10 * time.Second}
 
 // RefreshFX fetches the USD-BRL quote from cfg.FXURL and stores its ask price (what a buyer pays, the

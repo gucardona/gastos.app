@@ -96,6 +96,7 @@ func (a *App) Anon() *Client {
 // against its own clock. Deletions (logout: an empty value or an expiry in the past) still go through.
 type serverClockJar struct{ http.CookieJar }
 
+// SetCookies stores the cookies, except a session cookie that has already expired by the real clock.
 func (j serverClockJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	for _, c := range cookies {
 		if c.Value != "" && c.MaxAge >= 0 {

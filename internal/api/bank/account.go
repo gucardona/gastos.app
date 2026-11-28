@@ -26,6 +26,7 @@ type bankAccountInput struct {
 	Enabled         *bool  `json:"enabled"`
 }
 
+// bankAccountCols is the column list shared by the bank account queries, ending with the pending line count.
 const bankAccountCols = `ba.id, ba.name, ba.payment_method_id, ba.paid_by_user_id, ba.enabled,
 	(SELECT COUNT(*) FROM bank_transactions bt WHERE bt.bank_account_id = ba.id AND bt.status = 'pending')`
 

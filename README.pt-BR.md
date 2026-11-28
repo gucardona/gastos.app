@@ -31,7 +31,7 @@ Em Ajustes > Pessoas, quem é dono da carteira pode definir a "Parte padrão (%)
 
 ```text
 cmd/gastos/           main: config, banco, servidor e jobs
-internal/api/         handlers HTTP
+internal/api/         rotas e middleware HTTP, com um pacote por área: wallet, ledger, bank, assistant, auth, e httpx para o que é comum
 internal/anthropic/   cliente da API de mensagens da Anthropic, para o assistente
 internal/bankimport/  leitura de extratos OFX e CSV e regras de categoria
 internal/billing/     datas da fatura do cartão

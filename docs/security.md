@@ -20,7 +20,7 @@ To report a vulnerability, use GitHub's private reporting (Security > Report a v
 
 ## Controls in place
 
-**HTTP** (`internal/api/server.go`, `auth.go`, `httpx.go`)
+**HTTP** (`internal/api/server.go`, `internal/api/middleware.go`, `internal/api/auth/`, `internal/api/httpx/`)
 
 - Security headers on every response: CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, and HSTS when cookies are secure.
 - CSRF: the session cookie is `SameSite=Lax` and `HttpOnly`, writes accept only JSON, and unsafe requests from another site are rejected by `Sec-Fetch-Site`.
@@ -30,7 +30,7 @@ To report a vulnerability, use GitHub's private reporting (Security > Report a v
 
 **Authorization**
 
-- Every wallet route goes through `requireWallet`, which checks membership and a minimum role (reader, editor, owner) before the handler runs.
+- Every wallet route goes through `RequireWallet` (`internal/api/wallet/access.go`), which checks membership and a minimum role (reader, editor, owner) before the handler runs.
 - Sign-up closes after the first user unless there is an invite code. Codes are single-use and stored hashed.
 
 **Data**
@@ -55,10 +55,10 @@ To report a vulnerability, use GitHub's private reporting (Security > Report a v
 
 Found by gosec when golangci-lint was added (#70). None is known to be exploitable. Each needs its own issue before a fix.
 
-- SQL built by concatenation (G202) in `assistant_tools.go`, `chat.go`, `transactions.go` and `db.go`. The concatenated parts are fixed fragments chosen in code, not user input, but each should be checked again.
+- SQL built by concatenation (G202) in `internal/api/assistant/chat_tools.go`, `internal/api/assistant/chat.go`, `internal/api/ledger/transaction.go` and `db.go`. The concatenated parts are fixed fragments chosen in code, not user input, but each should be checked again.
 - 178 unchecked errors (errcheck), among them a `DELETE FROM budgets` in `deleteCategory`.
 - Go 1.25 added `http.CrossOriginProtection`. It does what the hand-written `Sec-Fetch-Site` check does, and could replace it.
-- Reported but likely false positives: G120 in `bank.go` (`MaxBytesReader` is already there), G124 in `auth.go` (cookie attributes are set), G101 in `ai_settings.go`, G115 in `money.go`.
+- Reported but likely false positives: G120 in `internal/api/bank/statement_import.go` (`MaxBytesReader` is already there), G124 in `internal/api/auth/session.go` (cookie attributes are set), G101 in `internal/api/assistant/settings.go`, G115 in `money.go`.
 
 ## When to update this file
 
