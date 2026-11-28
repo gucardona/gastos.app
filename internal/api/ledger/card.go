@@ -1,4 +1,4 @@
-package api
+package ledger
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ type cardInput struct {
 	Last4      string `json:"last4"`
 }
 
+// _last4Re matches exactly four digits.
 var _last4Re = regexp.MustCompile(`^[0-9]{4}$`)
 
 // cardCols follow paymentMethodCols' base columns; scanCard reads them.

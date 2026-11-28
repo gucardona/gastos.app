@@ -1,4 +1,4 @@
-package api
+package ledger
 
 import (
 	"context"
@@ -9,15 +9,6 @@ import (
 	"gastos/internal/api/httpx"
 	"gastos/internal/recurrence"
 )
-
-// recurrenceRoutes registers the recurrence routes of a wallet.
-func (s *Server) recurrenceRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
-	const base = "/api/wallets/{walletID}/recurrences"
-	mux.Handle("GET "+base, wallet(httpx.RoleReader, s.listRecurrences))
-	mux.Handle("POST "+base, wallet(httpx.RoleEditor, s.createRecurrence))
-	mux.Handle("PUT "+base+"/{id}", wallet(httpx.RoleEditor, s.updateRecurrence))
-	mux.Handle("DELETE "+base+"/{id}", wallet(httpx.RoleEditor, s.deleteRecurrence))
-}
 
 // recurrenceDTO is a recurring entry as the API returns it.
 type recurrenceDTO struct {
@@ -57,7 +48,7 @@ type recurrenceInput struct {
 const maxBackfillMonths = 24
 
 // earliestStart is the oldest start date a recurrence may be given now.
-func (s *Server) earliestStart() string {
+func (s *Handler) earliestStart() string {
 	return s.Now().In(s.Cfg.Location).AddDate(0, -maxBackfillMonths, 0).Format(httpx.DateLayout)
 }
 
@@ -129,7 +120,7 @@ func (in *recurrenceInput) validate(ctx context.Context, q httpx.Querier, wallet
 }
 
 // loadRecurrences returns every recurrence of walletID with its splits.
-func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurrenceDTO, error) {
+func (s *Handler) loadRecurrences(ctx context.Context, walletID int64) ([]recurrenceDTO, error) {
 	rows, err := s.DB.QueryContext(ctx, `
 		SELECT id, kind, amount_cents, description, category_id, payment_method_id, paid_by_user_id, to_user_id,
 		       day_of_month, start_date, end_date, enabled
@@ -137,7 +128,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	list := []recurrenceDTO{}
 	index := map[int64]int{}
 	for rows.Next() {
@@ -153,7 +144,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	rows.Close()
+	rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 
 	srows, err := s.DB.QueryContext(ctx, `
 		SELECT recurrence_id, user_id, share_bp FROM recurrence_splits
@@ -161,7 +152,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 	if err != nil {
 		return nil, err
 	}
-	defer srows.Close()
+	defer srows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for srows.Next() {
 		var rid int64
 		var sp Split
@@ -181,7 +172,7 @@ func (s *Server) loadRecurrences(ctx context.Context, walletID int64) ([]recurre
 }
 
 // nextDate is the first occurrence after today (nil if disabled or finished).
-func (s *Server) nextDate(d recurrenceDTO) *string {
+func (s *Handler) nextDate(d recurrenceDTO) *string {
 	if !d.Enabled {
 		return nil
 	}
@@ -203,7 +194,7 @@ func (s *Server) nextDate(d recurrenceDTO) *string {
 }
 
 // recurrenceByID returns recurrence id of walletID.
-func (s *Server) recurrenceByID(ctx context.Context, walletID, id int64) (recurrenceDTO, error) {
+func (s *Handler) recurrenceByID(ctx context.Context, walletID, id int64) (recurrenceDTO, error) {
 	list, err := s.loadRecurrences(ctx, walletID)
 	if err != nil {
 		return recurrenceDTO{}, err
@@ -217,7 +208,7 @@ func (s *Server) recurrenceByID(ctx context.Context, walletID, id int64) (recurr
 }
 
 // listRecurrences handles GET /recurrences.
-func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) listRecurrences(w http.ResponseWriter, r *http.Request) error {
 	list, err := s.loadRecurrences(r.Context(), httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
@@ -241,7 +232,7 @@ func replaceRecurrenceSplits(ctx context.Context, q httpx.Querier, id int64, spl
 }
 
 // createRecurrence handles POST /recurrences.
-func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) createRecurrence(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	var in recurrenceInput
 	if err := httpx.Decode(w, r, &in); err != nil {
@@ -278,7 +269,7 @@ func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) error 
 }
 
 // updateRecurrence handles PUT /recurrences/{id}.
-func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) updateRecurrence(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	id, err := httpx.PathID(r, "id")
 	if err != nil {
@@ -327,7 +318,7 @@ func (s *Server) updateRecurrence(w http.ResponseWriter, r *http.Request) error 
 }
 
 // deleteRecurrence handles DELETE /recurrences/{id}.
-func (s *Server) deleteRecurrence(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) deleteRecurrence(w http.ResponseWriter, r *http.Request) error {
 	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err
@@ -345,7 +336,7 @@ func (s *Server) deleteRecurrence(w http.ResponseWriter, r *http.Request) error 
 }
 
 // materialize generates what is already due right away; failures are only logged (the hourly job retries).
-func (s *Server) materialize(ctx context.Context, walletID int64) {
+func (s *Handler) materialize(ctx context.Context, walletID int64) {
 	if err := s.Mat.Run(ctx, walletID); err != nil {
 		s.Log.ErrorContext(ctx, "materialize recurrences", "wallet", walletID, "err", err)
 	}

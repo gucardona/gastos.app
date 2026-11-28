@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 	"time"
 
@@ -76,25 +75,6 @@ func TestParseRoleAndOrdering(t *testing.T) {
 	}
 }
 
-func TestMonthRange(t *testing.T) {
-	for _, tc := range []struct{ month, from, to string }{
-		{"2026-10", "2026-10-01", "2026-10-31"},
-		{"2026-02", "2026-02-01", "2026-02-28"},
-		{"2028-02", "2028-02-01", "2028-02-29"},
-		{"2026-12", "2026-12-01", "2026-12-31"},
-	} {
-		from, to, ok := monthRange(tc.month)
-		if !ok || from != tc.from || to != tc.to {
-			t.Errorf("monthRange(%q) = %q, %q, %v", tc.month, from, to, ok)
-		}
-	}
-	for _, bad := range []string{"", "2026-13", "2026-1", "outubro", "2026-10-01"} {
-		if _, _, ok := monthRange(bad); ok {
-			t.Errorf("monthRange(%q) should fail", bad)
-		}
-	}
-}
-
 func TestValidDate(t *testing.T) {
 	for _, ok := range []string{"2026-10-09", "2028-02-29"} {
 		if !httpx.ValidDate(ok) {
@@ -142,28 +122,5 @@ func TestPathID(t *testing.T) {
 		if _, err := httpx.PathID(r, "id"); err == nil {
 			t.Errorf("pathID(%q) should fail with 404", bad)
 		}
-	}
-}
-
-func TestWithAmountsSumsToTotal(t *testing.T) {
-	got := WithAmounts(10001, []Split{{UserID: 1, ShareBP: 3334}, {UserID: 2, ShareBP: 3333}, {UserID: 3, ShareBP: 3333}})
-	var sum int64
-	var amounts []int64
-	for _, s := range got {
-		sum += s.AmountCents
-		amounts = append(amounts, s.AmountCents)
-	}
-	if sum != 10001 {
-		t.Fatalf("the sum of the parts (%v) must be the total", amounts)
-	}
-	// exact: 3334.33 / 3333.33 / 3333.33; the leftover cent goes to the largest remainder
-	if !slices.Equal(amounts, []int64{3335, 3333, 3333}) {
-		t.Errorf("unexpected allocation: %v", amounts)
-	}
-	if got[0].UserID != 1 || got[1].ShareBP != 3333 {
-		t.Errorf("the order and the original shares must be preserved: %+v", got)
-	}
-	if len(WithAmounts(100, nil)) != 0 {
-		t.Error("no shares, no allocation")
 	}
 }

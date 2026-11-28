@@ -1,4 +1,4 @@
-package api
+package ledger
 
 import (
 	"context"
@@ -9,15 +9,6 @@ import (
 
 	"gastos/internal/api/httpx"
 )
-
-// settlementRoutes registers the settlement routes of a wallet.
-func (s *Server) settlementRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
-	const base = "/api/wallets/{walletID}/settlements"
-	mux.Handle("GET "+base, wallet(httpx.RoleReader, s.listSettlements))
-	mux.Handle("POST "+base, wallet(httpx.RoleEditor, s.createSettlement))
-	mux.Handle("PUT "+base+"/{id}", wallet(httpx.RoleEditor, s.updateSettlement))
-	mux.Handle("DELETE "+base+"/{id}", wallet(httpx.RoleEditor, s.deleteSettlement))
-}
 
 // settlementDTO is a recorded payment between two members, as the API returns it.
 type settlementDTO struct {
@@ -83,7 +74,7 @@ func (in *settlementInput) validate(ctx context.Context, q httpx.Querier, wallet
 }
 
 // listSettlements handles GET /settlements, optionally between the from and to dates.
-func (s *Server) listSettlements(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) listSettlements(w http.ResponseWriter, r *http.Request) error {
 	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
 	if !httpx.ValidDate(from) || !httpx.ValidDate(to) {
 		return httpx.ValidationError(map[string]string{"from": "obrigatório (YYYY-MM-DD)", "to": "obrigatório (YYYY-MM-DD)"})
@@ -98,7 +89,7 @@ func (s *Server) listSettlements(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	out := []settlementDTO{}
 	for rows.Next() {
 		var d settlementDTO
@@ -118,7 +109,7 @@ func (s *Server) listSettlements(w http.ResponseWriter, r *http.Request) error {
 func mustDate(s string) time.Time { t, _ := time.Parse(httpx.DateLayout, s); return t }
 
 // settlementByID returns settlement id of walletID.
-func (s *Server) settlementByID(ctx context.Context, walletID, id int64) (settlementDTO, error) {
+func (s *Handler) settlementByID(ctx context.Context, walletID, id int64) (settlementDTO, error) {
 	var d settlementDTO
 	err := s.DB.QueryRowContext(ctx, `
 		SELECT id, from_user_id, to_user_id, amount_cents, date, note, recurrence_id, created_by
@@ -128,7 +119,7 @@ func (s *Server) settlementByID(ctx context.Context, walletID, id int64) (settle
 }
 
 // createSettlement handles POST /settlements.
-func (s *Server) createSettlement(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) createSettlement(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID, userID := r.Context(), httpx.WalletIDFrom(r.Context()), httpx.UserIDFrom(r.Context())
 	var in settlementInput
 	if err := httpx.Decode(w, r, &in); err != nil {
@@ -154,7 +145,7 @@ func (s *Server) createSettlement(w http.ResponseWriter, r *http.Request) error 
 }
 
 // updateSettlement handles PUT /settlements/{id}.
-func (s *Server) updateSettlement(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) updateSettlement(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
 	id, err := httpx.PathID(r, "id")
 	if err != nil {
@@ -185,7 +176,7 @@ func (s *Server) updateSettlement(w http.ResponseWriter, r *http.Request) error 
 }
 
 // deleteSettlement handles DELETE /settlements/{id}.
-func (s *Server) deleteSettlement(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) deleteSettlement(w http.ResponseWriter, r *http.Request) error {
 	id, err := httpx.PathID(r, "id")
 	if err != nil {
 		return err

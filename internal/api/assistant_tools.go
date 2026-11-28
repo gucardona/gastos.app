@@ -12,6 +12,7 @@ import (
 
 	"gastos/internal/anthropic"
 	"gastos/internal/api/httpx"
+	"gastos/internal/api/ledger"
 )
 
 // chartPoint is one labeled value of a chart.
@@ -313,7 +314,7 @@ func (s *Server) toolPeriodTotals(ctx context.Context, walletIDs []int64, input 
 		Despesas int64  `json:"despesas"`
 		Receitas int64  `json:"receitas"`
 	}
-	var sum MonthTotals
+	var sum ledger.MonthTotals
 	items := []item{}
 	for rows.Next() {
 		var it item

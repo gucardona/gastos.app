@@ -1,26 +1,28 @@
-package api
+package ledger_test
 
 import (
 	"testing"
 	"time"
+
+	"gastos/internal/api/apitest"
 )
 
 // A transaction typed with a date after today is still to come: it stays out of every realized total and shows
 // under upcoming with its transactionId, like a projected recurring occurrence. Today is frozen at 2026-11-14.
 func TestSummaryFutureDatedTransactions(t *testing.T) {
 	app, ana := upcomingApp(t)
-	bia := app.register("Bia", "bia@example.com")
-	shareWallet(ana, bia, "editor")
-	ana.do("PATCH", ana.wpath(""), map[string]any{"splittingEnabled": true}, 200, nil)
-	exp, inc := firstCategory(t, ana, "expense"), firstCategory(t, ana, "income")
-	ana.do("PUT", ana.wpath("/budgets/%d", exp), map[string]any{"limitCents": 20000}, 200, nil)
+	bia := app.Register("Bia", "bia@example.com")
+	apitest.ShareWallet(ana, bia, "editor")
+	ana.Do("PATCH", ana.WPath(""), map[string]any{"splittingEnabled": true}, 200, nil)
+	exp, inc := apitest.FirstCategory(t, ana, "expense"), apitest.FirstCategory(t, ana, "income")
+	ana.Do("PUT", ana.WPath("/budgets/%d", exp), map[string]any{"limitCents": 20000}, 200, nil)
 
-	post := func(c *client, kind string, cat int64, cents int, desc, date string) int64 {
+	post := func(c *apitest.Client, kind string, cat int64, cents int, desc, date string) int64 {
 		t.Helper()
 		var tx struct {
 			ID int64 `json:"id"`
 		}
-		c.do("POST", c.wpath("/transactions"), map[string]any{
+		c.Do("POST", c.WPath("/transactions"), map[string]any{
 			"kind": kind, "amountCents": cents, "description": desc, "categoryId": cat, "date": date,
 		}, 201, &tx)
 		return tx.ID
@@ -31,19 +33,19 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 	bonus := post(ana, "income", inc, 30000, "Bônus", "2026-11-20")           // later this month
 	solar := post(bia, "expense", exp, 27500, "Placas solares", "2027-01-11") // a future month
 	post(bia, "expense", exp, 4000, "Dezembro", "2026-12-03")                 // the month before January, all future
-	ana.do("POST", ana.wpath("/settlements"), map[string]any{
-		"fromUserId": bia.user.ID, "toUserId": ana.user.ID, "amountCents": 300, "date": "2026-11-30",
+	ana.Do("POST", ana.WPath("/settlements"), map[string]any{
+		"fromUserId": bia.User.ID, "toUserId": ana.User.ID, "amountCents": 300, "date": "2026-11-30",
 	}, 201, nil)
 	// another wallet's future transaction never shows
 	var other struct {
 		ID int64 `json:"id"`
 	}
-	ana.do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &other)
+	ana.Do("POST", "/api/wallets", map[string]any{"name": "Casa"}, 201, &other)
 	var otherCat int64
-	if err := app.s.DB.QueryRow(`SELECT id FROM categories WHERE wallet_id = ? AND kind = 'expense' ORDER BY id LIMIT 1`, other.ID).Scan(&otherCat); err != nil {
+	if err := app.Server().DB.QueryRow(`SELECT id FROM categories WHERE wallet_id = ? AND kind = 'expense' ORDER BY id LIMIT 1`, other.ID).Scan(&otherCat); err != nil {
 		t.Fatal(err)
 	}
-	ana.do("POST", "/api/wallets/"+itoa(other.ID)+"/transactions", map[string]any{
+	ana.Do("POST", "/api/wallets/"+apitest.Itoa(other.ID)+"/transactions", map[string]any{
 		"kind": "expense", "amountCents": 1, "description": "Outra", "categoryId": otherCat, "date": "2026-11-25",
 	}, 201, nil)
 
@@ -80,7 +82,7 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 		m := b.(map[string]any)
 		nets[int64(m["userId"].(float64))] = m["netCents"].(float64)
 	}
-	if nets[ana.user.ID] != 500 || nets[bia.user.ID] != -500 {
+	if nets[ana.User.ID] != 500 || nets[bia.User.ID] != -500 {
 		t.Errorf("member balances must count only what is dated up to today: %+v", nets)
 	}
 	sug := nov.SuggestedSettlements.([]any)
@@ -100,7 +102,7 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 	}
 
 	// the projected recurring occurrences keep no transactionId
-	insertRecurrence(t, ana, ana.walletID, recRow{kind: "expense", description: "Internet", start: "2026-01-01", amount: 9000, day: 11, enabled: true})
+	insertRecurrence(t, ana, ana.WalletID, recRow{kind: "expense", description: "Internet", start: "2026-01-01", amount: 9000, day: 11, enabled: true})
 	jan = getSummary(ana, "2027-01")
 	if len(jan.Upcoming) != 2 || jan.UpcomingExpenseCents != 36500 {
 		t.Fatalf("January with a recurrence on the same day: %+v", jan.Upcoming)
@@ -110,7 +112,7 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 	}
 
 	// once the day comes, everything counts
-	app.s.Now = func() time.Time { return time.Date(2026, 11, 30, 12, 0, 0, 0, app.s.Cfg.Location) }
+	app.SetNow(func() time.Time { return time.Date(2026, 11, 30, 12, 0, 0, 0, app.Server().Cfg.Location) })
 	nov = getSummary(ana, "2026-11")
 	if nov.ExpenseCents != 8000 || nov.IncomeCents != 80000 || len(nov.Upcoming) != 0 {
 		t.Errorf("November on its last day: %+v", nov)
@@ -120,7 +122,7 @@ func TestSummaryFutureDatedTransactions(t *testing.T) {
 		m := b.(map[string]any)
 		nets[int64(m["userId"].(float64))] = m["netCents"].(float64)
 	}
-	if nets[ana.user.ID] != 3700 || nets[bia.user.ID] != -3700 { // Bia owes 500+3500 and settled 300 today
+	if nets[ana.User.ID] != 3700 || nets[bia.User.ID] != -3700 { // Bia owes 500+3500 and settled 300 today
 		t.Errorf("balances on the settlement's day: %+v", nets)
 	}
 }

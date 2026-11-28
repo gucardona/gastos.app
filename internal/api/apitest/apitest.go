@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -23,6 +24,7 @@ import (
 
 	"gastos/internal/api"
 	"gastos/internal/api/httpx"
+	"gastos/internal/api/ledger"
 	"gastos/internal/config"
 	"gastos/internal/db"
 	"gastos/internal/events"
@@ -245,4 +247,125 @@ func MonthsAgoFirst(t *testing.T, app *App, n int) string {
 	t.Helper()
 	now := time.Now().In(app.s.Cfg.Location)
 	return time.Date(now.Year(), now.Month()-time.Month(n), 1, 0, 0, 0, 0, time.UTC).Format(httpx.DateLayout)
+}
+
+// T returns the test the app belongs to.
+func (a *App) T() *testing.T { return a.t }
+
+// App returns the app the client talks to.
+func (c *Client) App() *App { return c.app }
+
+// CardInfo is the card part of a payment method, as the API returns it.
+type CardInfo struct {
+	ClosingDay      *int   `json:"closingDay"`
+	DueDay          *int   `json:"dueDay"`
+	Issuer          string `json:"issuer"`
+	CardForm        string `json:"cardForm"`
+	Last4           string `json:"last4"`
+	BestPurchaseDay int    `json:"bestPurchaseDay"`
+}
+
+// PaymentMethod is a payment method as the API returns it.
+type PaymentMethod struct {
+	ID       int64     `json:"id"`
+	Name     string    `json:"name"`
+	Archived bool      `json:"archived"`
+	Card     *CardInfo `json:"card"`
+}
+
+// Card2027 creates a card that closes on the 20th and is due on the 27th.
+func Card2027(c *Client) PaymentMethod {
+	c.app.t.Helper()
+	var m PaymentMethod
+	c.Do("POST", c.WPath("/payment-methods"), map[string]any{"name": "Itaú Black", "icon": "💳",
+		"card": map[string]any{"closingDay": 20, "dueDay": 27, "issuer": " Itaú Mastercard ", "cardForm": "virtual", "last4": " 1234 "}}, 201, &m)
+	return m
+}
+
+// Purchase posts a transaction on the given method and returns it.
+func Purchase(c *Client, kind, date string, method int64) ledger.Transaction {
+	c.app.t.Helper()
+	var tx ledger.Transaction
+	c.Do("POST", c.WPath("/transactions"), map[string]any{"kind": kind, "amountCents": 8700, "description": "Jantar",
+		"categoryId": FirstCategory(c.app.t, c, kind), "paymentMethodId": method, "date": date, "paidByUserId": c.User.ID}, 201, &tx)
+	return tx
+}
+
+// ListRange lists the transactions from the given date to a year later.
+func ListRange(c *Client, from string) []ledger.Transaction {
+	c.app.t.Helper()
+	var list []ledger.Transaction
+	start, _ := time.Parse(httpx.DateLayout, from)
+	to := start.AddDate(0, 0, 365).Format(httpx.DateLayout)
+	c.Do("GET", c.WPath("/transactions?from=%s&to=%s", from, to), nil, 200, &list)
+	return list
+}
+
+// OfxRows builds an OFX 1.x (SGML) statement from "YYYYMMDD|amount|fitid|memo" rows.
+func OfxRows(rows ...string) []byte {
+	var b strings.Builder
+	b.WriteString("OFXHEADER:100\nCHARSET:1252\n\n<OFX><BANKTRANLIST>\n")
+	for _, r := range rows {
+		f := strings.SplitN(r, "|", 4)
+		fmt.Fprintf(&b, "<STMTTRN><TRNTYPE>X<DTPOSTED>%s<TRNAMT>%s<FITID>%s<MEMO>%s</STMTTRN>\n", f[0], f[1], f[2], f[3])
+	}
+	b.WriteString("</BANKTRANLIST></OFX>\n")
+	return []byte(b.String())
+}
+
+// BankAccount decodes the id of a bank account.
+type BankAccount struct {
+	ID int64 `json:"id"`
+}
+
+// ImportSummary is the result of a statement import.
+type ImportSummary struct {
+	Imported   int `json:"imported"`
+	Duplicates int `json:"duplicates"`
+}
+
+// InboxItem is a bank line waiting in the inbox.
+type InboxItem struct {
+	ID          int64  `json:"id"`
+	Description string `json:"description"`
+}
+
+// NewAccount creates a bank account named name.
+func NewAccount(t *testing.T, c *Client, name string) BankAccount {
+	t.Helper()
+	var a BankAccount
+	c.Do("POST", c.WPath("/bank-accounts"), map[string]any{"name": name}, 201, &a)
+	return a
+}
+
+// ImportFile uploads an OFX statement to the account and checks the status.
+func ImportFile(t *testing.T, c *Client, accountID int64, content []byte, wantStatus int) ImportSummary {
+	t.Helper()
+	status, raw := c.Upload(c.WPath("/bank-accounts/%d/import", accountID), map[string]string{"format": "ofx"}, "extrato.ofx", content)
+	if status != wantStatus {
+		t.Fatalf("import: status %d, want %d; body: %s", status, wantStatus, raw)
+	}
+	var out ImportSummary
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+// Pending lists the inbox.
+func Pending(t *testing.T, c *Client) []InboxItem {
+	t.Helper()
+	var list []InboxItem
+	c.Do("GET", c.WPath("/inbox"), nil, 200, &list)
+	return list
+}
+
+// FindByDescription returns the first inbox item whose description contains the text.
+func FindByDescription(t *testing.T, list []InboxItem, contains string) InboxItem {
+	t.Helper()
+	for _, it := range list {
+		if strings.Contains(it.Description, contains) {
+			return it
+		}
+	}
+	t.Fatalf("no inbox item containing %q in %+v", contains, list)
+	return InboxItem{}
 }

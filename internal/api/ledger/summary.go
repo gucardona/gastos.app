@@ -1,4 +1,4 @@
-package api
+package ledger
 
 import (
 	"context"
@@ -12,11 +12,6 @@ import (
 	"gastos/internal/money"
 	"gastos/internal/recurrence"
 )
-
-// summaryRoutes registers the monthly summary route of a wallet.
-func (s *Server) summaryRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
-	mux.Handle("GET /api/wallets/{walletID}/summary", wallet(httpx.RoleReader, s.summary))
-}
 
 // categoryTotal is what a category received or spent in the month.
 type categoryTotal struct {
@@ -80,7 +75,7 @@ func monthRange(month string) (first, last string, ok bool) {
 
 // totals sums what the month (a card purchase counts in its invoice's month) realized up to today: a card purchase is
 // realized when its invoice is due, as a later-dated Pix is on its date.
-func (s *Server) totals(ctx context.Context, walletID int64, month, today string) (MonthTotals, error) {
+func (s *Handler) totals(ctx context.Context, walletID int64, month, today string) (MonthTotals, error) {
 	var m MonthTotals
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT kind, SUM(amount_cents) FROM transactions WHERE wallet_id = ? AND month = ? AND COALESCE(invoice_due, date) <= ? GROUP BY kind`,
@@ -88,7 +83,7 @@ func (s *Server) totals(ctx context.Context, walletID int64, month, today string
 	if err != nil {
 		return m, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for rows.Next() {
 		var kind string
 		var sum int64
@@ -105,7 +100,7 @@ func (s *Server) totals(ctx context.Context, walletID int64, month, today string
 }
 
 // summary handles GET /summary?month=YYYY-MM.
-func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) summary(w http.ResponseWriter, r *http.Request) error {
 	ctx, walletID := r.Context(), httpx.WalletIDFrom(r.Context())
 	month := r.URL.Query().Get("month")
 	first, last, ok := monthRange(month)
@@ -167,7 +162,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for rows.Next() {
 		var c categoryTotal
 		if err := rows.Scan(&c.CategoryID, &c.Kind, &c.Cents, &c.BudgetCents); err != nil {
@@ -178,7 +173,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	rows.Close()
+	rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 
 	ess, err := s.DB.QueryContext(ctx, `
 		SELECT c.essentiality, SUM(t.amount_cents)
@@ -188,7 +183,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	defer ess.Close()
+	defer ess.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for ess.Next() {
 		var key string
 		var sum int64
@@ -200,7 +195,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 	if err := ess.Err(); err != nil {
 		return err
 	}
-	ess.Close()
+	ess.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 
 	var splitting bool
 	if err := s.DB.QueryRowContext(ctx, `SELECT splitting_enabled FROM wallets WHERE id = ?`, walletID).Scan(&splitting); err != nil {
@@ -225,7 +220,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) error {
 // upcoming lists what the month still holds after today: the occurrences of enabled expense/income recurrences
 // (today's are materialized already), leaving out those already present as a transaction or deleted by a person,
 // and the transactions dated after today.
-func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, today string) ([]upcoming, error) {
+func (s *Handler) upcoming(ctx context.Context, walletID int64, first, last, today string) ([]upcoming, error) {
 	out := []upcoming{}
 	if last <= today {
 		return out, nil
@@ -239,7 +234,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	type candidate struct {
 		u     upcoming
 		occur string // the occurrence's own month, the key it is materialized or skipped under
@@ -278,7 +273,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	rows.Close()
+	rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for _, c := range candidates {
 		var gone bool // already a transaction, or deleted by a person
 		if err := s.DB.QueryRowContext(ctx, `
@@ -300,7 +295,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 	if err != nil {
 		return nil, err
 	}
-	defer trows.Close()
+	defer trows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for trows.Next() {
 		var u upcoming
 		var id int64
@@ -335,7 +330,7 @@ func (s *Server) upcoming(ctx context.Context, walletID int64, first, last, toda
 // memberNet computes each member's balance over the wallet's history up to today (later dates have not happened yet):
 // whoever paid a split expense is credited the total; each participant is debited their share
 // (allocated in cents, the same as the transaction list shows); settlements move balance from the sender to the receiver.
-func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (map[int64]int64, []int64, error) {
+func (s *Handler) memberNet(ctx context.Context, walletID int64, today string) (map[int64]int64, []int64, error) {
 	net := map[int64]int64{}
 	var order []int64
 
@@ -343,7 +338,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 	if err != nil {
 		return nil, nil, err
 	}
-	defer mrows.Close()
+	defer mrows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for mrows.Next() {
 		var id int64
 		if err := mrows.Scan(&id); err != nil {
@@ -355,7 +350,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 	if err := mrows.Err(); err != nil {
 		return nil, nil, err
 	}
-	mrows.Close()
+	mrows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 
 	rows, err := s.DB.QueryContext(ctx, `
 		SELECT t.id, t.amount_cents, t.paid_by_user_id, ts.user_id, ts.share_bp
@@ -364,7 +359,7 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 
 	var curID, curAmount, curPayer int64
 	var users, shares []int64
@@ -393,13 +388,13 @@ func (s *Server) memberNet(ctx context.Context, walletID int64, today string) (m
 		return nil, nil, err
 	}
 	flush()
-	rows.Close()
+	rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 
 	srows, err := s.DB.QueryContext(ctx, `SELECT from_user_id, to_user_id, amount_cents FROM settlements WHERE wallet_id = ? AND date <= ?`, walletID, today)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer srows.Close()
+	defer srows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	for srows.Next() {
 		var from, to, amount int64
 		if err := srows.Scan(&from, &to, &amount); err != nil {

@@ -1,18 +1,10 @@
-package api
+package ledger
 
 import (
 	"net/http"
 
 	"gastos/internal/api/httpx"
 )
-
-// budgetRoutes registers the budget routes of a wallet.
-func (s *Server) budgetRoutes(mux *http.ServeMux, wallet httpx.RouteWrap) {
-	const base = "/api/wallets/{walletID}/budgets"
-	mux.Handle("GET "+base, wallet(httpx.RoleReader, s.listBudgets))
-	mux.Handle("PUT "+base+"/{categoryID}", wallet(httpx.RoleEditor, s.putBudget))
-	mux.Handle("DELETE "+base+"/{categoryID}", wallet(httpx.RoleEditor, s.deleteBudget))
-}
 
 // budgetDTO is a monthly spending limit for a category.
 type budgetDTO struct {
@@ -21,13 +13,13 @@ type budgetDTO struct {
 }
 
 // listBudgets handles GET /budgets.
-func (s *Server) listBudgets(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) listBudgets(w http.ResponseWriter, r *http.Request) error {
 	rows, err := s.DB.QueryContext(r.Context(),
 		`SELECT category_id, limit_cents FROM budgets WHERE wallet_id = ? ORDER BY category_id`, httpx.WalletIDFrom(r.Context()))
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck,gosec // moved unchanged, see docs/security.md
 	out := []budgetDTO{}
 	for rows.Next() {
 		var b budgetDTO
@@ -44,7 +36,7 @@ func (s *Server) listBudgets(w http.ResponseWriter, r *http.Request) error {
 }
 
 // putBudget handles PUT /budgets/{categoryID}: creates or replaces the category's limit.
-func (s *Server) putBudget(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) putBudget(w http.ResponseWriter, r *http.Request) error {
 	catID, err := httpx.PathID(r, "categoryID")
 	if err != nil {
 		return err
@@ -78,7 +70,7 @@ func (s *Server) putBudget(w http.ResponseWriter, r *http.Request) error {
 }
 
 // deleteBudget handles DELETE /budgets/{categoryID}.
-func (s *Server) deleteBudget(w http.ResponseWriter, r *http.Request) error {
+func (s *Handler) deleteBudget(w http.ResponseWriter, r *http.Request) error {
 	catID, err := httpx.PathID(r, "categoryID")
 	if err != nil {
 		return err

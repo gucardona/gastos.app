@@ -202,3 +202,40 @@ func shareWallet(owner, other *client, role string) {
 	owner.do("POST", owner.wpath("/members"), map[string]string{"email": other.user.Email, "role": role}, 201, nil)
 	other.walletID = owner.walletID
 }
+
+// firstCategory returns the id of the first active category of the given kind. Temporary copy of the one
+// in apitest, until the tests that still use it move to their packages.
+func firstCategory(t *testing.T, c *client, kind string) int64 {
+	t.Helper()
+	var cats []categoryDTO
+	c.do("GET", c.wpath("/categories"), nil, 200, &cats)
+	for _, cat := range cats {
+		if cat.Kind == kind && !cat.Archived {
+			return cat.ID
+		}
+	}
+	t.Fatalf("no %s category", kind)
+	return 0
+}
+
+// categoryDTO decodes a category. Temporary copy of the one in ledger, until the tests that use it move.
+type categoryDTO struct {
+	ID           int64   `json:"id"`
+	Kind         string  `json:"kind"`
+	Name         string  `json:"name"`
+	Icon         string  `json:"icon"`
+	Color        string  `json:"color"`
+	Essentiality *string `json:"essentiality"`
+	SortOrder    int     `json:"sortOrder"`
+	Archived     bool    `json:"archived"`
+}
+
+// paymentMethodDTO decodes a payment method. Temporary copy of the one in ledger, until the tests that use it move.
+type paymentMethodDTO struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Icon      string    `json:"icon"`
+	SortOrder int       `json:"sortOrder"`
+	Archived  bool      `json:"archived"`
+	Card      *testCard `json:"card"` // null: not a credit card
+}
