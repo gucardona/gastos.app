@@ -1,4 +1,4 @@
-package api
+package api_test
 
 import (
 	"context"
@@ -7,54 +7,56 @@ import (
 	"testing"
 
 	"gastos/internal/config"
+
+	"gastos/internal/api/apitest"
 )
 
 // fetchSite sends a request with the given Sec-Fetch-Site ("" = header absent) using c's cookies.
-func fetchSite(c *client, method, path, site string) *http.Response {
-	c.app.t.Helper()
-	req, _ := http.NewRequest(method, c.app.srv.URL+path, strings.NewReader(`{}`))
+func fetchSite(c *apitest.Client, method, path, site string) *http.Response {
+	c.App().T().Helper()
+	req, _ := http.NewRequest(method, c.App().URL()+path, strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	if site != "" {
 		req.Header.Set("Sec-Fetch-Site", site)
 	}
-	res, err := c.http.Do(req)
+	res, err := c.HTTP().Do(req)
 	if err != nil {
-		c.app.t.Fatal(err)
+		c.App().T().Fatal(err)
 	}
 	res.Body.Close()
 	return res
 }
 
 func TestCrossSiteWritesAreRefused(t *testing.T) {
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
 	for _, site := range []string{"cross-site", "same-site", "none"} {
-		res := fetchSite(ana, "POST", ana.wpath("/inbox/accept-suggested"), site)
+		res := fetchSite(ana, "POST", ana.WPath("/inbox/accept-suggested"), site)
 		if res.StatusCode != 403 || !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") {
 			t.Errorf("%s: status %d, content-type %q", site, res.StatusCode, res.Header.Get("Content-Type"))
 		}
 	}
-	if res := fetchSite(ana, "GET", ana.wpath("/inbox"), "cross-site"); res.StatusCode != 200 {
+	if res := fetchSite(ana, "GET", ana.WPath("/inbox"), "cross-site"); res.StatusCode != 200 {
 		t.Errorf("cross-site GET: status %d, want 200", res.StatusCode)
 	}
 	for _, site := range []string{"same-origin", ""} { // absent: old browsers, curl, tests
-		if res := fetchSite(ana, "POST", ana.wpath("/inbox/accept-suggested"), site); res.StatusCode != 200 {
+		if res := fetchSite(ana, "POST", ana.WPath("/inbox/accept-suggested"), site); res.StatusCode != 200 {
 			t.Errorf("%q: status %d, want 200", site, res.StatusCode)
 		}
 	}
 	if res := fetchSite(ana, "POST", "/api/auth/logout", "cross-site"); res.StatusCode != 403 {
 		t.Errorf("cross-site logout: status %d, want 403", res.StatusCode)
 	}
-	ana.do("GET", "/api/me", nil, 200, nil) // still signed in
+	ana.Do("GET", "/api/me", nil, 200, nil) // still signed in
 }
 
 func TestDevModeAllowsSameSiteWrites(t *testing.T) {
-	app := newTestAppWith(t, func(c *config.Config) { c.Dev = true })
-	ana := app.register("Ana", "ana@example.com")
-	if res := fetchSite(ana, "POST", ana.wpath("/inbox/accept-suggested"), "same-site"); res.StatusCode != 200 {
+	app := apitest.NewWith(t, func(c *config.Config) { c.Dev = true })
+	ana := app.Register("Ana", "ana@example.com")
+	if res := fetchSite(ana, "POST", ana.WPath("/inbox/accept-suggested"), "same-site"); res.StatusCode != 200 {
 		t.Errorf("same-site in dev: status %d, want 200", res.StatusCode)
 	}
-	if res := fetchSite(ana, "POST", ana.wpath("/inbox/accept-suggested"), "cross-site"); res.StatusCode != 403 {
+	if res := fetchSite(ana, "POST", ana.WPath("/inbox/accept-suggested"), "cross-site"); res.StatusCode != 403 {
 		t.Errorf("cross-site in dev: status %d, want 403", res.StatusCode)
 	}
 }
@@ -79,8 +81,8 @@ func checkCommonHeaders(t *testing.T, where string, h http.Header) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
 
 	res := fetchSite(ana, "GET", "/api/me", "")
 	checkCommonHeaders(t, "api", res.Header)
@@ -99,8 +101,8 @@ func TestSecurityHeaders(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", app.srv.URL+"/api/events", nil)
-	sse, err := ana.http.Do(req)
+	req, _ := http.NewRequestWithContext(ctx, "GET", app.URL()+"/api/events", nil)
+	sse, err := ana.HTTP().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,8 +114,8 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 func TestHSTSOnlyWithSecureCookies(t *testing.T) {
-	app := newTestAppWith(t, func(c *config.Config) { c.CookieSecure = true })
-	res := fetchSite(app.anon(), "GET", "/api/auth/registration", "")
+	app := apitest.NewWith(t, func(c *config.Config) { c.CookieSecure = true })
+	res := fetchSite(app.Anon(), "GET", "/api/auth/registration", "")
 	if got := res.Header.Get("Strict-Transport-Security"); got != "max-age=31536000" {
 		t.Errorf("HSTS = %q", got)
 	}

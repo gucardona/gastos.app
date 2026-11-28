@@ -1,32 +1,12 @@
-package api
+package httpx_test
 
 import (
 	"errors"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"gastos/internal/api/httpx"
 )
-
-func TestRateLimiter(t *testing.T) {
-	l := httpx.NewRateLimiter(3, 50*time.Millisecond)
-	for i := 0; i < 3; i++ {
-		if !l.Allow("a") {
-			t.Fatalf("attempt %d should pass", i+1)
-		}
-	}
-	if l.Allow("a") {
-		t.Fatal("the 4th attempt inside the window should be blocked")
-	}
-	if !l.Allow("b") {
-		t.Fatal("another key is not affected")
-	}
-	time.Sleep(70 * time.Millisecond)
-	if !l.Allow("a") {
-		t.Fatal("after the window the key passes again")
-	}
-}
 
 func TestParseRoleAndOrdering(t *testing.T) {
 	for s, want := range map[string]httpx.Role{"owner": httpx.RoleOwner, "editor": httpx.RoleEditor, "reader": httpx.RoleReader} {

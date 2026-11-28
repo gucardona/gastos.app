@@ -1,23 +1,22 @@
-package api
+package api_test
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"gastos/internal/config"
-
+	"gastos/internal/api/apitest"
 	"gastos/internal/api/httpx"
+	"gastos/internal/config"
 )
 
 // ---- /healthz: the deploy decides on rollback based on it ----
 
 func TestHealthzOK(t *testing.T) {
-	app := newTestApp(t)
-	res, err := http.Get(app.srv.URL + "/healthz")
+	app := apitest.New(t)
+	res, err := http.Get(app.URL() + "/healthz")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,10 +27,10 @@ func TestHealthzOK(t *testing.T) {
 }
 
 func TestHealthzFailsWhenDatabaseIsGone(t *testing.T) {
-	app := newTestApp(t)
+	app := apitest.New(t)
 	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
-	app.s.DB.Close()
-	res, err := http.Get(app.srv.URL + "/healthz")
+	app.Server().DB.Close()
+	res, err := http.Get(app.URL() + "/healthz")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,103 +42,71 @@ func TestHealthzFailsWhenDatabaseIsGone(t *testing.T) {
 
 // ---- Housekeeping: session cleanup and daily backup ----
 
-func countRows(t *testing.T, app *testApp, query string) int {
-	t.Helper()
-	var n int
-	if err := app.s.DB.QueryRow(query).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	return n
-}
-
-// runHousekeeping runs the job until the condition is true and then cancels it.
-func runHousekeeping(t *testing.T, app *testApp, until func() bool) {
-	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { app.s.Housekeeping(ctx, time.Hour); close(done) }()
-	deadline := time.Now().Add(5 * time.Second)
-	for !until() && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Housekeeping did not stop when the context was cancelled")
-	}
-}
-
-func backups(app *testApp) []string {
-	files, _ := filepath.Glob(filepath.Join(app.s.Cfg.BackupDir, "gastos-*.db"))
-	return files
-}
-
 func TestHousekeepingRemovesExpiredSessionsOnly(t *testing.T) {
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
-	if _, err := app.s.DB.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (x'01', ?, '2000-01-01T00:00:00Z')`, ana.user.ID); err != nil {
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
+	if _, err := app.Server().DB.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (x'01', ?, '2000-01-01T00:00:00Z')`, ana.User.ID); err != nil {
 		t.Fatal(err)
 	}
-	if n := countRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 2 {
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 2 {
 		t.Fatalf("%d sessions before, want 2", n)
 	}
-	runHousekeeping(t, app, func() bool { return countRows(t, app, `SELECT COUNT(*) FROM sessions`) == 1 })
-	if n := countRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 1 {
+	apitest.RunHousekeeping(t, app, func() bool { return apitest.CountRows(t, app, `SELECT COUNT(*) FROM sessions`) == 1 })
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM sessions`); n != 1 {
 		t.Fatalf("%d sessions after, want 1 (the valid one stays)", n)
 	}
-	ana.do("GET", "/api/me", nil, 200, nil) // the active session keeps working
+	ana.Do("GET", "/api/me", nil, 200, nil) // the active session keeps working
 }
 
-func addChat(t *testing.T, app *testApp, c *client, daysOld int) {
+func addChat(t *testing.T, app *apitest.App, c *apitest.Client, daysOld int) {
 	t.Helper()
-	at := app.s.Now().UTC().AddDate(0, 0, -daysOld).Format(httpx.TSLayout)
-	if _, err := app.s.DB.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content, created_at) VALUES (?, ?, 'user', 'hi', ?)`, c.user.ID, c.walletID, at); err != nil {
+	at := app.Server().Now().UTC().AddDate(0, 0, -daysOld).Format(httpx.TSLayout)
+	if _, err := app.Server().DB.Exec(`INSERT INTO chat_messages (user_id, wallet_id, role, content, created_at) VALUES (?, ?, 'user', 'hi', ?)`, c.User.ID, c.WalletID, at); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func setRetention(t *testing.T, app *testApp, c *client, days int) {
+func setRetention(t *testing.T, app *apitest.App, c *apitest.Client, days int) {
 	t.Helper()
-	if _, err := app.s.DB.Exec(`INSERT INTO ai_settings (user_id, api_key_enc, key_hint, retention_days) VALUES (?, x'', '1234', ?)`, c.user.ID, days); err != nil {
+	if _, err := app.Server().DB.Exec(`INSERT INTO ai_settings (user_id, api_key_enc, key_hint, retention_days) VALUES (?, x'', '1234', ?)`, c.User.ID, days); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func chatCount(t *testing.T, app *testApp, c *client) int {
+func chatCount(t *testing.T, app *apitest.App, c *apitest.Client) int {
 	t.Helper()
 	var n int
-	if err := app.s.DB.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE user_id = ?`, c.user.ID).Scan(&n); err != nil {
+	if err := app.Server().DB.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE user_id = ?`, c.User.ID).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
 }
 
 func TestHousekeepingDeletesExpiredChat(t *testing.T) {
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
 	setRetention(t, app, ana, 3)
 	addChat(t, app, ana, 4)
 	addChat(t, app, ana, 2)
-	runHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 1 })
+	apitest.RunHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 1 })
 	if n := chatCount(t, app, ana); n != 1 {
 		t.Fatalf("%d messages, want 1 (the 2-day-old one stays)", n)
 	}
 	var age int
-	if err := app.s.DB.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.s.Now().UTC().Format(httpx.TSLayout)).Scan(&age); err != nil || age != 2 {
+	if err := app.Server().DB.QueryRow(`SELECT CAST(julianday(?) - julianday(created_at) AS INTEGER) FROM chat_messages`, app.Server().Now().UTC().Format(httpx.TSLayout)).Scan(&age); err != nil || age != 2 {
 		t.Fatalf("remaining message age %d (err %v), want 2", age, err)
 	}
 }
 
 func TestHousekeepingRetentionIsPerUser(t *testing.T) {
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
-	bia := app.register("Bia", "bia@example.com")
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
+	bia := app.Register("Bia", "bia@example.com")
 	setRetention(t, app, ana, 3)
 	setRetention(t, app, bia, 30)
 	addChat(t, app, ana, 10)
 	addChat(t, app, bia, 10)
-	runHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 0 })
+	apitest.RunHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 0 })
 	if n := chatCount(t, app, ana); n != 0 {
 		t.Fatalf("ana has %d messages, want 0", n)
 	}
@@ -149,37 +116,37 @@ func TestHousekeepingRetentionIsPerUser(t *testing.T) {
 }
 
 func TestHousekeepingDefaultsToSevenDays(t *testing.T) {
-	app := newTestApp(t)
-	ana := app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	ana := app.Register("Ana", "ana@example.com")
 	addChat(t, app, ana, 8)
 	addChat(t, app, ana, 6)
-	runHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 1 })
+	apitest.RunHousekeeping(t, app, func() bool { return chatCount(t, app, ana) == 1 })
 	if n := chatCount(t, app, ana); n != 1 {
 		t.Fatalf("%d messages, want 1 (the 6-day-old one stays)", n)
 	}
 }
 
 func TestHousekeepingMakesBackupOnlyWhenTheLastIsOld(t *testing.T) {
-	app := newTestApp(t)
-	if len(backups(app)) != 0 {
+	app := apitest.New(t)
+	if len(apitest.Backups(app)) != 0 {
 		t.Fatal("there should be no backup before")
 	}
-	runHousekeeping(t, app, func() bool { return len(backups(app)) == 1 })
-	if n := len(backups(app)); n != 1 {
+	apitest.RunHousekeeping(t, app, func() bool { return len(apitest.Backups(app)) == 1 })
+	if n := len(apitest.Backups(app)); n != 1 {
 		t.Fatalf("%d backups, want 1", n)
 	}
 
 	// with a recent backup, running again does not create another
 	settle := time.Now().Add(300 * time.Millisecond)
-	runHousekeeping(t, app, func() bool { return time.Now().After(settle) })
-	if n := len(backups(app)); n != 1 {
+	apitest.RunHousekeeping(t, app, func() bool { return time.Now().After(settle) })
+	if n := len(apitest.Backups(app)); n != 1 {
 		t.Fatalf("%d backups after the second run, want 1", n)
 	}
 }
 
 func TestHousekeepingRotatesOldBackups(t *testing.T) {
-	app := newTestAppWith(t, func(c *config.Config) { c.BackupKeep = 2 })
-	dir := app.s.Cfg.BackupDir
+	app := apitest.NewWith(t, func(c *config.Config) { c.BackupKeep = 2 })
+	dir := app.Server().Cfg.BackupDir
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -191,9 +158,11 @@ func TestHousekeepingRotatesOldBackups(t *testing.T) {
 		}
 		os.Chtimes(p, old, old)
 	}
-	runHousekeeping(t, app, func() bool { return len(backups(app)) == 2 && !exists(filepath.Join(dir, "gastos-20200101-000000.db")) })
-	if len(backups(app)) != 2 || exists(filepath.Join(dir, "gastos-20200101-000000.db")) {
-		t.Fatalf("expected to keep the 2 newest, have %v", backups(app))
+	apitest.RunHousekeeping(t, app, func() bool {
+		return len(apitest.Backups(app)) == 2 && !exists(filepath.Join(dir, "gastos-20200101-000000.db"))
+	})
+	if len(apitest.Backups(app)) != 2 || exists(filepath.Join(dir, "gastos-20200101-000000.db")) {
+		t.Fatalf("expected to keep the 2 newest, have %v", apitest.Backups(app))
 	}
 }
 
@@ -202,11 +171,11 @@ func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 // ---- CORS do modo dev ----
 
 func TestDevCORS(t *testing.T) {
-	dev := newTestAppWith(t, func(c *config.Config) { c.Dev = true })
-	prod := newTestApp(t)
+	dev := apitest.NewWith(t, func(c *config.Config) { c.Dev = true })
+	prod := apitest.New(t)
 
-	do := func(app *testApp, method, origin string) *http.Response {
-		req, _ := http.NewRequest(method, app.srv.URL+"/api/me", nil)
+	do := func(app *apitest.App, method, origin string) *http.Response {
+		req, _ := http.NewRequest(method, app.URL()+"/api/me", nil)
 		if origin != "" {
 			req.Header.Set("Origin", origin)
 		}
