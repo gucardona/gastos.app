@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"gastos/internal/api"
+	"gastos/internal/api/auth"
 	"gastos/internal/config"
 	"gastos/internal/db"
 )
@@ -63,7 +63,7 @@ func runInvite(args []string, getenv func(string) string, out io.Writer, now tim
 		return err
 	}
 	defer d.Close()
-	code, exp, err := api.CreateInvite(context.Background(), d, now, ttl)
+	code, exp, err := auth.CreateInvite(context.Background(), d, now, ttl)
 	if err != nil {
 		return err
 	}

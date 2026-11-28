@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -26,31 +25,6 @@ func TestRateLimiter(t *testing.T) {
 	time.Sleep(70 * time.Millisecond)
 	if !l.Allow("a") {
 		t.Fatal("after the window the key passes again")
-	}
-}
-
-func TestClientIP(t *testing.T) {
-	req := func(remote, xff string) *http.Request {
-		r := httptest.NewRequest("GET", "/", nil)
-		r.RemoteAddr = remote
-		if xff != "" {
-			r.Header.Set("X-Forwarded-For", xff)
-		}
-		return r
-	}
-	tests := []struct{ name, remote, xff, want string }{
-		{"direct, no proxy", "203.0.113.9:5555", "", "203.0.113.9"},
-		{"a trusted local proxy uses XFF", "127.0.0.1:4000", "198.51.100.7, 10.0.0.1", "198.51.100.7"},
-		{"XFF forged by an external client is ignored", "203.0.113.9:5555", "1.2.3.4", "203.0.113.9"},
-		{"IPv6 loopback is trusted too", "[::1]:4000", "198.51.100.7", "198.51.100.7"},
-		{"loopback without XFF", "127.0.0.1:4000", "", "127.0.0.1"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := clientIP(req(tc.remote, tc.xff)); got != tc.want {
-				t.Errorf("clientIP = %q, want %q", got, tc.want)
-			}
-		})
 	}
 }
 

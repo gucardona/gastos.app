@@ -1,89 +1,89 @@
-package api
+package auth_test
 
 import (
 	"net/http"
 	"sync"
 	"testing"
 
+	"gastos/internal/api/apitest"
+	"gastos/internal/api/auth"
 	"gastos/internal/api/httpx"
 	"gastos/internal/config"
 )
-
-const testInvite = "test-invite-code"
 
 func TestRegistrationMode(t *testing.T) {
 	tests := []struct {
 		name  string
 		users int
 		code  bool
-		want  registrationMode
+		want  auth.RegistrationMode
 	}{
-		{"empty database is open, even with a code available", 0, true, modeOpen},
-		{"empty database with no code available is open", 0, false, modeOpen},
-		{"users exist and a code is available", 1, true, modeCode},
-		{"users exist and there is no code", 1, false, modeClosed},
-		{"many users and a code", 40, true, modeCode},
+		{"empty database is open, even with a code available", 0, true, auth.ModeOpen},
+		{"empty database with no code available is open", 0, false, auth.ModeOpen},
+		{"users exist and a code is available", 1, true, auth.ModeCode},
+		{"users exist and there is no code", 1, false, auth.ModeClosed},
+		{"many users and a code", 40, true, auth.ModeCode},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := modeFor(tc.users, tc.code); got != tc.want {
-				t.Errorf("modeFor(%d, %v) = %q, want %q", tc.users, tc.code, got, tc.want)
+			if got := auth.ModeFor(tc.users, tc.code); got != tc.want {
+				t.Errorf("auth.ModeFor(%d, %v) = %q, want %q", tc.users, tc.code, got, tc.want)
 			}
 		})
 	}
 }
 
 // signUp posts a registration and returns the status; it does not keep the session.
-func signUp(app *testApp, email, code string) (int, httpx.APIError) {
-	app.t.Helper()
+func signUp(app *apitest.App, email, code string) (int, httpx.APIError) {
+	app.T().Helper()
 	var res struct {
 		Error httpx.APIError `json:"error"`
 	}
-	c := app.anon()
+	c := app.Anon()
 	body := map[string]any{"name": "Pessoa", "email": email, "password": "senha-segura"}
 	if code != "" {
 		body["inviteCode"] = code
 	}
-	status := c.doRaw("POST", "/api/auth/register", body, &res)
+	status := c.DoRaw("POST", "/api/auth/register", body, &res)
 	return status, res.Error
 }
 
-func registrationModeOf(t *testing.T, app *testApp) string {
+func registrationModeOf(t *testing.T, app *apitest.App) string {
 	t.Helper()
 	var res struct {
 		Mode string `json:"mode"`
 	}
-	app.anon().do("GET", "/api/auth/registration", nil, 200, &res)
+	app.Anon().Do("GET", "/api/auth/registration", nil, 200, &res)
 	return res.Mode
 }
 
 func TestRegistrationEndpointReportsTheMode(t *testing.T) {
-	app := newTestApp(t) // a code is configured
+	app := apitest.New(t) // a code is configured
 	if m := registrationModeOf(t, app); m != "open" {
 		t.Fatalf("fresh database: mode %q, want open", m)
 	}
-	app.register("Ana", "ana@example.com")
+	app.Register("Ana", "ana@example.com")
 	if m := registrationModeOf(t, app); m != "code" {
 		t.Fatalf("after the first user: mode %q, want code", m)
 	}
 
-	noCode := newTestAppWith(t, func(c *config.Config) { c.InviteCode = "" })
-	noCode.register("Ana", "ana@example.com")
+	noCode := apitest.NewWith(t, func(c *config.Config) { c.InviteCode = "" })
+	noCode.Register("Ana", "ana@example.com")
 	if m := registrationModeOf(t, noCode); m != "closed" {
 		t.Fatalf("no code configured: mode %q, want closed", m)
 	}
 }
 
 func TestFirstAccountNeedsNoCode(t *testing.T) {
-	app := newTestApp(t)
+	app := apitest.New(t)
 	if status, _ := signUp(app, "ana@example.com", "a-wrong-code-is-ignored"); status != http.StatusCreated {
 		t.Fatalf("first account: status %d, want 201", status)
 	}
 }
 
 func TestLaterAccountsNeedTheInviteCode(t *testing.T) {
-	app := newTestApp(t)
-	app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	app.Register("Ana", "ana@example.com")
 
 	missing, missingErr := signUp(app, "bia@example.com", "")
 	wrong, wrongErr := signUp(app, "bia@example.com", "not-the-right-code")
@@ -93,25 +93,25 @@ func TestLaterAccountsNeedTheInviteCode(t *testing.T) {
 	if missingErr.Message != wrongErr.Message || missingErr.Code != "forbidden" {
 		t.Errorf("a wrong and a missing code must look the same: %+v vs %+v", missingErr, wrongErr)
 	}
-	if status, _ := signUp(app, "bia@example.com", testInvite); status != http.StatusCreated {
+	if status, _ := signUp(app, "bia@example.com", apitest.Invite); status != http.StatusCreated {
 		t.Fatalf("right code: status %d, want 201", status)
 	}
 	// the rest of the validation still runs behind the gate
-	if status, _ := signUp(app, "bia@example.com", testInvite); status != http.StatusConflict {
+	if status, _ := signUp(app, "bia@example.com", apitest.Invite); status != http.StatusConflict {
 		t.Fatalf("duplicate email with the right code: status %d, want 409", status)
 	}
 }
 
 func TestSignupIsClosedWithoutACode(t *testing.T) {
-	app := newTestAppWith(t, func(c *config.Config) { c.InviteCode = "" })
-	app.register("Ana", "ana@example.com")
+	app := apitest.NewWith(t, func(c *config.Config) { c.InviteCode = "" })
+	app.Register("Ana", "ana@example.com")
 	if status, _ := signUp(app, "bia@example.com", "anything-at-all"); status != http.StatusForbidden {
 		t.Fatalf("status %d, want 403", status)
 	}
 }
 
 func TestOnlyOneFirstAccountWhenTwoSignUpAtOnce(t *testing.T) {
-	app := newTestAppWith(t, func(c *config.Config) { c.InviteCode = "" })
+	app := apitest.NewWith(t, func(c *config.Config) { c.InviteCode = "" })
 	statuses := make([]int, 2)
 	var wg sync.WaitGroup
 	for i := range statuses {
@@ -134,21 +134,21 @@ func TestOnlyOneFirstAccountWhenTwoSignUpAtOnce(t *testing.T) {
 	if created != 1 || forbidden != 1 {
 		t.Fatalf("statuses %v: want exactly one 201 and one 403", statuses)
 	}
-	if n := countRows(t, app, `SELECT COUNT(*) FROM users`); n != 1 {
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM users`); n != 1 {
 		t.Fatalf("%d users, want 1", n)
 	}
 }
 
 func TestSignupAttemptsAreRateLimited(t *testing.T) {
-	app := newTestApp(t)
-	app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	app.Register("Ana", "ana@example.com")
 	// Ana's own sign-up counted as the first of the 10 allowed attempts
 	for i := 0; i < 9; i++ {
 		if status, _ := signUp(app, "x@example.com", "wrong-code-12345"); status != http.StatusForbidden {
 			t.Fatalf("attempt %d: status %d, want 403", i+1, status)
 		}
 	}
-	if status, _ := signUp(app, "x@example.com", testInvite); status != http.StatusTooManyRequests {
+	if status, _ := signUp(app, "x@example.com", apitest.Invite); status != http.StatusTooManyRequests {
 		t.Fatalf("10th failed attempt: status %d, want 429 even with the right code", status)
 	}
 }

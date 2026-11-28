@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gastos/internal/api/assistant"
+	"gastos/internal/api/auth"
 	"gastos/internal/api/bank"
 	"gastos/internal/api/httpx"
 	"gastos/internal/api/ledger"
@@ -23,10 +24,10 @@ import (
 // Server holds what the HTTP handlers share: the database, the settings and the background services.
 type Server struct {
 	*httpx.Env
-	wallet  *wallet.Handler
-	ledger  *ledger.Handler
-	bank    *bank.Handler
-	limiter *httpx.RateLimiter
+	wallet *wallet.Handler
+	ledger *ledger.Handler
+	bank   *bank.Handler
+	auth   *auth.Handler
 
 	assistant *assistant.Handler
 }
@@ -38,8 +39,11 @@ func New(db *sql.DB, cfg config.Config, bus *events.Bus, mat *recurrence.Materia
 		aiURL = config.DefaultAnthropicURL
 	}
 	env := &httpx.Env{DB: db, Cfg: cfg, Bus: bus, Mat: mat, Log: log, Now: time.Now}
-	return &Server{Env: env, wallet: &wallet.Handler{Env: env}, ledger: &ledger.Handler{Env: env}, bank: &bank.Handler{Env: env}, limiter: httpx.NewRateLimiter(10, 15*time.Minute),
-		assistant: assistant.New(env, aiURL, httpx.NewRateLimiter(20, time.Minute))}
+	w := &wallet.Handler{Env: env}
+	ai := assistant.New(env, aiURL, httpx.NewRateLimiter(20, time.Minute))
+	return &Server{Env: env, wallet: w, ledger: &ledger.Handler{Env: env}, bank: &bank.Handler{Env: env},
+		auth:      auth.New(env, httpx.NewRateLimiter(10, 15*time.Minute), w, ai),
+		assistant: ai}
 }
 
 // Assistant returns the query assistant handler. It exists for the test harness.
@@ -50,19 +54,13 @@ func (s *Server) Assistant() *assistant.Handler { return s.assistant }
 func (s *Server) Routes(spa fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	public := s.Handle
-	user := func(h httpx.HandlerFunc) http.Handler { return s.RequireUser(s.Handle(h)) }
+	user := func(h httpx.HandlerFunc) http.Handler { return s.auth.RequireUser(s.Handle(h)) }
 	inWallet := func(minRole httpx.Role, h httpx.HandlerFunc) http.Handler {
-		return s.RequireUser(s.wallet.RequireWallet(minRole, s.Handle(h)))
+		return s.auth.RequireUser(s.wallet.RequireWallet(minRole, s.Handle(h)))
 	}
 
-	mux.Handle("GET /api/auth/registration", public(s.registrationInfo))
-	mux.Handle("POST /api/auth/register", public(s.register))
-	mux.Handle("POST /api/auth/login", public(s.login))
-	mux.Handle("POST /api/auth/logout", user(s.logout))
-	mux.Handle("GET /api/me", user(s.me))
+	s.auth.Routes(mux, public, user)
 	mux.Handle("GET /api/events", user(s.events))
-	mux.Handle("PATCH /api/me", user(s.rename))
-	mux.Handle("PUT /api/me/password", user(s.changePassword))
 
 	s.assistant.Routes(mux, user)
 

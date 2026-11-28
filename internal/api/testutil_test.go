@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"gastos/internal/api/auth"
 	"gastos/internal/config"
 	"gastos/internal/db"
 	"gastos/internal/events"
@@ -27,13 +28,16 @@ import (
 	"gastos/internal/testutil"
 )
 
-func init() { BcryptCost = bcrypt.MinCost }
+func init() { auth.BcryptCost = bcrypt.MinCost }
 
 type testApp struct {
 	t   *testing.T
 	srv *httptest.Server
 	s   *Server
 }
+
+// testInvite is the invite code every test app is configured with.
+const testInvite = "test-invite-code"
 
 func newTestApp(t *testing.T) *testApp { return newTestAppWith(t, nil) }
 

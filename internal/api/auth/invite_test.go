@@ -1,4 +1,4 @@
-package api
+package auth_test
 
 import (
 	"context"
@@ -12,12 +12,14 @@ import (
 
 	"gastos/internal/config"
 
+	"gastos/internal/api/apitest"
+	"gastos/internal/api/auth"
 	"gastos/internal/api/httpx"
 )
 
-func newInvite(t *testing.T, app *testApp, ttl time.Duration) string {
+func newInvite(t *testing.T, app *apitest.App, ttl time.Duration) string {
 	t.Helper()
-	code, _, err := CreateInvite(context.Background(), app.s.DB, app.s.Now(), ttl)
+	code, _, err := auth.CreateInvite(context.Background(), app.Server().DB, app.Server().Now(), ttl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,17 +27,17 @@ func newInvite(t *testing.T, app *testApp, ttl time.Duration) string {
 }
 
 // noEnvCode is an app whose only way in is a code made by `gastos invite`.
-func noEnvCode(t *testing.T) *testApp {
-	app := newTestAppWith(t, func(c *config.Config) { c.InviteCode = "" })
-	app.register("Ana", "ana@example.com")
+func noEnvCode(t *testing.T) *apitest.App {
+	app := apitest.NewWith(t, func(c *config.Config) { c.InviteCode = "" })
+	app.Register("Ana", "ana@example.com")
 	return app
 }
 
 func TestInviteCodeFormat(t *testing.T) {
-	format := regexp.MustCompile(`^[` + inviteAlphabet + `]{4}-[` + inviteAlphabet + `]{4}-[` + inviteAlphabet + `]{4}$`)
+	format := regexp.MustCompile(`^[` + auth.InviteAlphabet + `]{4}-[` + auth.InviteAlphabet + `]{4}-[` + auth.InviteAlphabet + `]{4}$`)
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
-		c, err := newInviteCode()
+		c, err := auth.NewInviteCode()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +50,7 @@ func TestInviteCodeFormat(t *testing.T) {
 		t.Fatalf("%d distinct codes out of 200", len(seen))
 	}
 	for _, ambiguous := range "01ILOU" {
-		if strings.ContainsRune(inviteAlphabet, ambiguous) {
+		if strings.ContainsRune(auth.InviteAlphabet, ambiguous) {
 			t.Errorf("alphabet has the ambiguous %q", ambiguous)
 		}
 	}
@@ -62,26 +64,26 @@ func TestNormalizeInvite(t *testing.T) {
 		"K3J9XQ2M7PRT":       "K3J9XQ2M7PRT",
 		"k3j9\t-xq2m-7prt\n": "K3J9XQ2M7PRT",
 	} {
-		if got := normalizeInvite(in); got != want {
-			t.Errorf("normalizeInvite(%q) = %q, want %q", in, got, want)
+		if got := auth.NormalizeInvite(in); got != want {
+			t.Errorf("auth.NormalizeInvite(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
 
 func TestCreateInviteStoresOnlyTheHash(t *testing.T) {
-	app := newTestApp(t)
-	code, exp, err := CreateInvite(context.Background(), app.s.DB, app.s.Now(), 2*time.Hour)
+	app := apitest.New(t)
+	code, exp, err := auth.CreateInvite(context.Background(), app.Server().DB, app.Server().Now(), 2*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := exp.Sub(app.s.Now()); d < 2*time.Hour-time.Second || d > 2*time.Hour+time.Second {
+	if d := exp.Sub(app.Server().Now()); d < 2*time.Hour-time.Second || d > 2*time.Hour+time.Second {
 		t.Errorf("expires in %v, want 2h", d)
 	}
-	want := sha256.Sum256([]byte(normalizeInvite(code)))
+	want := sha256.Sum256([]byte(auth.NormalizeInvite(code)))
 	var hash []byte
 	var expires string
 	var usedAt, usedBy any
-	if err := app.s.DB.QueryRow(`SELECT code_hash, expires_at, used_at, used_by FROM invite_codes`).Scan(&hash, &expires, &usedAt, &usedBy); err != nil {
+	if err := app.Server().DB.QueryRow(`SELECT code_hash, expires_at, used_at, used_by FROM invite_codes`).Scan(&hash, &expires, &usedAt, &usedBy); err != nil {
 		t.Fatal(err)
 	}
 	if string(hash) != string(want[:]) || expires != exp.UTC().Format(httpx.TSLayout) || usedAt != nil || usedBy != nil {
@@ -96,12 +98,12 @@ func TestInviteCodeIsSingleUse(t *testing.T) {
 		t.Fatalf("first use: status %d, want 201", status)
 	}
 	var usedBy int64
-	if err := app.s.DB.QueryRow(`SELECT used_by FROM invite_codes WHERE used_at IS NOT NULL`).Scan(&usedBy); err != nil {
+	if err := app.Server().DB.QueryRow(`SELECT used_by FROM invite_codes WHERE used_at IS NOT NULL`).Scan(&usedBy); err != nil {
 		t.Fatal(err)
 	}
 	var bia int64
 	//nolint:errcheck,gosec // moved unchanged, see docs/security.md
-	app.s.DB.QueryRow(`SELECT id FROM users WHERE email = 'bia@example.com'`).Scan(&bia)
+	app.Server().DB.QueryRow(`SELECT id FROM users WHERE email = 'bia@example.com'`).Scan(&bia)
 	if usedBy != bia {
 		t.Errorf("used_by = %d, want %d", usedBy, bia)
 	}
@@ -115,7 +117,7 @@ func TestInviteCodeIsSingleUse(t *testing.T) {
 func TestExpiredInviteCodeIsRefused(t *testing.T) {
 	app := noEnvCode(t)
 	code := newInvite(t, app, time.Hour)
-	app.s.Now = func() time.Time { return time.Now().Add(time.Hour + time.Minute) }
+	app.SetNow(func() time.Time { return time.Now().Add(time.Hour + time.Minute) })
 	status, expired := signUp(app, "bia@example.com", code)
 	_, wrong := signUp(app, "bia@example.com", "AAAA-BBBB-CCCC")
 	if status != http.StatusForbidden || expired.Message != wrong.Message || expired.Code != wrong.Code {
@@ -137,13 +139,13 @@ func TestInviteCodeTypedLoosely(t *testing.T) {
 }
 
 func TestEnvInviteCodeStillWorksWithDBCodes(t *testing.T) {
-	app := newTestApp(t)
-	app.register("Ana", "ana@example.com")
+	app := apitest.New(t)
+	app.Register("Ana", "ana@example.com")
 	newInvite(t, app, time.Hour)
-	if status, _ := signUp(app, "bia@example.com", testInvite); status != http.StatusCreated {
+	if status, _ := signUp(app, "bia@example.com", apitest.Invite); status != http.StatusCreated {
 		t.Fatalf("env code: status %d, want 201", status)
 	}
-	if n := countRows(t, app, `SELECT COUNT(*) FROM invite_codes WHERE used_at IS NULL`); n != 1 {
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM invite_codes WHERE used_at IS NULL`); n != 1 {
 		t.Fatalf("the env code must not consume a DB code: %d unused, want 1", n)
 	}
 }
@@ -174,7 +176,7 @@ func TestOnlyOneSignupPerInviteCodeAtOnce(t *testing.T) {
 	if created != 1 {
 		t.Fatalf("statuses %v: want exactly one 201", statuses)
 	}
-	if n := countRows(t, app, `SELECT COUNT(*) FROM users`); n != 2 {
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM users`); n != 2 {
 		t.Fatalf("%d users, want 2 (Ana and one invitee)", n)
 	}
 }
@@ -193,15 +195,15 @@ func TestRegistrationModeFollowsDBCodes(t *testing.T) {
 		t.Fatalf("code used: mode %q, want closed", m)
 	}
 	newInvite(t, app, time.Hour)
-	app.s.Now = func() time.Time { return time.Now().Add(2 * time.Hour) }
+	app.SetNow(func() time.Time { return time.Now().Add(2 * time.Hour) })
 	if m := registrationModeOf(t, app); m != "closed" {
 		t.Fatalf("code expired: mode %q, want closed", m)
 	}
 }
 
 func TestHousekeepingRemovesOldInviteCodes(t *testing.T) {
-	app := newTestApp(t)
-	now := app.s.Now().UTC()
+	app := apitest.New(t)
+	now := app.Server().Now().UTC()
 	at := func(d time.Duration) string { return now.Add(d).Format(httpx.TSLayout) }
 	day := 24 * time.Hour
 	for _, row := range []struct {
@@ -215,15 +217,15 @@ func TestHousekeepingRemovesOldInviteCodes(t *testing.T) {
 		{"drop-expired-long-ago", at(-8 * day), nil},
 		{"drop-used-long-ago", at(-day), at(-8 * day)}, // a 7-day code used 8 days ago, expired only yesterday
 	} {
-		if _, err := app.s.DB.Exec(`INSERT INTO invite_codes (code_hash, expires_at, used_at) VALUES (?, ?, ?)`, []byte(row.hash), row.expires, row.usedAt); err != nil {
+		if _, err := app.Server().DB.Exec(`INSERT INTO invite_codes (code_hash, expires_at, used_at) VALUES (?, ?, ?)`, []byte(row.hash), row.expires, row.usedAt); err != nil {
 			t.Fatal(err)
 		}
 	}
-	runHousekeeping(t, app, func() bool { return countRows(t, app, `SELECT COUNT(*) FROM invite_codes`) == 3 })
-	if n := countRows(t, app, `SELECT COUNT(*) FROM invite_codes WHERE CAST(code_hash AS TEXT) LIKE 'keep-%'`); n != 3 {
+	apitest.RunHousekeeping(t, app, func() bool { return apitest.CountRows(t, app, `SELECT COUNT(*) FROM invite_codes`) == 3 })
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM invite_codes WHERE CAST(code_hash AS TEXT) LIKE 'keep-%'`); n != 3 {
 		t.Fatalf("%d kept, want 3", n)
 	}
-	if n := countRows(t, app, `SELECT COUNT(*) FROM invite_codes`); n != 3 {
+	if n := apitest.CountRows(t, app, `SELECT COUNT(*) FROM invite_codes`); n != 3 {
 		t.Fatalf("%d rows left, want 3", n)
 	}
 }

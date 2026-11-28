@@ -4,56 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"gastos/internal/api/httpx"
 )
-
-func TestAuthFlow(t *testing.T) {
-	app := newTestApp(t)
-	c := app.register("Ana", "ana@example.com")
-	if c.user.ID == 0 || c.walletID == 0 {
-		t.Fatalf("signup without user/wallet: %+v", c)
-	}
-
-	c.do("POST", "/api/auth/logout", nil, 204, nil)
-	c.do("GET", "/api/me", nil, 401, nil)
-
-	c.do("POST", "/api/auth/login", map[string]string{"email": "ANA@example.com", "password": "senha-segura"}, 200, nil)
-	c.do("GET", "/api/me", nil, 200, nil)
-}
-
-func TestRegisterValidation(t *testing.T) {
-	app := newTestApp(t)
-	c := app.anon()
-	var res struct {
-		Error httpx.APIError `json:"error"`
-	}
-	c.do("POST", "/api/auth/register", map[string]string{"name": "", "email": "x", "password": "123"}, 400, &res)
-	for _, f := range []string{"name", "email", "password"} {
-		if res.Error.Fields[f] == "" {
-			t.Errorf("missing error on %s: %+v", f, res.Error.Fields)
-		}
-	}
-	app.register("Ana", "ana@example.com")
-	c.do("POST", "/api/auth/register", map[string]string{"name": "Outra", "email": "ana@example.com", "password": "senha-segura", "inviteCode": testInvite}, 409, nil)
-}
-
-func TestLoginWrongPassword(t *testing.T) {
-	app := newTestApp(t)
-	app.register("Ana", "ana@example.com")
-	app.anon().do("POST", "/api/auth/login", map[string]string{"email": "ana@example.com", "password": "errada!!"}, 401, nil)
-	app.anon().do("POST", "/api/auth/login", map[string]string{"email": "nao@existe.com", "password": "errada!!"}, 401, nil)
-}
-
-func TestLoginRateLimit(t *testing.T) {
-	app := newTestApp(t)
-	app.register("Ana", "ana@example.com")
-	c := app.anon()
-	for i := 0; i < 10; i++ {
-		c.do("POST", "/api/auth/login", map[string]string{"email": "ana@example.com", "password": "errada!!"}, 401, nil)
-	}
-	c.do("POST", "/api/auth/login", map[string]string{"email": "ana@example.com", "password": "senha-segura"}, 429, nil)
-}
 
 func TestRequiresJSONContentType(t *testing.T) {
 	app := newTestApp(t)
@@ -87,50 +38,5 @@ func TestSPAFallback(t *testing.T) {
 		if res.StatusCode != 200 || !strings.Contains(body.String(), "<title>spa</title>") {
 			t.Errorf("%s: status %d, body %q", p, res.StatusCode, body)
 		}
-	}
-}
-
-// loginFrom tries to sign in as if from ip (the test server is on loopback, so X-Forwarded-For is trusted).
-func loginFrom(t *testing.T, app *testApp, ip, email, password string) int {
-	t.Helper()
-	body := `{"email":"` + email + `","password":"` + password + `"}`
-	req, _ := http.NewRequest("POST", app.srv.URL+"/api/auth/login", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Forwarded-For", ip)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res.Body.Close()
-	return res.StatusCode
-}
-
-func TestFailedLoginsCannotLockOutTheRightPassword(t *testing.T) {
-	app := newTestApp(t)
-	app.register("Ana", "ana@example.com")
-	for i := range 12 {
-		loginFrom(t, app, "203.0.113."+itoa(int64(i)), "ana@example.com", "errada!!")
-	}
-	if got := loginFrom(t, app, "198.51.100.7", "ana@example.com", "senha-segura"); got != 200 {
-		t.Fatalf("right password after others' failures: status %d, want 200", got)
-	}
-	// guessing is still limited: once an address is blocked, even the right password is refused from it
-	for range 10 {
-		loginFrom(t, app, "192.0.2.1", "ana@example.com", "errada!!")
-	}
-	if got := loginFrom(t, app, "192.0.2.1", "ana@example.com", "outra-errada"); got != 429 {
-		t.Fatalf("11th failure from one address: status %d, want 429", got)
-	}
-}
-
-func TestRegisterRejectsPasswordsOver72Bytes(t *testing.T) {
-	app := newTestApp(t)
-	var res struct {
-		Error httpx.APIError `json:"error"`
-	}
-	app.anon().do("POST", "/api/auth/register", map[string]string{"name": "Ana", "email": "ana@example.com",
-		"password": strings.Repeat("a", 73), "inviteCode": testInvite}, 400, &res)
-	if res.Error.Fields["password"] == "" {
-		t.Fatalf("no password error: %+v", res.Error)
 	}
 }

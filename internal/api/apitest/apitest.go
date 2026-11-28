@@ -25,6 +25,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"gastos/internal/api"
+	"gastos/internal/api/auth"
 	"gastos/internal/api/httpx"
 	"gastos/internal/api/ledger"
 	"gastos/internal/config"
@@ -38,7 +39,7 @@ import (
 const Invite = "test-invite-code"
 
 // init lowers the bcrypt cost so sign-ups in tests are fast.
-func init() { api.BcryptCost = bcrypt.MinCost }
+func init() { auth.BcryptCost = bcrypt.MinCost }
 
 // App is a running server on httptest with its own database.
 type App struct {
@@ -426,4 +427,14 @@ func RunHousekeeping(t *testing.T, app *App, until func() bool) {
 func Backups(app *App) []string {
 	files, _ := filepath.Glob(filepath.Join(app.s.Cfg.BackupDir, "gastos-*.db"))
 	return files
+}
+
+// CountRows runs a query that returns one integer, such as a COUNT, and returns it.
+func CountRows(t *testing.T, app *App, query string) int {
+	t.Helper()
+	var n int
+	if err := app.s.DB.QueryRow(query).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
